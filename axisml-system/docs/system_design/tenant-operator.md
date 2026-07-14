@@ -46,7 +46,7 @@
 | --- | --- | --- | --- |
 | Tenant | 租户 CR，cluster-scoped | `metadata.name`（DNS-1123, ≤40） | 上游唯一写者为 cluster-manager |
 | Kubernetes Namespace | 运行租户 Pod 的物理 namespace | `spec.namespace.name` | 与 tenant scope 分离，可被多 Tenant 共享（§5.1） |
-| ElasticQuota | ElasticQuota 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
+| ElasticQuota | ElasticQuota 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 | 预定义数据卷 | `spec.initResources.volumes[]` 声明的受管 PVC | `<name>`（即 workload 挂载的 claim name，不加前缀） | ensure-only：无 ownerRef、无 GC、不缩容、不删除；stamped `app.kubernetes.io/managed-by=axisml-cluster-manager` 从而在数据卷目录中可见 |
 
@@ -75,7 +75,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 
 | 维度 | 行为 |
 | --- | --- |
-| 命名 | `axisml-<tenant>-<pool>-<quota>`（集群内唯一） |
+| 命名 | `axisml-<tenant>-<pool>`（集群内唯一） |
 | 创建 / 删除 | `spec.min`/`max` 直传；空数组不创建；spec 增删项 → Create / Delete 对应 CR |
 | ownerReference | Tenant CR |
 | 漂移 | reconcile 按 `spec.quotas[i].{min,max}` 覆盖 |

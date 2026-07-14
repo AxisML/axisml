@@ -68,7 +68,6 @@ type Run struct {
 	Backend           Backend           `json:"backend" desc:"Compute backend/engine executing the run."`
 	PoolName          string            `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the run is scheduled onto."`
 	UnitName          string            `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota             string            `json:"quota,omitempty" desc:"ElasticQuota the run draws from."`
 	Resources         ResourceMap       `json:"resources,omitempty" desc:"Aggregate resources reserved by the run."`
 	Roles             []MLRunRoleStatus `json:"roles,omitempty" desc:"Live per-role status."`
 	RunPolicy         RunPolicy         `json:"runPolicy,omitempty" desc:"Effective run-level execution limits."`
@@ -123,7 +122,6 @@ type JobSpec struct {
 	Backend   Backend       `json:"backend" desc:"Compute backend/engine the runs use."`
 	PoolName  string        `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Default resource pool for runs."`
 	UnitName  string        `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Default resource unit (shape) within the pool."`
-	Quota     string        `json:"quota,omitempty" desc:"Default ElasticQuota for runs."`
 	Roles     []MLRunRole   `json:"roles" binding:"min=1" desc:"Run topology roles (at least one)."`
 	RunPolicy RunPolicy     `json:"runPolicy,omitempty" desc:"Default run-level execution limits."`
 	Artifacts []ArtifactRef `json:"artifacts,omitempty" desc:"Model/image artifact versions the runs consume."`
@@ -181,7 +179,6 @@ type RunTriggerRequest struct {
 	Annotations StringMap     `json:"annotations,omitempty" desc:"Annotations for the triggered run."`
 	PoolName    string        `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Override resource pool for this run."`
 	UnitName    string        `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Override resource unit (shape) for this run."`
-	Quota       string        `json:"quota,omitempty" desc:"Override ElasticQuota for this run."`
 	Resources   ResourceMap   `json:"resources,omitempty" desc:"Override aggregate resources for this run."`
 	Artifacts   []ArtifactRef `json:"artifacts,omitempty" desc:"Override artifact versions for this run."`
 	Roles       []struct {

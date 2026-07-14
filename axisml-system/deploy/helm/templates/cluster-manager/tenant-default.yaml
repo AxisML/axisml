@@ -22,7 +22,6 @@ spec:
     name: {{ .Values.seed.tenant.namespace | quote }}
   quotas:
     - pool: {{ .Values.seed.resourcePool.name | quote }}
-      name: default
       min:
         cpu: "1"
         memory: 1Gi

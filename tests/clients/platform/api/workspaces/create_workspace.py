@@ -106,9 +106,8 @@ def sync_detailed(
         body (WorkspaceCreateRequest):  Example: {'containerPort': 8888, 'description':
             'JupyterLab interactive development environment.', 'displayName': 'Vision team dev
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
-            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
-            'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data'}]}.
+            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'unitName':
+            'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -143,9 +142,8 @@ def sync(
         body (WorkspaceCreateRequest):  Example: {'containerPort': 8888, 'description':
             'JupyterLab interactive development environment.', 'displayName': 'Vision team dev
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
-            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
-            'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data'}]}.
+            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'unitName':
+            'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -175,9 +173,8 @@ async def asyncio_detailed(
         body (WorkspaceCreateRequest):  Example: {'containerPort': 8888, 'description':
             'JupyterLab interactive development environment.', 'displayName': 'Vision team dev
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
-            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
-            'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data'}]}.
+            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'unitName':
+            'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -210,9 +207,8 @@ async def asyncio(
         body (WorkspaceCreateRequest):  Example: {'containerPort': 8888, 'description':
             'JupyterLab interactive development environment.', 'displayName': 'Vision team dev
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
-            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
-            'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data'}]}.
+            {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'unitName':
+            'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

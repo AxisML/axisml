@@ -46,14 +46,6 @@ def form_supports(mode: str, cap: Capability) -> bool:
     return cap == Capability.ARTIFACT_UPLOAD  # lite
 
 
-# The ElasticQuota the tenant-operator materializes is deterministically named
-# `axisml-<tenant>-<pool>-<quota>`, and cluster-manager folds a per-pool selection
-# with quota-name == pool-name (FoldQuotas: Name = q.Pool). So the workload quota
-# a black-box test schedules under is fully derivable without a Kubernetes client.
-def elastic_quota_name(tenant: str, pool: str) -> str:
-    return f"axisml-{tenant}-{pool}-{pool}"
-
-
 class Harness(ABC):
     def __init__(self, cfg: config.Config):
         self.cfg = cfg
@@ -123,10 +115,12 @@ class Harness(ABC):
     def oci_endpoint(self) -> str:
         """Base URL of the OCI registry (zot) the two-phase upload pushes to."""
 
-    # --- tenant lifecycle (Standard provisions; Lite returns the static default) ---
+    # --- tenant lifecycle (Standard provisions; Lite uses the static default) ---
     @abstractmethod
-    def create_tenant(self, name: str, *, pool: str | None = None, quantity: int = 4) -> str:
-        """Provision a tenant and return the ElasticQuota name workloads use ('' if none)."""
+    def create_tenant(
+        self, name: str, *, pool: str | None = None, quantity: int = 4
+    ) -> None:
+        """Provision a tenant with one quota for the selected resource pool."""
 
     @abstractmethod
     def delete_tenant(self, name: str) -> None: ...
@@ -139,7 +133,9 @@ class Harness(ABC):
 
 
 def _system_client(cls, base_url: str, user: str):
-    return cls(base_url=base_url, headers={USER_HEADER: user}, raise_on_unexpected_status=False)
+    return cls(
+        base_url=base_url, headers={USER_HEADER: user}, raise_on_unexpected_status=False
+    )
 
 
 class StandardHarness(Harness):
@@ -152,7 +148,9 @@ class StandardHarness(Harness):
         self._cs = self._build(cfg.compute_service, ComputeServiceClient)
         self._ah = self._build(cfg.artifact_hub, ArtifactHubClient)
         # Platform: JWT auth. Reuse the admin seeded by env-setup.
-        self._platform_pf = PortForward(cfg.platform.name, cfg.platform.namespace, cfg.platform.port).start()
+        self._platform_pf = PortForward(
+            cfg.platform.name, cfg.platform.namespace, cfg.platform.port
+        ).start()
         self._forwards.append(self._platform_pf)
         self._platform_base = self._platform_pf.local_url
         self._platform: PlatformClient | None = None
@@ -190,7 +188,9 @@ class StandardHarness(Harness):
     def supports(self, cap: Capability) -> bool:
         return form_supports("standard", cap)
 
-    def create_tenant(self, name: str, *, pool: str | None = None, quantity: int = 4) -> str:
+    def create_tenant(
+        self, name: str, *, pool: str | None = None, quantity: int = 4
+    ) -> None:
         from clients.clustermanager.api.tenants import create_tenant
         from clients.clustermanager.models import (
             CreateTenantRequest,
@@ -203,12 +203,22 @@ class StandardHarness(Harness):
         body = CreateTenantRequest(
             name=name,
             namespace=Tenantv1Alpha1NamespaceSpec(name=name),
-            quotas=[ServerQuota(pool=pool, units=[ServerQuotaUnit(unit_name=self.cfg.default_unit, quantity=quantity)])],
+            quotas=[
+                ServerQuota(
+                    pool=pool,
+                    units=[
+                        ServerQuotaUnit(
+                            unit_name=self.cfg.default_unit, quantity=quantity
+                        )
+                    ],
+                )
+            ],
         )
         resp = create_tenant.sync_detailed(client=self._cm, body=body)
         if resp.status_code not in (200, 201):
-            raise AssertionError(f"create tenant {name}: {resp.status_code}: {resp.content!r}")
-        return elastic_quota_name(name, pool)
+            raise AssertionError(
+                f"create tenant {name}: {resp.status_code}: {resp.content!r}"
+            )
 
     def delete_tenant(self, name: str) -> None:
         from clients.clustermanager.api.tenants import delete_tenant
@@ -262,10 +272,11 @@ class LiteHarness(Harness):
     def supports(self, cap: Capability) -> bool:
         return form_supports("lite", cap)
 
-    def create_tenant(self, name: str, *, pool: str | None = None, quantity: int = 4) -> str:
-        # Lite serves a single static tenant with no ElasticQuota, but the compute
-        # API still requires a (non-enforced) quota field — a placeholder satisfies it.
-        return "default"
+    def create_tenant(
+        self, name: str, *, pool: str | None = None, quantity: int = 4
+    ) -> None:
+        # Lite serves a single static tenant; there is nothing to provision.
+        return None
 
     def delete_tenant(self, name: str) -> None:
         pass

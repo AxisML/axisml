@@ -416,7 +416,6 @@ export const examples: Record<string, unknown> = {
         "name": "kubeflow-trainer"
       },
       "poolName": "gpu-a100",
-      "quota": "team-nlp",
       "roles": [
         {
           "name": "worker",
@@ -480,7 +479,6 @@ export const examples: Record<string, unknown> = {
         "name": "kubeflow-trainer"
       },
       "poolName": "gpu-a100",
-      "quota": "team-nlp",
       "roles": [
         {
           "name": "worker",
@@ -567,7 +565,6 @@ export const examples: Record<string, unknown> = {
             "name": "kubeflow-trainer"
           },
           "poolName": "gpu-a100",
-          "quota": "team-nlp",
           "roles": [
             {
               "name": "worker",
@@ -798,7 +795,6 @@ export const examples: Record<string, unknown> = {
         "name": "native"
       },
       "poolName": "gpu-a100",
-      "quota": "team-vision",
       "roles": [
         {
           "name": "worker",
@@ -882,7 +878,6 @@ export const examples: Record<string, unknown> = {
         "name": "native"
       },
       "poolName": "gpu-a100",
-      "quota": "team-vision",
       "roles": [
         {
           "name": "worker",
@@ -990,7 +985,6 @@ export const examples: Record<string, unknown> = {
             "name": "native"
           },
           "poolName": "gpu-a100",
-          "quota": "team-vision",
           "roles": [
             {
               "name": "worker",
@@ -1074,7 +1068,6 @@ export const examples: Record<string, unknown> = {
       "name": "native"
     },
     "poolName": "gpu-a100",
-    "quota": "team-vision",
     "roles": [
       {
         "name": "worker",
@@ -1416,7 +1409,7 @@ export const examples: Record<string, unknown> = {
     "scheduling": {
       "minMember": 4,
       "priorityClass": "high-priority",
-      "quota": "axisml-team-vision-gpu-a100-default"
+      "quota": "axisml-team-vision-gpu-a100"
     }
   },
   "MLService": {
@@ -1464,7 +1457,6 @@ export const examples: Record<string, unknown> = {
         "port": 8080
       }
     ],
-    "quota": "team-nlp",
     "readyReplicas": 3,
     "replicas": 3,
     "resources": {
@@ -1505,7 +1497,6 @@ export const examples: Record<string, unknown> = {
         "port": 8080
       }
     ],
-    "quota": "team-nlp",
     "replicas": 3,
     "route": {
       "enabled": true,
@@ -1562,7 +1553,6 @@ export const examples: Record<string, unknown> = {
             "port": 8080
           }
         ],
-        "quota": "team-nlp",
         "readyReplicas": 3,
         "replicas": 3,
         "resources": {
@@ -2079,7 +2069,6 @@ export const examples: Record<string, unknown> = {
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "phase": "Running",
     "poolName": "gpu-a100",
-    "quota": "team-vision",
     "resources": {
       "cpu": "32",
       "memory": "256Gi",
@@ -2215,7 +2204,7 @@ export const examples: Record<string, unknown> = {
       "scheduling": {
         "minMember": 4,
         "priorityClass": "high-priority",
-        "quota": "axisml-team-vision-gpu-a100-default"
+        "quota": "axisml-team-vision-gpu-a100"
       }
     },
     "startedAt": "2026-06-28T09:00:00Z",
@@ -2246,7 +2235,6 @@ export const examples: Record<string, unknown> = {
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
         "phase": "Running",
         "poolName": "gpu-a100",
-        "quota": "team-vision",
         "resources": {
           "cpu": "32",
           "memory": "256Gi",
@@ -2382,7 +2370,7 @@ export const examples: Record<string, unknown> = {
           "scheduling": {
             "minMember": 4,
             "priorityClass": "high-priority",
-            "quota": "axisml-team-vision-gpu-a100-default"
+            "quota": "axisml-team-vision-gpu-a100"
           }
         },
         "startedAt": "2026-06-28T09:00:00Z",
@@ -2416,7 +2404,6 @@ export const examples: Record<string, unknown> = {
   "RunTriggerRequest": {
     "displayName": "ResNet-50 Training #8",
     "poolName": "gpu-a100",
-    "quota": "team-vision",
     "roles": [
       {
         "args": [
@@ -2989,7 +2976,6 @@ export const examples: Record<string, unknown> = {
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "phase": "Running",
     "poolName": "gpu-a100",
-    "quota": "team-vision",
     "readyReplicas": 1,
     "replicas": 1,
     "resources": {
@@ -3019,7 +3005,6 @@ export const examples: Record<string, unknown> = {
     },
     "name": "notebook-dev",
     "poolName": "gpu-a100",
-    "quota": "team-vision",
     "unitName": "a100-1x",
     "volumes": [
       {
@@ -3146,7 +3131,6 @@ export const examples: Record<string, unknown> = {
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
         "phase": "Running",
         "poolName": "gpu-a100",
-        "quota": "team-vision",
         "readyReplicas": 1,
         "replicas": 1,
         "resources": {

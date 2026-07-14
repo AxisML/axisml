@@ -29,8 +29,8 @@ func TestTenantToAPI_FullCR(t *testing.T) {
 		Spec: tenantv1alpha1.TenantSpec{
 			Namespace: tenantv1alpha1.NamespaceSpec{Name: "acme"},
 			Quotas: []tenantv1alpha1.QuotaSpec{{
-				Pool: "gpu", Name: "gpu",
-				Max: corev1.ResourceList{"cpu": resource.MustParse("8")},
+				Pool: "gpu",
+				Max:  corev1.ResourceList{"cpu": resource.MustParse("8")},
 			}},
 			InitResources: tenantv1alpha1.InitResources{
 				Secrets: []tenantv1alpha1.SecretSpec{{Name: "s"}},
@@ -98,7 +98,7 @@ func TestAPIToTenant_NamespaceDefaulting(t *testing.T) {
 }
 
 func TestAPIToTenant_AnnotationsAndFolded(t *testing.T) {
-	folded := []tenantv1alpha1.QuotaSpec{{Pool: "gpu", Name: "gpu",
+	folded := []tenantv1alpha1.QuotaSpec{{Pool: "gpu",
 		Max: corev1.ResourceList{"cpu": resource.MustParse("4")}}}
 	ir := tenantv1alpha1.InitResources{Secrets: []tenantv1alpha1.SecretSpec{{Name: "s"}}}
 	cr := srv.APIToTenant(srv.CreateTenantRequest{

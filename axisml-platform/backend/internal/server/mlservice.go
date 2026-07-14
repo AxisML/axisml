@@ -38,7 +38,6 @@ type MLService struct {
 	Ports             []ServicePort         `json:"ports,omitempty" desc:"Container ports exposed by the service."`
 	PoolName          string                `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the service is scheduled onto."`
 	UnitName          string                `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota             string                `json:"quota,omitempty" desc:"ElasticQuota the service draws from."`
 	Resources         ResourceMap           `json:"resources,omitempty" desc:"Per-replica resource requests/limits."`
 	Replicas          int                   `json:"replicas,omitempty" binding:"min=0" desc:"Desired replica count."`
 	ReadyReplicas     int                   `json:"readyReplicas,omitempty" binding:"min=0" desc:"Replicas that have passed readiness."`
@@ -75,7 +74,6 @@ type MLServiceCreateRequest struct {
 	Ports        []ServicePort  `json:"ports" binding:"required,min=1" desc:"Container ports exposed by the service (at least one)."`
 	PoolName     string         `json:"poolName" binding:"required,dns1123,max=40" desc:"Resource pool to schedule the service onto."`
 	UnitName     string         `json:"unitName" binding:"required,dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota        string         `json:"quota,omitempty" desc:"ElasticQuota the service draws from."`
 	Replicas     int            `json:"replicas" binding:"required,min=0" desc:"Desired replica count."`
 	Route        MLServiceRoute `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
 }

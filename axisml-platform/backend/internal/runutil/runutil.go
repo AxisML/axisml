@@ -16,7 +16,7 @@ import (
 // whitelist (§4.2) into a compute MLRun create request. It builds the wire shape
 // as JSON so the deeply-nested generated types are populated by tag, not by hand.
 func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, displayName string, labels, annotations map[string]string) (computeservice.MLRunCreate, error) {
-	pool, unit, quota := spec.PoolName, spec.UnitName, spec.Quota
+	pool, unit := spec.PoolName, spec.UnitName
 	var resourceOverride server.ResourceMap
 	roleArgs := map[string][]string{}
 	roleEnv := map[string][]server.EnvVar{}
@@ -26,9 +26,6 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, d
 		}
 		if ov.UnitName != "" {
 			unit = ov.UnitName
-		}
-		if ov.Quota != "" {
-			quota = ov.Quota
 		}
 		resourceOverride = ov.Resources
 		for _, r := range ov.Roles {
@@ -93,7 +90,6 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, d
 		"name":     runName,
 		"poolName": pool,
 		"unitName": unit,
-		"quota":    quota,
 		"roles":    roles,
 	}
 	if displayName != "" {
@@ -170,7 +166,6 @@ func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
 	if spec.Scheduling != nil {
 		v.PoolName, _ = spec.Scheduling["poolName"].(string)
 		v.UnitName, _ = spec.Scheduling["unitName"].(string)
-		v.Quota, _ = spec.Scheduling["quota"].(string)
 	}
 	// Status passthrough (message/started/finished).
 	var st struct {

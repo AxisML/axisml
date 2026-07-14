@@ -259,7 +259,6 @@ func buildTensorBoardInput(name, exp string, spec server.JobSpec, runs []string)
 		"kind":        "tensorboard",
 		"poolName":    spec.PoolName,
 		"unitName":    spec.UnitName,
-		"quota":       spec.Quota,
 		"annotations": annos,
 		"roles": []map[string]any{{
 			"name":     "tensorboard",

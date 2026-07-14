@@ -69,7 +69,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 | 定义 | 实例所有者 | `spec` 内容 | 关联（实时） |
 | --- | --- | --- | --- |
-| `jobs` | Run = `MLRun` | `backend` / `roles[]` / `scheduling{poolName,unitName,quota}` / `runPolicy` / 制品引用 | `compute.ListMLRuns(labelSelector=compute.axisml.io/job=<job>)` |
+| `jobs` | Run = `MLRun` | `backend` / `roles[]` / `scheduling{poolName,unitName}` / `runPolicy` / 制品引用 | `compute.ListMLRuns(labelSelector=compute.axisml.io/job=<job>)` |
 | `experiments` | Run = `MLRun`（打 `compute.axisml.io/experiment`） | 同 `jobs`；训练超参即 `roles[*].template.{args,env}`，指标经 TensorBoard（§4.9–§4.10） | `compute.ListMLRuns(labelSelector=compute.axisml.io/experiment=<exp>)` |
 | `models` | `model` 版本（artifacts） | name 级业务元数据（`framework` 等） | `artifacts.ListArtifactsByKind(ns, model, name)` |
 | `images` | `image` 版本（artifacts） | name 级业务元数据（`purpose` 等） | `artifacts.ListArtifactsByKind(ns, image, name)` |
@@ -85,7 +85,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 各功能复用以下共用骨架，后续小节只列差异：
 
 - **写定义** — RBAC 校验 → 字段校验 → 写 Platform PG（`(tenant_name, name)` 唯一）；不触下游。
-- **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字三元组 `(poolName, unitName, quota)`，由 compute 内部展开 pool/unit 并组装 ElasticQuota 名。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
+- **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字对 `(poolName, unitName)`，由 compute 内部展开 pool/unit，并按 tenant scope + pool 推导 ElasticQuota 名。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
 - **删除定义** — 实时列实例判活跃 → 有活跃则 `409 *-has-active-runs`，否则级联软删全部实例后软删定义（best-effort，部分失败上报）。
 - **列表** — 租户分区端点**始终**要求活跃租户（`axisml.tenant` Cookie 优先，`X-Axisml-Tenant` 头兜底），scoped 到该单一租户（§5.3）；无对应绑定且非 admin → `404`；`system-admin` 可 scope 到任意租户。
 - **身份** — 出站注入 `X-Axisml-User`；active tenant 解析见 §5.2。
@@ -117,7 +117,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `compute.axisml.io/job` label → `compute.CreateMLRun`；撞名（`409`）重列重算 `n` 重试（有界） |
 | Run 列表 / 取消 / 删除 / 副本 / 事件 / 日志 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自 Job 定义行） → 透传 `compute.{ListMLRuns(labelSelector),CancelMLRun,DeleteMLRun,GetMLRun{Pods,Events,Logs}}`（日志 / 事件 SSE follow） |
 
-**触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName,quota}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
+**触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
 
 寻址：Job `/api/v1/jobs/{name}`（活跃租户由 `axisml.tenant` Cookie/`X-Axisml-Tenant` 头携带）；Run 为子资源 `/jobs/{name}/runs/{run}`，`{run}` = `<job>-<n>`。Run spec 触发时由 `Job.spec ⊕ overrides` 快照冻结，创建后不可变。
 
@@ -323,7 +323,7 @@ RBAC 中间件装配见 [auth.md](auth.md)。路由层中间件仅做认证与�
 | Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源）+ 数据卷（持久卷 PVC）的 CRUD / 扩容 / 回收 / 占用反查（Volume REST，§4.11） |
-| compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
+| compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName}` 名字对并派生 ElasticQuota；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
 | artifacts | 模型 / 镜像版本；两阶段写或 `external` 登记；Platform 负责 `GetArtifact` 预检与 `resolve?usage=inspect` 快照 |
 
 ## 8. 运行时形态

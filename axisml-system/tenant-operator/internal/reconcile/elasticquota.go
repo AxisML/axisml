@@ -35,7 +35,7 @@ func ElasticQuotas(
 
 	desired := make(map[string]axisml.QuotaSpec, len(t.Spec.Quotas))
 	for _, q := range t.Spec.Quotas {
-		desired[ElasticQuotaName(t.Name, q.Pool, q.Name)] = q
+		desired[ElasticQuotaName(t.Name, q.Pool)] = q
 	}
 
 	if err := gcOrphanElasticQuotas(ctx, c, t, targetNS, desired); err != nil {
@@ -44,11 +44,10 @@ func ElasticQuotas(
 
 	statuses := make([]axisml.QuotaStatus, 0, len(t.Spec.Quotas))
 	for _, q := range t.Spec.Quotas {
-		eqName := ElasticQuotaName(t.Name, q.Pool, q.Name)
+		eqName := ElasticQuotaName(t.Name, q.Pool)
 		ready, used, msg, err := upsertElasticQuota(ctx, c, scheme, t, targetNS, eqName, q)
 		statuses = append(statuses, axisml.QuotaStatus{
 			Pool:    q.Pool,
-			Name:    q.Name,
 			Ready:   ready,
 			Used:    used,
 			Message: msg,

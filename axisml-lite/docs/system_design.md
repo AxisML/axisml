@@ -380,7 +380,6 @@ spec:
     name: default
   quotas:
     - pool: default
-      name: default
       min:
         cpu: "0"
         memory: "0"

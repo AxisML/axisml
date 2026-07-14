@@ -13,7 +13,6 @@ from ...types import Response
 def _get_kwargs(
     name: str,
 ) -> dict[str, Any]:
-
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/api/v1/tenants/{name}".format(

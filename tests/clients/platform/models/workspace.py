@@ -39,10 +39,10 @@ class Workspace:
             'registry.axisml.io/dev/jupyter:3.0.0', 'lastStartedAt': '2026-06-28T09:00:00Z', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'message': 'Workspace is ready.', 'name': 'notebook-dev', 'namespace': 'team-
             vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName':
-            'gpu-a100', 'quota': 'team-vision', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory':
-            '32Gi', 'nvidia.com/gpu': '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName':
-            'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name':
-            'notebook-data', 'used': '12Gi'}]}
+            'gpu-a100', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory': '32Gi', 'nvidia.com/gpu':
+            '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName': 'a100-1x', 'updatedAt':
+            '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data', 'used':
+            '12Gi'}]}
 
     Attributes:
         container_port (int): Port the dev server listens on inside the container.
@@ -74,7 +74,6 @@ class Workspace:
         phase (WorkspacePhase | Unset): Derived from compute service phase + replicas. Hoisted to the top of Workspace
             for B-tree filtering.
         pool_name (str | Unset): Resource pool the workspace is scheduled onto.
-        quota (str | Unset): ElasticQuota the workspace draws from.
         ready_replicas (int | Unset): Pods that have passed readiness.
         replicas (int | Unset): Desired pod count (0 when stopped).
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
@@ -108,7 +107,6 @@ class Workspace:
     owner_id: UUID | Unset = UNSET
     phase: WorkspacePhase | Unset = UNSET
     pool_name: str | Unset = UNSET
-    quota: str | Unset = UNSET
     ready_replicas: int | Unset = UNSET
     replicas: int | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
@@ -197,8 +195,6 @@ class Workspace:
 
         pool_name = self.pool_name
 
-        quota = self.quota
-
         ready_replicas = self.ready_replicas
 
         replicas = self.replicas
@@ -263,8 +259,6 @@ class Workspace:
             field_dict["phase"] = phase
         if pool_name is not UNSET:
             field_dict["poolName"] = pool_name
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if ready_replicas is not UNSET:
             field_dict["readyReplicas"] = ready_replicas
         if replicas is not UNSET:
@@ -399,8 +393,6 @@ class Workspace:
 
         pool_name = d.pop("poolName", UNSET)
 
-        quota = d.pop("quota", UNSET)
-
         ready_replicas = d.pop("readyReplicas", UNSET)
 
         replicas = d.pop("replicas", UNSET)
@@ -450,7 +442,6 @@ class Workspace:
             owner_id=owner_id,
             phase=phase,
             pool_name=pool_name,
-            quota=quota,
             ready_replicas=ready_replicas,
             replicas=replicas,
             resources=resources,

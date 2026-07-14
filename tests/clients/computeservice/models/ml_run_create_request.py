@@ -25,17 +25,16 @@ class MLRunCreateRequest:
     Example:
         {'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training
             on ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-train-7',
-            'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles': [{'name': 'worker', 'replicas':
-            4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits': {'cpu': '8', 'memory': '64Gi',
-            'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy':
-            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}
+            'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
+            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory': '64Gi',
+            'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}
 
     Attributes:
         name (str): MLRun name, unique within the namespace.
         pool_name (str): Resource pool name resolved against the ResourcePool CRD via the Informer cache.
-        quota (str): ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission.
         roles (list[MLRunRoleSpec]): Run topology roles (at least one).
         unit_name (str): Resource unit (shape) name within the selected pool.
         annotations (MLRunCreateRequestAnnotations | Unset): User-defined annotations stored on the row and stamped onto
@@ -51,7 +50,6 @@ class MLRunCreateRequest:
 
     name: str
     pool_name: str
-    quota: str
     roles: list[MLRunRoleSpec]
     unit_name: str
     annotations: MLRunCreateRequestAnnotations | Unset = UNSET
@@ -70,8 +68,6 @@ class MLRunCreateRequest:
         name = self.name
 
         pool_name = self.pool_name
-
-        quota = self.quota
 
         roles = []
         for roles_item_data in self.roles:
@@ -116,7 +112,6 @@ class MLRunCreateRequest:
             {
                 "name": name,
                 "poolName": pool_name,
-                "quota": quota,
                 "roles": roles,
                 "unitName": unit_name,
             }
@@ -152,8 +147,6 @@ class MLRunCreateRequest:
         name = d.pop("name")
 
         pool_name = d.pop("poolName")
-
-        quota = d.pop("quota")
 
         roles = []
         _roles = d.pop("roles")
@@ -221,7 +214,6 @@ class MLRunCreateRequest:
         ml_run_create_request = cls(
             name=name,
             pool_name=pool_name,
-            quota=quota,
             roles=roles,
             unit_name=unit_name,
             annotations=annotations,

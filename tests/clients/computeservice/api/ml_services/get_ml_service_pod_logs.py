@@ -19,7 +19,6 @@ def _get_kwargs(
     follow: bool | Unset = UNSET,
     previous: bool | Unset = UNSET,
 ) -> dict[str, Any]:
-
     params: dict[str, Any] = {}
 
     params["container"] = container

@@ -91,7 +91,6 @@ func FoldQuotas(selections []Quota, pools map[string]*axismlv1alpha1.ResourcePoo
 			}
 			out = append(out, tenantv1alpha1.QuotaSpec{
 				Pool: q.Pool,
-				Name: q.Pool,
 				Min:  emptyToNil(copyResourceList(q.Quota.Min)),
 				Max:  emptyToNil(copyResourceList(q.Quota.Max)),
 			})
@@ -113,7 +112,6 @@ func FoldQuotas(selections []Quota, pools map[string]*axismlv1alpha1.ResourcePoo
 		}
 		out = append(out, tenantv1alpha1.QuotaSpec{
 			Pool: q.Pool,
-			Name: q.Pool,
 			Min:  emptyToNil(min),
 			Max:  emptyToNil(max),
 		})

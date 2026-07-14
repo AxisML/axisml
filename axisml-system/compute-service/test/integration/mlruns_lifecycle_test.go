@@ -45,8 +45,8 @@ func TestMLRunCreateRoundTrip(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "my-job"}, &cr) == nil
 	}, 10*time.Second, 200*time.Millisecond, "MLRun CR did not appear")
-	assert.Equal(t, "axisml-default", cr.Spec.Scheduling.Quota)
-	assert.Equal(t, "axisml-default", cr.Labels[mlrunv1alpha1.LabelQuota])
+	assert.Equal(t, "axisml-jobs-e2e-ns-jobs-e2e-pool", cr.Spec.Scheduling.Quota)
+	assert.Equal(t, "axisml-jobs-e2e-ns-jobs-e2e-pool", cr.Labels[mlrunv1alpha1.LabelQuota])
 
 	var got map[string]any
 	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/my-job", nil, &got)

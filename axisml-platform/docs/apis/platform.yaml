@@ -917,7 +917,6 @@ components:
             engine: pytorchjob
             name: kubeflow-trainer
           poolName: gpu-a100
-          quota: team-nlp
           roles:
           - name: worker
             replicas: 2
@@ -1027,7 +1026,6 @@ components:
             engine: pytorchjob
             name: kubeflow-trainer
           poolName: gpu-a100
-          quota: team-nlp
           roles:
           - name: worker
             replicas: 2
@@ -1124,7 +1122,6 @@ components:
               engine: pytorchjob
               name: kubeflow-trainer
             poolName: gpu-a100
-            quota: team-nlp
             roles:
             - name: worker
               replicas: 2
@@ -1574,7 +1571,6 @@ components:
             engine: pytorchjob
             name: native
           poolName: gpu-a100
-          quota: team-vision
           roles:
           - name: worker
             replicas: 4
@@ -1694,7 +1690,6 @@ components:
             engine: pytorchjob
             name: native
           poolName: gpu-a100
-          quota: team-vision
           roles:
           - name: worker
             replicas: 4
@@ -1802,7 +1797,6 @@ components:
               engine: pytorchjob
               name: native
             poolName: gpu-a100
-            quota: team-vision
             roles:
             - name: worker
               replicas: 4
@@ -1901,7 +1895,6 @@ components:
           engine: pytorchjob
           name: native
         poolName: gpu-a100
-        quota: team-vision
         roles:
         - name: worker
           replicas: 4
@@ -1954,9 +1947,6 @@ components:
           description: Default resource pool for runs.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        quota:
-          description: Default ElasticQuota for runs.
           type: string
         roles:
           description: Run topology roles (at least one).
@@ -2200,7 +2190,7 @@ components:
         scheduling:
           minMember: 4
           priorityClass: high-priority
-          quota: axisml-team-vision-gpu-a100-default
+          quota: axisml-team-vision-gpu-a100
       properties:
         backend:
           allOf:
@@ -2257,7 +2247,6 @@ components:
         ports:
         - name: http
           port: 8080
-        quota: team-nlp
         readyReplicas: 3
         replicas: 3
         resources:
@@ -2355,9 +2344,6 @@ components:
           items:
             $ref: '#/components/schemas/ServicePort'
           type: array
-        quota:
-          description: ElasticQuota the service draws from.
-          type: string
         readyReplicas:
           description: Replicas that have passed readiness.
           minimum: 0
@@ -2416,7 +2402,6 @@ components:
         ports:
         - name: http
           port: 8080
-        quota: team-nlp
         replicas: 3
         route:
           enabled: true
@@ -2477,9 +2462,6 @@ components:
             $ref: '#/components/schemas/ServicePort'
           minItems: 1
           type: array
-        quota:
-          description: ElasticQuota the service draws from.
-          type: string
         replicas:
           description: Desired replica count.
           minimum: 0
@@ -2548,7 +2530,6 @@ components:
           ports:
           - name: http
             port: 8080
-          quota: team-nlp
           readyReplicas: 3
           replicas: 3
           resources:
@@ -3931,7 +3912,6 @@ components:
         ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
         phase: Running
         poolName: gpu-a100
-        quota: team-vision
         resources:
           cpu: "32"
           memory: 256Gi
@@ -4023,7 +4003,7 @@ components:
           scheduling:
             minMember: 4
             priorityClass: high-priority
-            quota: axisml-team-vision-gpu-a100-default
+            quota: axisml-team-vision-gpu-a100
         startedAt: "2026-06-28T09:00:00Z"
         tenantDisplayName: Vision Team
         tenantName: team-vision
@@ -4083,9 +4063,6 @@ components:
           description: Resource pool the run is scheduled onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        quota:
-          description: ElasticQuota the run draws from.
           type: string
         resources:
           allOf:
@@ -4162,7 +4139,6 @@ components:
           ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
           phase: Running
           poolName: gpu-a100
-          quota: team-vision
           resources:
             cpu: "32"
             memory: 256Gi
@@ -4254,7 +4230,7 @@ components:
             scheduling:
               minMember: 4
               priorityClass: high-priority
-              quota: axisml-team-vision-gpu-a100-default
+              quota: axisml-team-vision-gpu-a100
           startedAt: "2026-06-28T09:00:00Z"
           tenantDisplayName: Vision Team
           tenantName: team-vision
@@ -4360,7 +4336,6 @@ components:
       example:
         displayName: 'ResNet-50 Training #8'
         poolName: gpu-a100
-        quota: team-vision
         roles:
         - args:
           - --epochs
@@ -4389,9 +4364,6 @@ components:
           description: Override resource pool for this run.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        quota:
-          description: Override ElasticQuota for this run.
           type: string
         resources:
           allOf:
@@ -5573,7 +5545,6 @@ components:
         ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
         phase: Running
         poolName: gpu-a100
-        quota: team-vision
         readyReplicas: 1
         replicas: 1
         resources:
@@ -5676,9 +5647,6 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-        quota:
-          description: ElasticQuota the workspace draws from.
-          type: string
         readyReplicas:
           description: Pods that have passed readiness.
           minimum: 0
@@ -5732,7 +5700,6 @@ components:
           idleTimeoutSeconds: 3600
         name: notebook-dev
         poolName: gpu-a100
-        quota: team-vision
         unitName: a100-1x
         volumes:
         - mountPath: /home/jovyan/work
@@ -5784,9 +5751,6 @@ components:
           description: Resource pool to schedule the workspace onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        quota:
-          description: ElasticQuota the workspace draws from.
           type: string
         unitName:
           description: Resource unit (shape) within the pool.
@@ -5957,7 +5921,6 @@ components:
           ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
           phase: Running
           poolName: gpu-a100
-          quota: team-vision
           readyReplicas: 1
           replicas: 1
           resources:

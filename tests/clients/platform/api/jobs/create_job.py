@@ -107,9 +107,9 @@ def sync_detailed(
             ImageNet.', 'displayName': 'ResNet-50 Training', 'labels': {'team': 'vision'}, 'name':
             'resnet-train', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version':
             '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100',
-            'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
-            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
+            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name':
             'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
             '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name':
@@ -151,9 +151,9 @@ def sync(
             ImageNet.', 'displayName': 'ResNet-50 Training', 'labels': {'team': 'vision'}, 'name':
             'resnet-train', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version':
             '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100',
-            'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
-            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
+            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name':
             'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
             '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name':
@@ -190,9 +190,9 @@ async def asyncio_detailed(
             ImageNet.', 'displayName': 'ResNet-50 Training', 'labels': {'team': 'vision'}, 'name':
             'resnet-train', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version':
             '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100',
-            'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
-            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
+            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name':
             'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
             '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name':
@@ -232,9 +232,9 @@ async def asyncio(
             ImageNet.', 'displayName': 'ResNet-50 Training', 'labels': {'team': 'vision'}, 'name':
             'resnet-train', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version':
             '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100',
-            'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
-            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
+            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name':
             'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
             '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name':

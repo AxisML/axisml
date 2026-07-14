@@ -31,8 +31,8 @@ class MLServiceList:
             'https://auth.axisml.io', 'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled':
             True, 'hostname': 'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole':
             'predictor'}, 'runPolicy': {'progressDeadlineSeconds': 600}, 'scheduling': {'quota': 'axisml-team-vision-
-            gpu-a100-default'}}, 'status': {'endpoint': 'https://llama3-8b.team-vision.axisml.io/v1', 'message': '2/2
-            replicas ready.', 'readyReplicas': 2}, 'updatedAt': '2026-06-28T09:45:00Z'}], 'total': 1}
+            gpu-a100'}}, 'status': {'endpoint': 'https://llama3-8b.team-vision.axisml.io/v1', 'message': '2/2 replicas
+            ready.', 'readyReplicas': 2}, 'updatedAt': '2026-06-28T09:45:00Z'}], 'total': 1}
 
     Attributes:
         count (int): Number of items returned in this page (len(items)).

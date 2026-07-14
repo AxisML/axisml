@@ -12,7 +12,6 @@ import (
 // Naming convention prefixes from design §3.1 and §6.2.
 const (
 	tenantResourcePrefix = "axisml-tenant-"
-	elasticQuotaPrefix   = "axisml-"
 )
 
 // PerTenantResourceName builds a name like axisml-tenant-<tenant>-<sub>.
@@ -22,10 +21,10 @@ func PerTenantResourceName(tenantName, sub string) string {
 	return fmt.Sprintf("%s%s-%s", tenantResourcePrefix, tenantName, sub)
 }
 
-// ElasticQuotaName builds the cluster-unique ElasticQuota name following
-// design §6.2: axisml-<tenant>-<pool>-<quota>.
-func ElasticQuotaName(tenantName, pool, quota string) string {
-	return fmt.Sprintf("%s%s-%s-%s", elasticQuotaPrefix, tenantName, pool, quota)
+// ElasticQuotaName builds the cluster-unique ElasticQuota name for the single
+// quota owned by a (tenant, pool) pair.
+func ElasticQuotaName(tenantName, pool string) string {
+	return axisml.ElasticQuotaName(tenantName, pool)
 }
 
 // TenantLabels returns the common labels every per-tenant resource carries.

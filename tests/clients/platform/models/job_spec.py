@@ -23,21 +23,19 @@ class JobSpec:
     """
     Example:
         {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend': {'engine': 'pytorchjob',
-            'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4,
-            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}
+            'name': 'native'}, 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
+            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
+            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports':
+            [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi',
+            'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data',
+            'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}
 
     Attributes:
         backend (Backend):  Example: {'engine': 'pytorchjob', 'name': 'native'}.
         roles (list[MLRunRole]): Run topology roles (at least one).
         artifacts (list[ArtifactRef] | Unset): Model/image artifact versions the runs consume.
         pool_name (str | Unset): Default resource pool for runs.
-        quota (str | Unset): Default ElasticQuota for runs.
         run_policy (RunPolicy | Unset):  Example: {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}.
         unit_name (str | Unset): Default resource unit (shape) within the pool.
@@ -47,7 +45,6 @@ class JobSpec:
     roles: list[MLRunRole]
     artifacts: list[ArtifactRef] | Unset = UNSET
     pool_name: str | Unset = UNSET
-    quota: str | Unset = UNSET
     run_policy: RunPolicy | Unset = UNSET
     unit_name: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -69,8 +66,6 @@ class JobSpec:
 
         pool_name = self.pool_name
 
-        quota = self.quota
-
         run_policy: dict[str, Any] | Unset = UNSET
         if not isinstance(self.run_policy, Unset):
             run_policy = self.run_policy.to_dict()
@@ -89,8 +84,6 @@ class JobSpec:
             field_dict["artifacts"] = artifacts
         if pool_name is not UNSET:
             field_dict["poolName"] = pool_name
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if run_policy is not UNSET:
             field_dict["runPolicy"] = run_policy
         if unit_name is not UNSET:
@@ -126,8 +119,6 @@ class JobSpec:
 
         pool_name = d.pop("poolName", UNSET)
 
-        quota = d.pop("quota", UNSET)
-
         _run_policy = d.pop("runPolicy", UNSET)
         run_policy: RunPolicy | Unset
         if isinstance(_run_policy, Unset):
@@ -142,7 +133,6 @@ class JobSpec:
             roles=roles,
             artifacts=artifacts,
             pool_name=pool_name,
-            quota=quota,
             run_policy=run_policy,
             unit_name=unit_name,
         )

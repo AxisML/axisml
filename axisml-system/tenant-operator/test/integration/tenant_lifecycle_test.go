@@ -63,9 +63,9 @@ func TestTenant_SubmitCRHappyPath(t *testing.T) {
 				Labels: map[string]string{"team": "happy"},
 			},
 			Quotas: []axisml.QuotaSpec{{
-				Pool: "default", Name: "default",
-				Min: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
-				Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
+				Pool: "default",
+				Min:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+				Max:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
 			}},
 			InitResources: axisml.InitResources{
 				ImagePullSecrets: []axisml.ImagePullSecretSpec{{
@@ -100,7 +100,7 @@ func TestTenant_SubmitCRHappyPath(t *testing.T) {
 	require.Equal(t, "happy", ns.Labels["team"])
 
 	// ElasticQuota exists with the requested max.
-	eqName := reconcile.ElasticQuotaName(tenantName, "default", "default")
+	eqName := reconcile.ElasticQuotaName(tenantName, "default")
 	var eq schedv1alpha1.ElasticQuota
 	require.NoError(t, c.Get(ctx, types.NamespacedName{Namespace: tenantNs, Name: eqName}, &eq))
 	require.Equal(t, "4", eq.Spec.Max.Cpu().String())
@@ -237,15 +237,15 @@ func TestTenant_QuotaUpdate(t *testing.T) {
 		Spec: axisml.TenantSpec{
 			Namespace: axisml.NamespaceSpec{Name: tenantNs},
 			Quotas: []axisml.QuotaSpec{{
-				Pool: "default", Name: "default",
-				Min: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
-				Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},
+				Pool: "default",
+				Min:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+				Max:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},
 			}},
 		},
 	}
 	require.NoError(t, c.Create(ctx, tenant))
 
-	eqName := reconcile.ElasticQuotaName(tenantName, "default", "default")
+	eqName := reconcile.ElasticQuotaName(tenantName, "default")
 	var eq schedv1alpha1.ElasticQuota
 	testutil.EventuallyExists(t, ctx, c,
 		types.NamespacedName{Namespace: tenantNs, Name: eqName}, &eq, testWaitTimeout)

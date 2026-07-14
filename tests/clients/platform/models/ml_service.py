@@ -35,10 +35,10 @@ class MLService:
             '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image': 'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All
             replicas ready.', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-
             nlp', 'owner': 'zhang.san', 'ownerId': '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Ready', 'poolName':
-            'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'quota': 'team-nlp', 'readyReplicas': 3, 'replicas': 3,
-            'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x',
-            'updatedAt': '2026-06-28T09:30:00Z'}
+            'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'readyReplicas': 3, 'replicas': 3, 'resources': {'cpu':
+            '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x', 'updatedAt':
+            '2026-06-28T09:30:00Z'}
 
     Attributes:
         created_at (datetime.datetime): Time the service was created.
@@ -65,7 +65,6 @@ class MLService:
         phase (MLServicePhase | Unset):
         pool_name (str | Unset): Resource pool the service is scheduled onto.
         ports (list[ServicePort] | Unset): Container ports exposed by the service.
-        quota (str | Unset): ElasticQuota the service draws from.
         ready_replicas (int | Unset): Replicas that have passed readiness.
         replicas (int | Unset): Desired replica count.
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
@@ -99,7 +98,6 @@ class MLService:
     phase: MLServicePhase | Unset = UNSET
     pool_name: str | Unset = UNSET
     ports: list[ServicePort] | Unset = UNSET
-    quota: str | Unset = UNSET
     ready_replicas: int | Unset = UNSET
     replicas: int | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
@@ -179,8 +177,6 @@ class MLService:
                 ports_item = ports_item_data.to_dict()
                 ports.append(ports_item)
 
-        quota = self.quota
-
         ready_replicas = self.ready_replicas
 
         replicas = self.replicas
@@ -244,8 +240,6 @@ class MLService:
             field_dict["poolName"] = pool_name
         if ports is not UNSET:
             field_dict["ports"] = ports
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if ready_replicas is not UNSET:
             field_dict["readyReplicas"] = ready_replicas
         if replicas is not UNSET:
@@ -352,8 +346,6 @@ class MLService:
 
                 ports.append(ports_item)
 
-        quota = d.pop("quota", UNSET)
-
         ready_replicas = d.pop("readyReplicas", UNSET)
 
         replicas = d.pop("replicas", UNSET)
@@ -401,7 +393,6 @@ class MLService:
             phase=phase,
             pool_name=pool_name,
             ports=ports,
-            quota=quota,
             ready_replicas=ready_replicas,
             replicas=replicas,
             resources=resources,

@@ -25,10 +25,12 @@ from lib.polling import eventually
 
 
 def test_mlrun_lifecycle(harness, cfg, tenant):
-    ns, quota = tenant
+    ns = tenant
     name = unique_name("e2e-run")
 
-    r = create_ml_run.sync_detailed(ns, client=harness.compute_service, body=builders.busybox_mlrun(cfg, name, quota))
+    r = create_ml_run.sync_detailed(
+        ns, client=harness.compute_service, body=builders.busybox_mlrun(cfg, name)
+    )
     assert r.status_code in (200, 201), r.content
     try:
         # Runs to Succeeded.
@@ -37,7 +39,9 @@ def test_mlrun_lifecycle(harness, cfg, tenant):
             assert g.status_code == 200, g.content
             assert g.parsed.phase == "Succeeded", f"phase={g.parsed.phase!r}"
 
-        eventually(succeeded, timeout=cfg.mlrun_complete_timeout, interval=cfg.poll_interval)
+        eventually(
+            succeeded, timeout=cfg.mlrun_complete_timeout, interval=cfg.poll_interval
+        )
 
         # Pod projection is reachable and non-empty.
         pods = list_ml_run_pods.sync_detailed(ns, name, client=harness.compute_service)
@@ -45,7 +49,9 @@ def test_mlrun_lifecycle(harness, cfg, tenant):
         assert pods.parsed.items, "expected at least one pod"
 
         # Log streaming carries the container output.
-        logs = get_ml_run_pod_logs.sync_detailed(ns, name, pods.parsed.items[0].name, client=harness.compute_service)
+        logs = get_ml_run_pod_logs.sync_detailed(
+            ns, name, pods.parsed.items[0].name, client=harness.compute_service
+        )
         assert logs.status_code == 200, logs.content
         assert "hello" in logs.content.decode(), logs.content
     finally:
@@ -53,10 +59,10 @@ def test_mlrun_lifecycle(harness, cfg, tenant):
 
 
 def test_mlrun_cancel(harness, cfg, tenant):
-    ns, quota = tenant
+    ns = tenant
     name = unique_name("e2e-cancel")
     # A long-running command so there's a window to cancel.
-    body = builders.busybox_mlrun(cfg, name, quota)
+    body = builders.busybox_mlrun(cfg, name)
     body.roles[0].template.command = ["sh", "-c", "sleep 600"]
 
     r = create_ml_run.sync_detailed(ns, client=harness.compute_service, body=body)
@@ -77,33 +83,45 @@ def test_mlrun_cancel(harness, cfg, tenant):
         def terminal():
             g = get_ml_run.sync_detailed(ns, name, client=harness.compute_service)
             assert g.status_code == 200, g.content
-            assert g.parsed.phase in ("Cancelled", "Canceled", "Failed"), f"phase={g.parsed.phase!r}"
+            assert g.parsed.phase in ("Cancelled", "Canceled", "Failed"), (
+                f"phase={g.parsed.phase!r}"
+            )
 
-        eventually(terminal, timeout=cfg.mlrun_complete_timeout, interval=cfg.poll_interval)
+        eventually(
+            terminal, timeout=cfg.mlrun_complete_timeout, interval=cfg.poll_interval
+        )
     finally:
         delete_ml_run.sync_detailed(ns, name, client=harness.compute_service)
 
 
 def test_mlrun_list_patch_events(harness, cfg, tenant):
     """List projection (+ pagination), display-field patch round-trip, events reachability."""
-    ns, quota = tenant
+    ns = tenant
     name = unique_name("e2e-run-lpe")
 
-    r = create_ml_run.sync_detailed(ns, client=harness.compute_service, body=builders.busybox_mlrun(cfg, name, quota))
+    r = create_ml_run.sync_detailed(
+        ns, client=harness.compute_service, body=builders.busybox_mlrun(cfg, name)
+    )
     assert r.status_code in (200, 201), r.content
     try:
         # List projects the freshly created run; the limit page size is honoured.
         lst = list_ml_runs.sync_detailed(ns, client=harness.compute_service)
         assert lst.status_code == 200, lst.content
-        assert any(it.name == name for it in lst.parsed.items), "created run absent from list"
+        assert any(it.name == name for it in lst.parsed.items), (
+            "created run absent from list"
+        )
         page = list_ml_runs.sync_detailed(ns, client=harness.compute_service, limit=1)
         assert page.status_code == 200, page.content
         assert len(page.parsed.items) <= 1
 
         # Patch display fields, then read them back (patch response + subsequent GET).
         p = patch_ml_run.sync_detailed(
-            ns, name, client=harness.compute_service,
-            body=MLRunPatchRequest(display_name="Renamed Run", description="patched by e2e"),
+            ns,
+            name,
+            client=harness.compute_service,
+            body=MLRunPatchRequest(
+                display_name="Renamed Run", description="patched by e2e"
+            ),
         )
         assert p.status_code == 200, p.content
         assert p.parsed.display_name == "Renamed Run", p.content

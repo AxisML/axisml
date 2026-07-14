@@ -55,7 +55,7 @@ func registerExamples(g *openapigen.Generator) {
 	mlrunSpec := obj{
 		"backend": mlrunBackend,
 		"scheduling": obj{
-			"quota":         "axisml-team-vision-gpu-a100-default",
+			"quota":         "axisml-team-vision-gpu-a100",
 			"priorityClass": "high-priority",
 		},
 		"roles":     []any{mlrunRole},
@@ -69,7 +69,6 @@ func registerExamples(g *openapigen.Generator) {
 		"labels":      obj{"team": "vision"},
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
-		"quota":       "axisml-team-vision-gpu-a100-default",
 		"backend":     mlrunBackend,
 		"roles":       []any{mlrunRole},
 		"runPolicy":   mlrunRunPolicy,
@@ -124,7 +123,7 @@ func registerExamples(g *openapigen.Generator) {
 	mlsvcSpec := obj{
 		"backend": mlsvcBackend,
 		"scheduling": obj{
-			"quota": "axisml-team-vision-gpu-a100-default",
+			"quota": "axisml-team-vision-gpu-a100",
 		},
 		"roles":     []any{mlsvcRole},
 		"runPolicy": obj{"progressDeadlineSeconds": 600},
@@ -139,7 +138,6 @@ func registerExamples(g *openapigen.Generator) {
 		"labels":      obj{"team": "vision"},
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
-		"quota":       "axisml-team-vision-gpu-a100-default",
 		"backend":     mlsvcBackend,
 		"roles":       []any{mlsvcRole},
 		"runPolicy":   obj{"progressDeadlineSeconds": 600},

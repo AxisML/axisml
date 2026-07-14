@@ -108,7 +108,7 @@ func TestMLServiceMetrics(t *testing.T) {
 	require.NoError(t, c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))
 
 	body := map[string]any{
-		"name": "predictor", "poolName": "svc-metrics-pool", "unitName": "small", "quota": "axisml-default",
+		"name": "predictor", "poolName": "svc-metrics-pool", "unitName": "small",
 		"backend": map[string]string{"name": "native", "engine": "deployment"},
 		"roles": []map[string]any{{
 			"name": mlservicev1alpha1.DefaultRoleName, "replicas": 1,

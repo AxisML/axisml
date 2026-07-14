@@ -33,7 +33,7 @@ func TestElasticQuotas_CreatesPerSpec(t *testing.T) {
 
 	tnt := newTenant("team-a")
 	tnt.Spec.Quotas = []axisml.QuotaSpec{
-		{Pool: "gpu", Name: "default",
+		{Pool: "gpu",
 			Min: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
 			Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}},
 	}
@@ -48,7 +48,7 @@ func TestElasticQuotas_CreatesPerSpec(t *testing.T) {
 
 	got := &schedv1alpha1.ElasticQuota{}
 	if err := c.Get(context.Background(), types.NamespacedName{
-		Namespace: "team-a", Name: ElasticQuotaName("team-a", "gpu", "default"),
+		Namespace: "team-a", Name: ElasticQuotaName("team-a", "gpu"),
 	}, got); err != nil {
 		t.Fatalf("EQ missing: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestElasticQuotas_CreatesPerSpec(t *testing.T) {
 func TestElasticQuotas_PatchesOnDrift(t *testing.T) {
 	scheme := newSchemeWithEQ(t)
 	tnt := newTenant("team-a")
-	eqName := ElasticQuotaName("team-a", "gpu", "default")
+	eqName := ElasticQuotaName("team-a", "gpu")
 	existing := &schedv1alpha1.ElasticQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: eqName, Namespace: "team-a",
@@ -83,7 +83,7 @@ func TestElasticQuotas_PatchesOnDrift(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
 
 	tnt.Spec.Quotas = []axisml.QuotaSpec{
-		{Pool: "gpu", Name: "default",
+		{Pool: "gpu",
 			Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("8")}},
 	}
 	if _, err := ElasticQuotas(context.Background(), c, scheme, tnt); err != nil {
@@ -102,7 +102,7 @@ func TestElasticQuotas_GCsOrphans(t *testing.T) {
 	tnt := newTenant("team-a")
 	stale := &schedv1alpha1.ElasticQuota{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ElasticQuotaName("team-a", "gpu", "old"),
+			Name:      ElasticQuotaName("team-a", "gpu"),
 			Namespace: "team-a",
 			Labels:    TenantLabels(tnt),
 			OwnerReferences: []metav1.OwnerReference{{
@@ -131,7 +131,7 @@ func TestElasticQuotas_SkipsForeignOwnedDuringGC(t *testing.T) {
 	// Tenant labels but no ownerRef → not ours.
 	foreign := &schedv1alpha1.ElasticQuota{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "axisml-team-a-foo-bar",
+			Name:      "axisml-team-a-foreign",
 			Namespace: "team-a",
 			Labels:    TenantLabels(tnt),
 		},

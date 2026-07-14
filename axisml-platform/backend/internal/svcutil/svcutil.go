@@ -29,9 +29,6 @@ type decodedSpec struct {
 			} `json:"volumeMounts"`
 		} `json:"template"`
 	} `json:"roles"`
-	Scheduling struct {
-		Quota string `json:"quota"`
-	} `json:"scheduling"`
 	Route *struct {
 		Enabled bool   `json:"enabled"`
 		Path    string `json:"path"`
@@ -81,7 +78,6 @@ func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServ
 		"kind":     "service",
 		"poolName": req.PoolName,
 		"unitName": req.UnitName,
-		"quota":    req.Quota,
 		"roles":    []map[string]any{{"name": "default", "replicas": req.Replicas, "template": tmpl}},
 		"route":    map[string]any{"enabled": req.Route.Enabled, "path": req.Route.Path},
 		// Surface the model reference + pool/unit for display (compute expands
@@ -143,7 +139,6 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 		"kind":     "workspace",
 		"poolName": req.PoolName,
 		"unitName": req.UnitName,
-		"quota":    req.Quota,
 		"roles":    []map[string]any{{"name": "workspace", "replicas": 1, "template": tmpl}},
 		"route":    map[string]any{"enabled": false},
 		"annotations": map[string]any{
@@ -180,7 +175,6 @@ func ServiceToView(s *computeservice.MLService, tenant string) server.MLService 
 		DisplayName:   strv(s.DisplayName),
 		Description:   strv(s.Description),
 		Owner:         strv(s.Owner),
-		Quota:         spec.Scheduling.Quota,
 		ReadyReplicas: st.ReadyReplicas,
 		Phase:         server.MLServicePhase(s.Phase),
 		Message:       st.Message,
@@ -217,7 +211,6 @@ func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspac
 		DisplayName:   strv(s.DisplayName),
 		Description:   strv(s.Description),
 		Owner:         strv(s.Owner),
-		Quota:         spec.Scheduling.Quota,
 		ReadyReplicas: st.ReadyReplicas,
 		Phase:         server.WorkspacePhase(s.Phase),
 		Message:       st.Message,

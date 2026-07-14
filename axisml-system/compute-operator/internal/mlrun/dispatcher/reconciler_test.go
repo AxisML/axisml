@@ -286,7 +286,7 @@ func TestSpecFingerprint(t *testing.T) {
 		return &axisv1alpha1.MLRun{Spec: axisv1alpha1.MLRunSpec{
 			Backend: axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: axisv1alpha1.SchedulingSpec{
-				Quota:        "axisml-tnt-default-training",
+				Quota:        "axisml-tnt-default",
 				NodeSelector: map[string]string{"gpu": "h100"},
 			},
 			Roles: []axisv1alpha1.RoleSpec{{

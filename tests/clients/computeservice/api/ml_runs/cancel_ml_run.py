@@ -14,7 +14,6 @@ def _get_kwargs(
     namespace: str,
     mlrun: str,
 ) -> dict[str, Any]:
-
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel".format(

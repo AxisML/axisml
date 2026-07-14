@@ -31,10 +31,10 @@ class WorkspaceList:
             'registry.axisml.io/dev/jupyter:3.0.0', 'lastStartedAt': '2026-06-28T09:00:00Z', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'message': 'Workspace is ready.', 'name': 'notebook-dev', 'namespace': 'team-
             vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName':
-            'gpu-a100', 'quota': 'team-vision', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory':
-            '32Gi', 'nvidia.com/gpu': '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName':
-            'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name':
-            'notebook-data', 'used': '12Gi'}]}], 'partial': False}
+            'gpu-a100', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory': '32Gi', 'nvidia.com/gpu':
+            '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName': 'a100-1x', 'updatedAt':
+            '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data', 'used':
+            '12Gi'}]}], 'partial': False}
 
     Attributes:
         count (int): Number of workspaces in this page.

@@ -25,7 +25,7 @@ func validMLRun() *axisv1alpha1.MLRun {
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Scheduling: axisv1alpha1.SchedulingSpec{
-				Quota:         "axisml-team-a-default-q1",
+				Quota:         "axisml-team-a-default",
 				PriorityClass: "high",
 				NodeSelector:  map[string]string{"gpu": "true"},
 				Tolerations:   []corev1.Toleration{{Key: "dedicated", Value: "training"}},
@@ -73,7 +73,7 @@ func TestInjectAxisMLLabels_PopulatesLabelsAndScheduling(t *testing.T) {
 		axislabels.RunIDLabel:          "job-1",
 		axislabels.QuotaLabel:          "default",
 		axislabels.RoleLabel:           "worker",
-		axislabels.SchedulerQuotaLabel: "axisml-team-a-default-q1",
+		axislabels.SchedulerQuotaLabel: "axisml-team-a-default",
 		"extra":                        "true",
 	}
 	for k, v := range wants {

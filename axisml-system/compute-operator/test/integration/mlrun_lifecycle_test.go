@@ -46,12 +46,12 @@ func TestMLRun_NativeJob_SuspendCancels(t *testing.T) {
 			Name:      mlrunName,
 			Labels: map[string]string{
 				axislabels.RunIDLabel: "uuid-cancelme",
-				axislabels.QuotaLabel: "axisml-acme-default-default",
+				axislabels.QuotaLabel: "axisml-acme-default",
 			},
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
-			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-default"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,
@@ -130,12 +130,12 @@ func TestMLRun_ImmutableSpecRejected(t *testing.T) {
 			Name:      mlrunName,
 			Labels: map[string]string{
 				axislabels.RunIDLabel: "uuid-immutable",
-				axislabels.QuotaLabel: "axisml-acme-default-default",
+				axislabels.QuotaLabel: "axisml-acme-default",
 			},
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
-			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-default"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,
@@ -209,12 +209,12 @@ func TestMLRun_UnknownBackend(t *testing.T) {
 			Name:      mlrunName,
 			Labels: map[string]string{
 				axislabels.RunIDLabel: "uuid-no-handler",
-				axislabels.QuotaLabel: "axisml-acme-default-default",
+				axislabels.QuotaLabel: "axisml-acme-default",
 			},
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "kubeflow-trainer", Engine: "pytorchjob"},
-			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-default"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:     axisv1alpha1.DefaultRoleName,
 				Replicas: 1,

@@ -25,8 +25,8 @@ class MLServiceCreateRequest:
         {'backend': {'engine': 'llminference', 'name': 'kserve'}, 'description': 'Llama3-8B online inference service.',
             'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name':
-            'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'quota': 'team-nlp',
-            'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}
+            'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'replicas': 3, 'route':
+            {'enabled': True, 'path': '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}
 
     Attributes:
         image (str): Serving container image reference.
@@ -43,7 +43,6 @@ class MLServiceCreateRequest:
         description (str | Unset): Free-text service description.
         display_name (str | Unset): Human-readable service label.
         env (list[EnvVar] | Unset): Environment variables injected into the serving pods.
-        quota (str | Unset): ElasticQuota the service draws from.
         route (MLServiceRoute | Unset):  Example: {'enabled': True, 'path': '/v1/models/llama3-8b'}.
     """
 
@@ -61,7 +60,6 @@ class MLServiceCreateRequest:
     description: str | Unset = UNSET
     display_name: str | Unset = UNSET
     env: list[EnvVar] | Unset = UNSET
-    quota: str | Unset = UNSET
     route: MLServiceRoute | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -108,8 +106,6 @@ class MLServiceCreateRequest:
                 env_item = env_item_data.to_dict()
                 env.append(env_item)
 
-        quota = self.quota
-
         route: dict[str, Any] | Unset = UNSET
         if not isinstance(self.route, Unset):
             route = self.route.to_dict()
@@ -140,8 +136,6 @@ class MLServiceCreateRequest:
             field_dict["displayName"] = display_name
         if env is not UNSET:
             field_dict["env"] = env
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if route is not UNSET:
             field_dict["route"] = route
 
@@ -200,8 +194,6 @@ class MLServiceCreateRequest:
 
                 env.append(env_item)
 
-        quota = d.pop("quota", UNSET)
-
         _route = d.pop("route", UNSET)
         route: MLServiceRoute | Unset
         if isinstance(_route, Unset):
@@ -224,7 +216,6 @@ class MLServiceCreateRequest:
             description=description,
             display_name=display_name,
             env=env,
-            quota=quota,
             route=route,
         )
 

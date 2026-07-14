@@ -111,8 +111,8 @@ def sync_detailed(
         name (str):
         x_axisml_tenant (str | Unset):
         body (RunTriggerRequest | Unset):  Example: {'displayName': 'ResNet-50 Training #8',
-            'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'args': ['--epochs', '120'],
-            'name': 'worker'}], 'unitName': 'a100-2x'}.
+            'poolName': 'gpu-a100', 'roles': [{'args': ['--epochs', '120'], 'name': 'worker'}],
+            'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -148,8 +148,8 @@ def sync(
         name (str):
         x_axisml_tenant (str | Unset):
         body (RunTriggerRequest | Unset):  Example: {'displayName': 'ResNet-50 Training #8',
-            'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'args': ['--epochs', '120'],
-            'name': 'worker'}], 'unitName': 'a100-2x'}.
+            'poolName': 'gpu-a100', 'roles': [{'args': ['--epochs', '120'], 'name': 'worker'}],
+            'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -180,8 +180,8 @@ async def asyncio_detailed(
         name (str):
         x_axisml_tenant (str | Unset):
         body (RunTriggerRequest | Unset):  Example: {'displayName': 'ResNet-50 Training #8',
-            'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'args': ['--epochs', '120'],
-            'name': 'worker'}], 'unitName': 'a100-2x'}.
+            'poolName': 'gpu-a100', 'roles': [{'args': ['--epochs', '120'], 'name': 'worker'}],
+            'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -215,8 +215,8 @@ async def asyncio(
         name (str):
         x_axisml_tenant (str | Unset):
         body (RunTriggerRequest | Unset):  Example: {'displayName': 'ResNet-50 Training #8',
-            'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'args': ['--epochs', '120'],
-            'name': 'worker'}], 'unitName': 'a100-2x'}.
+            'poolName': 'gpu-a100', 'roles': [{'args': ['--epochs', '120'], 'name': 'worker'}],
+            'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

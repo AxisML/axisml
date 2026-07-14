@@ -18,7 +18,7 @@ import (
 func baseSpec() server.JobSpec {
 	return server.JobSpec{
 		Backend:  server.Backend{Name: "native", Engine: "job"},
-		PoolName: "pool-a", UnitName: "unit-a", Quota: "quota-a",
+		PoolName: "pool-a", UnitName: "unit-a",
 		Roles: []server.MLRunRole{{
 			Name:          "master",
 			Replicas:      2,
@@ -44,7 +44,6 @@ func TestBuildRunInput_Base(t *testing.T) {
 	assert.Equal(t, "job-1", out.Name)
 	assert.Equal(t, "pool-a", out.PoolName)
 	assert.Equal(t, "unit-a", out.UnitName)
-	assert.Equal(t, "quota-a", out.Quota)
 
 	require.NotNil(t, out.DisplayName)
 	assert.Equal(t, "My Run", *out.DisplayName)
@@ -118,10 +117,10 @@ func TestBuildRunInput_ForwardsVolumes(t *testing.T) {
 }
 
 func TestBuildRunInput_OverridePrecedence(t *testing.T) {
-	// Trigger overrides win over the spec for pool/unit/quota, resources (all
+	// Trigger overrides win over the spec for pool/unit, resources (all
 	// roles), and per-role args/env.
 	ovJSON := `{
-		"poolName":"pool-b","unitName":"unit-b","quota":"quota-b",
+		"poolName":"pool-b","unitName":"unit-b",
 		"resources":{"cpu":"8"},
 		"roles":[{"name":"master","args":["eval.py"],"env":[{"name":"O","value":"1"}]}]
 	}`
@@ -133,7 +132,6 @@ func TestBuildRunInput_OverridePrecedence(t *testing.T) {
 
 	assert.Equal(t, "pool-b", out.PoolName)
 	assert.Equal(t, "unit-b", out.UnitName)
-	assert.Equal(t, "quota-b", out.Quota)
 
 	require.Len(t, out.Roles, 1)
 	r := out.Roles[0]
@@ -160,12 +158,11 @@ func TestBuildRunInput_EmptyOverrideKeepsSpec(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "pool-a", out.PoolName)
 	assert.Equal(t, "unit-a", out.UnitName)
-	assert.Equal(t, "quota-a", out.Quota)
 }
 
 func TestBuildRunInput_EmptyTemplateOmitsFields(t *testing.T) {
 	spec := server.JobSpec{
-		// No backend, no pool/unit/quota, no run policy.
+		// No backend, no pool/unit, no run policy.
 		Roles: []server.MLRunRole{{
 			Name:     "worker",
 			Template: server.RoleTemplate{Image: "img:only"},
@@ -283,8 +280,6 @@ func TestRunToView_Full(t *testing.T) {
 	assert.Equal(t, created, v.CreatedAt)
 	assert.Equal(t, updated, v.UpdatedAt)
 
-	// Scheduling passthrough: only quota is carried by the typed spec.
-	assert.Equal(t, "quota-a", v.Quota)
 	assert.Empty(t, v.PoolName)
 	assert.Empty(t, v.UnitName)
 
@@ -310,7 +305,6 @@ func TestRunToView_NilOptionals(t *testing.T) {
 	assert.Empty(t, v.Message)
 	assert.Nil(t, v.StartedAt)
 	assert.Nil(t, v.FinishedAt)
-	assert.Empty(t, v.Quota)
 }
 
 func ptrInt64(v int64) *int64 { return &v }

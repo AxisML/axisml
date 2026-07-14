@@ -110,14 +110,13 @@ def sync_detailed(
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
             'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
             'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles':
-            [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
-            'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests':
-            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy':
-            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
-            'unitName': 'a100-2x'}.
+            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
+            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -152,14 +151,13 @@ def sync(
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
             'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
             'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles':
-            [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
-            'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests':
-            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy':
-            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
-            'unitName': 'a100-2x'}.
+            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
+            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,14 +187,13 @@ async def asyncio_detailed(
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
             'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
             'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles':
-            [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
-            'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests':
-            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy':
-            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
-            'unitName': 'a100-2x'}.
+            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
+            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -229,14 +226,13 @@ async def asyncio(
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
             'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
             'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles':
-            [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
-            'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests':
-            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy':
-            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
-            'unitName': 'a100-2x'}.
+            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
+            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -34,7 +34,7 @@ type BackendSpec struct {
 
 // SchedulingSpec is filled by Compute from Quota/Pool/Unit.
 type SchedulingSpec struct {
-	// Quota is the ElasticQuota CR full name (axisml-<tenant>-<pool>-<quota>).
+	// Quota is the derived ElasticQuota CR name (axisml-<tenant>-<pool>).
 	// +kubebuilder:validation:MinLength=1
 	Quota string `json:"quota"`
 	// PriorityClass is an optional Kubernetes PriorityClass name.
