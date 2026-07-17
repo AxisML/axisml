@@ -60,6 +60,7 @@ $(1)-build:
 	@echo ">>> $(1) build" && cd $(1) && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/$(call binname,$(1)) $(call cmdpath,$(1))
 $(1)-test:
 	@echo ">>> $(1) test" && cd $(1) && go test ./...
+	@if [ -f $(1)/pkg/apidoc/go.mod ]; then cd $(1)/pkg/apidoc && go test ./...; fi
 $(1)-image:
 	@docker build -f $(CURDIR)/$(1)/Dockerfile -t $(IMAGE_REPO_PREFIX)-$(1):$(IMAGE_TAG) $(REPO_ROOT)
 $(1)-image-load: $(1)-image
@@ -81,10 +82,13 @@ $(1)-coverage-html:
 	@if [ -f $(1)/coverage/integration-coverage.out ]; then cd $(1) && go tool cover -html=coverage/integration-coverage.out -o coverage/integration-coverage.html && echo "$(1) integration: $(1)/coverage/integration-coverage.html"; fi
 $(1)-fmt:
 	@cd $(1) && go fmt ./...
+	@if [ -f $(1)/pkg/apidoc/go.mod ]; then cd $(1)/pkg/apidoc && go fmt ./...; fi
 $(1)-vet:
 	@cd $(1) && go vet ./...
+	@if [ -f $(1)/pkg/apidoc/go.mod ]; then cd $(1)/pkg/apidoc && go vet ./...; fi
 $(1)-tidy:
 	@cd $(1) && go mod tidy
+	@if [ -f $(1)/pkg/apidoc/go.mod ]; then cd $(1)/pkg/apidoc && go mod tidy; fi
 $(1)-clean:
 	@rm -rf $(1)/bin $(1)/coverage
 endef
@@ -93,11 +97,16 @@ $(foreach c,$(COMPONENTS),$(eval $(call COMPONENT_template,$(c))))
 define DOC_template
 .PHONY: $(1)-doc-gen $(1)-doc-test
 $(1)-doc-gen:
-	@cd $(1) && go run ./cmd/openapi-gen -o $(REPO_ROOT)/axisml-system/docs/apis/$(1).yaml -version $(IMAGE_TAG)
+	@cd $(1)/pkg/apidoc && go run ./cmd/openapi-gen \
+	  -o $(REPO_ROOT)/axisml-system/docs/apis/$(1).yaml \
+	  -embed $(REPO_ROOT)/axisml-system/$(1)/pkg/apispec/openapi.gen.yaml \
+	  -version $(IMAGE_TAG)
 $(1)-doc-test: $(1)-doc-gen
-	@if ! git -C $(REPO_ROOT) diff --quiet -- axisml-system/docs/apis/$(1).yaml; then \
-	  echo "ERROR: axisml-system/docs/apis/$(1).yaml is out of date. Run 'make $(1)-doc-gen' and commit."; \
-	  git -C $(REPO_ROOT) --no-pager diff -- axisml-system/docs/apis/$(1).yaml; exit 1; fi
+	@if ! git -C $(REPO_ROOT) diff --quiet -- \
+	  axisml-system/docs/apis/$(1).yaml axisml-system/$(1)/pkg/apispec/openapi.gen.yaml; then \
+	  echo "ERROR: $(1) OpenAPI artifacts are out of date. Run 'make $(1)-doc-gen' and commit."; \
+	  git -C $(REPO_ROOT) --no-pager diff -- \
+	    axisml-system/docs/apis/$(1).yaml axisml-system/$(1)/pkg/apispec/openapi.gen.yaml; exit 1; fi
 endef
 $(foreach c,$(DOC_COMPONENTS),$(eval $(call DOC_template,$(c))))
 

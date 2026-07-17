@@ -4,10 +4,9 @@
 # as aios-ml. The external composition root and standalone runtime are owned by
 # that project; this script publishes only the shared AxisML modules it consumes.
 #
-# Local development keeps v0.0.0 requirements plus relative replace directives.
-# External consumers ignore dependency-module replaces, so a release must first
-# bump every in-repo requirement to a real version, then tag each module using
-# Go's subdirectory tag convention.
+# Local development may keep relative replace directives. External consumers
+# ignore dependency-module replaces, so every in-repo requirement must name a
+# real released version before tagging modules with Go's subdirectory convention.
 #
 # Usage:
 #   scripts/publish-modules.sh list
@@ -19,9 +18,9 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Runtime modules used by aios-ml plus the shared OpenAPI builder used by its
-# control-plane document generator. pkg/configdoc remains in-repo-only because
-# no package in the external build graph imports it.
+# Runtime modules used by out-of-tree composition roots. Configuration and
+# document-generation helpers are intentionally repository-local and are not
+# part of the versioned module surface.
 MODULES=(
   axisml-system/apis
   axisml-system/artifact-hub
@@ -29,8 +28,6 @@ MODULES=(
   axisml-system/compute-operator
   axisml-system/compute-service
   axisml-system/tenant-operator
-  pkg/axismlconfig
-  pkg/openapigen
 )
 
 MODPREFIX="github.com/axisml/axisml"
