@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
-	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 func TestLoad_Defaults(t *testing.T) {
-	cfg, err := config.Load(axismlconfig.Options{EnvOnly: true})
+	cfg, err := config.Load(config.Options{EnvOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, "localhost", cfg.Database.Host)
 	assert.Equal(t, 5432, cfg.Database.Port)
@@ -27,7 +26,7 @@ func TestLoad_EnvOverrideAndWeakTyping(t *testing.T) {
 	t.Setenv("AXISML_DATABASE_PORT", "6543")
 	t.Setenv("AXISML_LOG_LEVEL", "debug")
 	t.Setenv("AXISML_WORKLOAD_TENANT_PREFIX", "true")
-	cfg, err := config.Load(axismlconfig.Options{EnvOnly: true})
+	cfg, err := config.Load(config.Options{EnvOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, "db.example", cfg.Database.Host)
 	assert.Equal(t, 6543, cfg.Database.Port)
@@ -40,13 +39,13 @@ func TestLoad_SecretFromFile(t *testing.T) {
 	path := dir + "/pw"
 	require.NoError(t, os.WriteFile(path, []byte("s3cret\n"), 0o600))
 	t.Setenv("AXISML_DATABASE_PASSWORD_FILE", path)
-	cfg, err := config.Load(axismlconfig.Options{EnvOnly: true})
+	cfg, err := config.Load(config.Options{EnvOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, "s3cret", cfg.Database.Password)
 }
 
 func TestPostgresDSN(t *testing.T) {
-	cfg := config.Config{Common: axismlconfig.Common{Database: axismlconfig.Database{
+	cfg := config.Config{Common: config.Common{Database: config.Database{
 		Host: "h", Port: 5432, User: "u", Password: "p", Name: "d", SSLMode: "disable",
 	}}}
 	dsn := cfg.PostgresDSN()
@@ -56,7 +55,7 @@ func TestPostgresDSN(t *testing.T) {
 }
 
 func TestPostgresURL(t *testing.T) {
-	cfg := config.Config{Common: axismlconfig.Common{Database: axismlconfig.Database{
+	cfg := config.Config{Common: config.Common{Database: config.Database{
 		Host: "h", Port: 5432, User: "u", Password: "p", Name: "d", SSLMode: "disable",
 	}}}
 	assert.Equal(t, "postgres://u:p@h:5432/d?sslmode=disable", cfg.PostgresURL())

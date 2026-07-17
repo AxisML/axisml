@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-
-	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 // Config is compute-service's runtime configuration. It embeds the shared
@@ -11,7 +9,7 @@ import (
 // endpoint that backs the per-workload metrics routes. Listen ports, reconcile
 // cadence, and leader election are fixed constants (see consts.go).
 type Config struct {
-	axismlconfig.Common `mapstructure:",squash"`
+	Common `mapstructure:",squash"`
 
 	Prometheus Prometheus `mapstructure:"prometheus"`
 	Workload   Workload   `mapstructure:"workload"`
@@ -27,16 +25,6 @@ type Workload struct {
 // fabricated data.
 type Prometheus struct {
 	URL string `mapstructure:"url" default:"" doc:"Prometheus query API base URL (e.g. http://kube-prometheus-stack-prometheus.axisml-infra:9090). Empty disables the workload metrics endpoints."`
-}
-
-// Load resolves the configuration from defaults < file < AXISML_ env < secret
-// files. opts.File carries the --config flag value (empty = auto-discover).
-func Load(opts axismlconfig.Options) (Config, error) {
-	var c Config
-	if err := axismlconfig.Load(&c, opts); err != nil {
-		return Config{}, err
-	}
-	return c, nil
 }
 
 // Validate is invoked by the loader (fail-fast).

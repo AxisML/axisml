@@ -34,7 +34,6 @@ import (
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/gc"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
-	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 // suite is the shared per-package test fixture.
@@ -123,8 +122,8 @@ func bootstrap() (*suite, error) {
 	}
 
 	cfg := config.Config{
-		Common: axismlconfig.Common{
-			Database: axismlconfig.Database{
+		Common: config.Common{
+			Database: config.Database{
 				Host:     host,
 				Port:     int(port.Num()),
 				Name:     "axisml",
@@ -132,7 +131,7 @@ func bootstrap() (*suite, error) {
 				Password: "axisml",
 				SSLMode:  "disable",
 			},
-			Log: axismlconfig.Log{Level: "info", Format: "console"},
+			Log: config.Log{Level: "info", Format: "console"},
 		},
 		OCI: config.OCI{
 			// host:port with no scheme — the OCI client defaults to http.

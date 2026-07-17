@@ -8,7 +8,6 @@ import (
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/app"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
-	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 func main() {
@@ -24,7 +23,7 @@ func main() {
 		"path to the YAML config file (default: $AXISML_CONFIG or /etc/axisml/config.yaml)")
 
 	load := func() (config.Config, error) {
-		return config.Load(axismlconfig.Options{File: cfgFile})
+		return config.Load(config.Options{File: cfgFile})
 	}
 
 	serve := &cobra.Command{

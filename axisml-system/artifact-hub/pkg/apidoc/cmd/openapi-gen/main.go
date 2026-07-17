@@ -3,9 +3,9 @@
 // pkg/apidoc (the single source of truth); this command
 // only renders it to YAML.
 //
-// Run from the component root:
+// Run from the pkg/apidoc tool module:
 //
-//	go run ./cmd/openapi-gen -o ../docs/apis/artifact-hub.yaml
+//	go run ./cmd/openapi-gen -o ../../../docs/apis/artifact-hub.yaml -embed ../apispec/openapi.gen.yaml
 package main
 
 import (
@@ -21,7 +21,8 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 func main() {
-	out := flag.String("o", "../docs/apis/artifact-hub.yaml", "output path")
+	out := flag.String("o", "../../../docs/apis/artifact-hub.yaml", "output path")
+	embed := flag.String("embed", "../apispec/openapi.gen.yaml", "runtime module embed output path")
 	v := flag.String("version", defaultVersion, "info.version field")
 	flag.Parse()
 
@@ -30,13 +31,15 @@ func main() {
 	if err != nil {
 		fail("marshal: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-		fail("mkdir: %v", err)
+	for _, path := range []string{*out, *embed} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			fail("mkdir %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			fail("write %s: %v", path, err)
+		}
+		fmt.Fprintf(os.Stderr, "wrote %s\n", path)
 	}
-	if err := os.WriteFile(*out, data, 0o644); err != nil {
-		fail("write: %v", err)
-	}
-	fmt.Fprintf(os.Stderr, "wrote %s\n", *out)
 }
 
 func fail(format string, args ...any) {

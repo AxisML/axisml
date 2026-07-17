@@ -2,17 +2,15 @@ package config
 
 import (
 	"fmt"
-
-	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 // Config is artifact-hub's runtime configuration: the shared database and log
 // sections plus the OCI registry and S3 object-store connections. Listen ports,
 // GC cadence/TTLs, and leader election are fixed constants (see consts.go).
 type Config struct {
-	axismlconfig.Common `mapstructure:",squash"`
-	OCI                 OCI `mapstructure:"oci"`
-	S3                  S3  `mapstructure:"s3"`
+	Common `mapstructure:",squash"`
+	OCI    OCI `mapstructure:"oci"`
+	S3     S3  `mapstructure:"s3"`
 }
 
 // OCI is the zot/OCI registry connection. The scheme is derived from Endpoint
@@ -32,16 +30,6 @@ type S3 struct {
 	AccessKey string `mapstructure:"access_key" default:"" doc:"S3/RustFS access key"`
 	SecretKey string `mapstructure:"secret_key" secret:"true" doc:"S3/RustFS secret key"`
 	Bucket    string `mapstructure:"bucket" default:"axisml-artifact-hub" doc:"S3 bucket datasets are stored in"`
-}
-
-// Load resolves the configuration from defaults < file < AXISML_ env < secret
-// files. opts.File carries the --config flag value (empty = auto-discover).
-func Load(opts axismlconfig.Options) (Config, error) {
-	var c Config
-	if err := axismlconfig.Load(&c, opts); err != nil {
-		return Config{}, err
-	}
-	return c, nil
 }
 
 // Validate is invoked by the loader (fail-fast).

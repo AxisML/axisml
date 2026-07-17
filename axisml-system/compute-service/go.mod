@@ -3,15 +3,16 @@ module github.com/axisml/axisml/axisml-system/compute-service
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/go-playground/validator/v10 v10.22.1
+	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.1
 	gorm.io/datatypes v1.2.5
@@ -23,23 +24,21 @@ require (
 	sigs.k8s.io/controller-runtime v0.24.0
 )
 
+replace github.com/axisml/axisml/axisml-system/apis => ../apis
+
 require (
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/axisml/axisml/axisml-system/apis v0.0.0
-	github.com/axisml/axisml/pkg/axismlconfig v0.0.0
-	github.com/axisml/axisml/pkg/configdoc v0.0.0
+	github.com/axisml/axisml/axisml-system/apis v0.0.1
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
@@ -117,11 +116,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
-
-replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
-
-replace github.com/axisml/axisml/pkg/configdoc => ../../pkg/configdoc
-
-replace github.com/axisml/axisml/axisml-system/apis => ../apis
