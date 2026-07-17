@@ -4918,8 +4918,8 @@ components:
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         size:
-          description: Initial requested capacity (e.g. 50Gi). Required in Standard;
-            ignored in Lite.
+          description: Initial requested capacity (e.g. 50Gi); required when the backing
+            store needs an explicit capacity request.
           type: string
         storageClass:
           description: StorageClass backing the volume (Standard only).

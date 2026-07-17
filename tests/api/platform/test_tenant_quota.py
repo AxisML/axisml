@@ -28,14 +28,12 @@ from clients.platform.models import (
     UserCreateRequest,
 )
 from lib import platform_helpers
-from lib.harness import Capability
 from lib.naming import unique_name
 
 MEMBER_PASSWORD = "password123"
 
 
 def test_tenant_quota_member_lifecycle(harness, cfg):
-    harness.skip_unless(Capability.MULTI_TENANT)
     admin = harness.platform(harness.admin_token())
     member = unique_name("plat-u")
     tenant = unique_name("plat-t")

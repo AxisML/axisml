@@ -18,7 +18,8 @@ class TenantVolume:
         name (str): Data volume (claim) name; workloads mount it by this name.
         access_modes (list[str] | Unset): Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany).
         description (str | Unset): Free-text description surfaced in the DataVolumes catalog.
-        size (str | Unset): Initial requested capacity (e.g. 50Gi). Required in Standard; ignored in Lite.
+        size (str | Unset): Initial requested capacity (e.g. 50Gi); required when the backing store needs an explicit
+            capacity request.
         storage_class (str | Unset): StorageClass backing the volume (Standard only).
     """
 

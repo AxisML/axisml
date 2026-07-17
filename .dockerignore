@@ -1,5 +1,5 @@
 # Repo-root .dockerignore — applies to every image whose build context is the
-# repo root (axisml-platform, the axisml-system components, axisml-lite). Without
+# repo root (axisml-platform and the axisml-system components). Without
 # it, `docker build ... <REPO_ROOT>` ships the whole tree (all node_modules, the
 # .git history, build artifacts) as context, and the platform frontend stage's
 # `COPY axisml-platform/frontend/ ./` would clobber the freshly `pnpm install`ed

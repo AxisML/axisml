@@ -8,8 +8,8 @@ components:
         runtime: kubernetes
       properties:
         quotaEnforcement:
-          description: True when the scheduler admits pods against an ElasticQuota
-            (Kubernetes form); false on the Lite Standalone runtime.
+          description: True when the scheduler admits pods against an ElasticQuota;
+            false when the runtime has no quota admission.
           type: boolean
         runtime:
           description: Workload execution engine for this deployment form (kubernetes

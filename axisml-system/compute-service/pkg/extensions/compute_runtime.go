@@ -1,17 +1,17 @@
 // Package extensions publishes the deployment-form-neutral extension seams that
 // Compute Service business logic depends on — the contracts an alternate
-// deployment form (notably AxisML Lite's axisml-core) must implement. Each
-// composition root (the Kubernetes binary, or Lite's axisml-core) injects
+// deployment form (notably an external standalone deployment) must implement. Each
+// composition root (the Kubernetes binary, or an external standalone composition root) injects
 // concrete implementations:
 //
 //   - ComputeRuntime is the engine that actually executes AxisML workloads. The
 //     Kubernetes runtime (internal/kuberuntime) writes the MLRun / MLService /
 //     MLTrafficPolicy CRs to the apiserver, where compute-operator maps them onto
-//     Job / Deployment / StatefulSet / Service / HTTPRoute. Lite's Standalone
+//     Job / Deployment / StatefulSet / Service / HTTPRoute. A standalone
 //     runtime receives the same objects and maps them onto containers,
 //     volumes, networks and dynamic proxy config.
 //   - ResourceResolver reads the ResourcePool CR and its embedded units by name.
-//     Kubernetes reads the ResourcePool CR informer cache; Lite reads a static
+//     Kubernetes reads the ResourcePool CR informer cache; a standalone deployment can read a static
 //     config catalog. The business layer merges the looked-up (pool, unit) into
 //     the workload spec snapshot (internal/resource, design §5.4).
 //

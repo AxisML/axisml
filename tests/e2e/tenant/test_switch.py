@@ -1,6 +1,6 @@
 """UI e2e: the tenant switcher selects an active scope (mandatory tenant scope).
 
-Gated on MULTI_TENANT via the ``seeded_tenant`` fixture (Lite has one tenant)."""
+The ``seeded_tenant`` fixture provisions the second tenant."""
 
 from __future__ import annotations
 

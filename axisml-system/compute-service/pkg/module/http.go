@@ -10,7 +10,7 @@ import (
 
 // The HTTP middleware a Compute Service handler needs is form-neutral but lives
 // in internal/. These thin re-exports let a composition root that mounts the
-// routes on its OWN gin engine (Lite's axisml-core) install the same chain the
+// routes on its OWN gin engine (an external standalone composition root) install the same chain the
 // Kubernetes binary's server.New installs. The Kubernetes binary keeps using
 // server.New directly and ignores these.
 

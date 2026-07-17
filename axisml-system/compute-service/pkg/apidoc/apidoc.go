@@ -6,10 +6,8 @@
 // Routes are listed explicitly here rather than scraped from the gin router so
 // the document is reviewable.
 //
-// The component's own cmd/openapi-gen renders Document to
-// axisml-system/docs/apis/compute-service.yaml; axisml-core imports Document
-// directly to fold the compute surface into the Lite composite spec, without a
-// YAML round-trip.
+// The component's cmd/openapi-gen renders Document to
+// axisml-system/docs/apis/compute-service.yaml.
 package apidoc
 
 import (

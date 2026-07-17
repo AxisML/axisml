@@ -1,7 +1,7 @@
 """compute-service: MLRun lifecycle over the HTTP contract (black-box).
 
 Drives only the typed compute-service client and asserts over phase / pod
-projection / logs, so the same test validates Standard (operators) and Lite
+projection / logs, so the same test validates the operator-backed deployment
 (in-process runtime). White-box CR/Job assertions live at the integration layer.
 """
 

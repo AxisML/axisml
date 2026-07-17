@@ -33,7 +33,7 @@ const (
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	// QuotaEnforcement True when the scheduler admits pods against an ElasticQuota (Kubernetes form); false on the Lite Standalone runtime.
+	// QuotaEnforcement True when the scheduler admits pods against an ElasticQuota; false when the runtime has no quota admission.
 	QuotaEnforcement bool `json:"quotaEnforcement"`
 
 	// Runtime Workload execution engine for this deployment form (kubernetes or standalone).

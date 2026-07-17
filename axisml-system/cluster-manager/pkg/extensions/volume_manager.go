@@ -9,7 +9,7 @@ import (
 
 // VolumeManager is the persistence seam for durable data volumes, each modelled
 // as a Kubernetes PersistentVolumeClaim (design §3.4). The Kubernetes
-// implementation materialises the PVC directly; the Lite implementation maps it
+// implementation materialises the PVC directly; a single-host implementation maps it
 // onto a managed Docker volume, reading only the fields a single-host volume can
 // honour. cluster-manager does not interpret the volume's purpose — the
 // deterministic claim naming and the pod mount are the caller's job; this seam
@@ -18,7 +18,7 @@ import (
 // Idempotency: Ensure treats an already-existing volume as success; Delete
 // treats a missing volume as success. Unlike the pool / tenant providers there
 // is no Writable() variance — volumes are writable in every deployment form,
-// though Patch (expand / relabel) may be unavailable in Lite.
+// though Patch (expand / relabel) may be unavailable in a single-host deployment.
 type VolumeManager interface {
 	// Ensure materialises the backing volume from the supplied PVC spec.
 	Ensure(ctx context.Context, pvc *corev1.PersistentVolumeClaim) error
@@ -36,7 +36,7 @@ type VolumeManager interface {
 	// Delete reclaims the backing volume.
 	Delete(ctx context.Context, key types.NamespacedName) error
 	// ListStorageClasses returns the storage classes available for new volumes
-	// (empty in deployment forms without a StorageClass concept, e.g. Lite).
+	// (empty in deployment forms without a StorageClass concept).
 	ListStorageClasses(ctx context.Context) ([]StorageClass, error)
 }
 

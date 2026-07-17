@@ -24,13 +24,11 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
-from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
 
 def test_model_two_phase_upload_resolve(harness, cfg, tenant):
-    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     ns, _ = tenant
     name = unique_name("e2e-2phase")
     version = "1.0.0"

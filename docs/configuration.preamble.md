@@ -20,8 +20,7 @@ structs, so they always match the running code.
 | `platform-backend` | `axisml-platform/backend` |
 
 Out of scope: the controller-runtime components (`tenant-operator`, `compute-operator`,
-`cluster-manager`), which keep their CLI flags, and the Lite single-host form (`axisml-core`), which is
-env-only and configured through its Docker Compose `environment:` block.
+`cluster-manager`), which keep their CLI flags.
 
 ## Sources and precedence
 
@@ -63,7 +62,7 @@ Set whichever fits; if both are set for a key, `_FILE` wins. Secret values are r
 ## Reserved / third-party variables
 
 These are read by third-party SDKs or sibling images at their own names and are exempt from the
-`AXISML_` rule: `KUBECONFIG`, `DOCKER_HOST`/`DOCKER_*` (Lite), the downward-API `POD_*`, the Postgres
+`AXISML_` rule: `KUBECONFIG`, the downward-API `POD_*`, the Postgres
 image's `POSTGRES_*`, and Go/OS runtime knobs (`GOMAXPROCS`, `TZ`, …).
 
 ## Fixed by design (not configurable)

@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 
 	"github.com/axisml/axisml/test/testutil"
@@ -64,12 +65,13 @@ func TestMLRun_NativeJob_SuspendCancels(t *testing.T) {
 		},
 	}
 	require.NoError(t, c.Create(ctx, mlrun))
+	jobName := workloadname.Role(mlrun, axisv1alpha1.DefaultRoleName)
 
 	// Wait for the Job to exist before flipping suspend; the reconcile-
 	// before-create path is exercised separately at the unit-test level.
 	var job batchv1.Job
 	testutil.EventuallyExists(t, ctx, c,
-		types.NamespacedName{Namespace: ns, Name: mlrunName}, &job, testWaitTimeout)
+		types.NamespacedName{Namespace: ns, Name: jobName}, &job, testWaitTimeout)
 
 	// Toggle suspend.
 	var fresh axisv1alpha1.MLRun
@@ -81,7 +83,7 @@ func TestMLRun_NativeJob_SuspendCancels(t *testing.T) {
 	// Job's spec.suspend flips to true.
 	testutil.Eventually(t, testWaitTimeout, 200*time.Millisecond, func() error {
 		var got batchv1.Job
-		if err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: mlrunName}, &got); err != nil {
+		if err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: jobName}, &got); err != nil {
 			return err
 		}
 		if got.Spec.Suspend == nil || !*got.Spec.Suspend {

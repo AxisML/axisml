@@ -1,13 +1,13 @@
 // Package extensions declares the deployment-form-neutral extension seams the
 // cluster-manager REST handlers depend on — the interfaces an alternate
-// deployment form (notably AxisML Lite's axisml-core) must implement. A
-// composition root — the Kubernetes binary, or Lite's axisml-core — injects
+// deployment form (notably an external standalone deployment) must implement. A
+// composition root — the Kubernetes binary, or an external standalone composition root — injects
 // concrete providers:
 //
 //   - Kubernetes injects providers backed by the cluster-scoped ResourcePool /
 //     Tenant CRs (full CRUD with optimistic locking) and a VolumeManager that
 //     materialises PersistentVolumeClaims.
-//   - Lite injects read-only providers backed by the static CR-YAML config; write
+//   - A standalone deployment can inject read-only providers backed by static config; write
 //     operations return ErrCapabilityUnavailable, which the handlers surface as
 //     409 CapabilityUnavailable (design §5.1). Its VolumeManager is writable,
 //     backed by managed Docker volumes — workspace volumes are created on demand
@@ -27,7 +27,7 @@ import (
 	cmv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 )
 
-// ErrCapabilityUnavailable is returned by read-only (Lite) providers for any
+// ErrCapabilityUnavailable is returned by read-only providers for any
 // write operation. Handlers map it to 409 CapabilityUnavailable.
 var ErrCapabilityUnavailable = errors.New("capability unavailable in this deployment form")
 
@@ -42,7 +42,7 @@ type ResourcePoolProvider interface {
 	Patch(ctx context.Context, obj, base *cmv1alpha1.ResourcePool) error
 	Delete(ctx context.Context, name string) error
 	// Writable reports whether the provider accepts writes (Create/Patch/Delete).
-	// The Kubernetes provider returns true; the Lite read-only config provider
+	// The Kubernetes provider returns true; a read-only config provider
 	// returns false. It backs the cluster-manager capability document.
 	Writable() bool
 }

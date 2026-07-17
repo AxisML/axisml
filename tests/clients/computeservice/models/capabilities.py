@@ -16,8 +16,8 @@ class Capabilities:
         {'quotaEnforcement': True, 'runtime': 'kubernetes'}
 
     Attributes:
-        quota_enforcement (bool): True when the scheduler admits pods against an ElasticQuota (Kubernetes form); false
-            on the Lite Standalone runtime.
+        quota_enforcement (bool): True when the scheduler admits pods against an ElasticQuota; false when the runtime
+            has no quota admission.
         runtime (str): Workload execution engine for this deployment form (kubernetes or standalone).
     """
 

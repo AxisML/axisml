@@ -1,9 +1,8 @@
-"""Standard-form (Kubernetes) environment lifecycle.
+"""Kubernetes environment lifecycle.
 
-Brings up / tears down the full Standard stack the API + UI suites need: a
+Brings up / tears down the full stack the API + UI suites need: a
 minikube cluster, freshly built+loaded layer images, the three Helm layers,
-workload images, and a usable admin account. Driven from ``setup.cli`` via
-``test-setup --mode standard`` / ``test-teardown --mode standard``.
+workload images, and a usable admin account. Driven from ``setup.cli``.
 
 Pure provisioning over the existing Makefile tooling — no pytest, no test imports.
 """
@@ -29,7 +28,7 @@ def setup() -> int:
     for tool in ("make", "docker", "minikube", "kubectl", "helm"):
         require(tool)
     return stage_runner(
-        "test-setup [standard]",
+        "test-setup",
         [
             ("start minikube cluster", lambda: make("cluster-up")),
             ("build + load layer images", lambda: make("image-load")),
@@ -44,7 +43,7 @@ def teardown(*, delete: bool = False) -> int:
     require("make")
     cluster_target = "cluster-delete" if delete else "cluster-down"
     return stage_runner(
-        "test-teardown [standard]",
+        "test-teardown",
         [
             ("uninstall helm layers (platform -> system -> infra)", lambda: make("helm-uninstall")),
             (f"{cluster_target} minikube cluster", lambda: make(cluster_target)),

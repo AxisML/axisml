@@ -1,11 +1,4 @@
-"""UI e2e fixtures (pytest-playwright). Runs under both forms.
-
-The Platform serves the SPA at / and the API at /api/v1. Under Standard a session
-port-forward to the Platform service backs ``base_url``; under Lite it is the
-axisml-platform container's published URL directly (no port-forward).
-``logged_in_page`` signs in as the admin seeded by env-setup. We reuse
-pytest-playwright's ``page`` fixture as-is.
-"""
+"""UI e2e fixtures for the Kubernetes Standard deployment."""
 
 from __future__ import annotations
 
@@ -15,7 +8,6 @@ import httpx
 import pytest
 
 from lib import config, seeding
-from lib.harness import Capability, form_supports
 from lib.naming import unique_name
 from lib.portforward import PortForward
 
@@ -31,10 +23,7 @@ def _platform_forward():
 
 
 @pytest.fixture(scope="session")
-def base_url(mode: str, cfg: config.Config, request: pytest.FixtureRequest) -> str:
-    # Lite reaches the Platform container directly; Standard tunnels via port-forward.
-    if mode == "lite":
-        return cfg.lite_platform_url
+def base_url(cfg: config.Config, request: pytest.FixtureRequest) -> str:
     return request.getfixturevalue("_platform_forward").local_url
 
 
@@ -77,13 +66,10 @@ def admin_token(base_url: str, cfg: config.Config) -> str:
 
 
 @pytest.fixture
-def seeded_tenant(mode: str, base_url: str, admin_token: str, cfg: config.Config):
+def seeded_tenant(base_url: str, admin_token: str, cfg: config.Config):
     """A tenant (admin is its initial member) + quota, removed after the test.
 
-    Provisioning an extra tenant is a MULTI_TENANT operation, so tests that
-    depend on this fixture skip on forms fixed to the static default (Lite)."""
-    if not form_supports(mode, Capability.MULTI_TENANT):
-        pytest.skip("form does not support multiTenant")
+    Provisioning uses the Standard multi-tenant control plane."""
     client = seeding.admin_client(base_url, admin_token)
     identifier = unique_name("ui-t")
     seeding.create_tenant_with_quota(client, identifier, cfg.admin_username, cfg)

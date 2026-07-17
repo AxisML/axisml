@@ -24,7 +24,6 @@ from clients.platform.models import (
     UserCreateRequest,
 )
 from lib import platform_helpers
-from lib.harness import Capability
 from lib.naming import unique_name
 
 OWNER_PASSWORD = "password123"
@@ -46,8 +45,7 @@ def _job_spec(cfg) -> JobSpec:
 
 
 def test_job_definition_lifecycle(harness, cfg):
-    # Scaffolds a dedicated tenant + owner — creating tenants is a MULTI_TENANT op.
-    harness.skip_unless(Capability.MULTI_TENANT)
+    # Scaffold a dedicated tenant and owner.
     admin = harness.platform(harness.admin_token())
     owner = unique_name("job-u")
     tenant = unique_name("job-t")

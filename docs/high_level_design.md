@@ -4,7 +4,7 @@
 
 **AxisML** 是面向机器学习工作负载的一站式平台，覆盖模型开发、训练、制品管理、在线推理与运维。本文是系统设计的高层导航：平台边界、核心概念、组件职责与关键不变量；字段级 schema、状态机与实现契约以各组件详细设计为准。
 
-AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / `MLTrafficPolicy` workload contract 与 PostgreSQL schema：**Standard 形态**——完整的 Kubernetes 部署（本文描述的形态），由 operator 将 workload contract 映射为 Job / Deployment / HTTPRoute 等 K8s 资源；**Lite 形态**——无 Kubernetes 的单机 Docker Compose 部署（见 [axisml-lite](../axisml-lite/docs/system_design.md)），由进程内 Standalone Runtime 将同一 contract 映射为 Docker 容器。本文默认描述 Standard 形态。
+AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTrafficPolicy` workload contract 映射为 Job / Deployment / HTTPRoute 等集群资源。
 
 ## 2. 核心概念
 
@@ -22,7 +22,7 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 | 资源池 ResourcePool | `ResourcePool` CRD（cluster-scoped），`spec.units[]` 内嵌 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 资源单元 ResourceUnit | `ResourcePool.spec.units[]` 内嵌项，与 pool 同生灭 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](../axisml-system/docs/system_design/cluster-manager.md#4-核心功能) / [tenant-operator #4](../axisml-system/docs/system_design/tenant-operator.md#4-核心功能) |
-| 数据卷 / 持久卷 Volume | 受管 PVC（Lite 形态为受管 Docker 卷），由 Platform 经 cluster-manager 管理（系统管理员级数据卷目录：CRUD + 扩容 + 占用反查）；工作负载以 PVC 引用挂载 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
+| 数据卷 / 持久卷 Volume | 受管 PVC，由 Platform 经 cluster-manager 管理（系统管理员级数据卷目录：CRUD + 扩容 + 占用反查）；工作负载以 PVC 引用挂载 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 任务（定义）Job | Platform `jobs` 行（可复用模板） | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
 | 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `compute.axisml.io/experiment` label 关联 | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
 | 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `compute.axisml.io/{job,experiment}` label 关联 | [compute-operator #3](../axisml-system/docs/system_design/compute-operator.md#3-核心模型) |
@@ -166,7 +166,6 @@ axisml/                        # 按部署层组织，每层一个自包含目�
 │   └── test/                  # testutil / crds/external / setup-envtest（System 集成测试基建）
 ├── axisml-infra/              # 第三方基础设施
 │   ├── deploy/helm/  docs/  scripts/minikube.sh
-├── axisml-lite/               # Lite 形态：无 K8s 的单机 Docker Compose 部署（axisml-core/ deploy/）
 ├── docs/                      # 跨层：high_level_design.md + deployment.md + development_workflow.md
 ├── pkg/openapigen/  tests/    # 共享：OpenAPI 引擎 / 黑盒测试套件（Python + pytest）
 ├── Makefile                   # 根编排器（委派给各层 Makefile）

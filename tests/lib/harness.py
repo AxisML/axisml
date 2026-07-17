@@ -1,18 +1,10 @@
-"""The single environment seam between the black-box tests and a deployment form.
-
-A System/CORE test drives only the typed clients exposed here plus ``tenant`` /
-``supports`` — never a Kubernetes client — so the same test runs against both the
-Standard form (real cluster reached over port-forwards) and the Lite form (one
-axisml-core process). Mirrors the Go suite's ``Harness`` interface.
-"""
+"""The environment seam between black-box tests and the Standard deployment."""
 
 from __future__ import annotations
 
-import enum
 from abc import ABC, abstractmethod
 
 import httpx
-import pytest
 
 from clients.artifacthub import Client as ArtifactHubClient
 from clients.clustermanager import Client as ClusterManagerClient
@@ -23,27 +15,6 @@ from lib.naming import unique_name
 from lib.portforward import PortForward
 
 USER_HEADER = "X-Axisml-User"
-
-
-class Capability(str, enum.Enum):
-    """A feature whose presence differs by deployment form."""
-
-    MULTI_TENANT = "multiTenant"
-    RESOURCE_POOL_WRITE = "resourcePoolsWritable"
-    QUOTA_ENFORCEMENT = "quotaEnforcement"
-    ARTIFACT_UPLOAD = "artifactUpload"
-
-
-def form_supports(mode: str, cap: Capability) -> bool:
-    """Per-form capability matrix — the single source of truth, usable without a
-    harness instance (e.g. from a collection-time fixture that only knows --mode).
-
-    Standard (full Kubernetes) backs every capability; Lite is fixed to a single
-    static tenant with no ElasticQuota, so it only serves artifact upload.
-    """
-    if mode == "standard":
-        return True
-    return cap == Capability.ARTIFACT_UPLOAD  # lite
 
 
 class Harness(ABC):
@@ -67,14 +38,7 @@ class Harness(ABC):
     @abstractmethod
     def artifact_hub(self) -> ArtifactHubClient: ...
 
-    @abstractmethod
-    def supports(self, cap: Capability) -> bool: ...
-
-    def skip_unless(self, cap: Capability) -> None:
-        if not self.supports(cap):
-            pytest.skip(f"form does not support {cap.value}")
-
-    # --- platform (both forms serve axisml-platform; only the base URL differs) ---
+    # --- platform ---
     @property
     @abstractmethod
     def platform_base_url(self) -> str:
@@ -115,7 +79,7 @@ class Harness(ABC):
     def oci_endpoint(self) -> str:
         """Base URL of the OCI registry (zot) the two-phase upload pushes to."""
 
-    # --- tenant lifecycle (Standard provisions; Lite uses the static default) ---
+    # --- tenant lifecycle ---
     @abstractmethod
     def create_tenant(
         self, name: str, *, pool: str | None = None, quantity: int = 4
@@ -185,9 +149,6 @@ class StandardHarness(Harness):
             self._forwards.append(self._zot_pf)
         return self._zot_pf.local_url
 
-    def supports(self, cap: Capability) -> bool:
-        return form_supports("standard", cap)
-
     def create_tenant(
         self, name: str, *, pool: str | None = None, quantity: int = 4
     ) -> None:
@@ -228,58 +189,3 @@ class StandardHarness(Harness):
     def close(self) -> None:
         for pf in self._forwards:
             pf.stop()
-
-
-class LiteHarness(Harness):
-    """One axisml-core process serving all three System modules at a single URL,
-    fronted by axisml-platform (API + SPA) as a separate container.
-
-    Lite ships the Platform layer and the UI, so Platform-API and UI tests run
-    here too. It is fixed to a single static tenant (``default``) and refuses
-    tenant/pool writes (409): multi-tenant tests gate on ``MULTI_TENANT`` (or stay
-    ``standard_only``) and are skipped under ``--mode lite``.
-    """
-
-    LITE_TENANT = "default"
-
-    def __init__(self, cfg: config.Config):
-        super().__init__(cfg)
-        base = cfg.lite_base_url
-        self._cm = _system_client(ClusterManagerClient, base, cfg.user)
-        self._cs = _system_client(ComputeServiceClient, base, cfg.user)
-        self._ah = _system_client(ArtifactHubClient, base, cfg.user)
-        self._platform_base = cfg.lite_platform_url
-
-    @property
-    def cluster_manager(self) -> ClusterManagerClient:
-        return self._cm
-
-    @property
-    def compute_service(self) -> ComputeServiceClient:
-        return self._cs
-
-    @property
-    def artifact_hub(self) -> ArtifactHubClient:
-        return self._ah
-
-    @property
-    def platform_base_url(self) -> str:
-        return self._platform_base
-
-    def oci_endpoint(self) -> str:
-        return self.cfg.lite_oci_url
-
-    def supports(self, cap: Capability) -> bool:
-        return form_supports("lite", cap)
-
-    def create_tenant(
-        self, name: str, *, pool: str | None = None, quantity: int = 4
-    ) -> None:
-        # Lite serves a single static tenant; there is nothing to provision.
-        return None
-
-    def delete_tenant(self, name: str) -> None:
-        pass
-
-    def new_tenant_name(self) -> str:
-        return self.LITE_TENANT

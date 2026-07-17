@@ -15,7 +15,7 @@ const descriptionAnnotation = "resource.axisml.io/description"
 
 // Volume mirrors the OpenAPI Volume schema — the durable data volume materialised
 // by cluster-manager (a PersistentVolumeClaim in Kubernetes, a managed Docker
-// volume in Lite). Identified by the (namespace, name) tuple; no CR, no id.
+// volume in a single-host deployment). Identified by the (namespace, name) tuple; no CR, no id.
 // Status is read-only and populated on get/list from the live PVC and pod scan.
 type Volume struct {
 	Namespace    string            `json:"namespace" desc:"Physical Kubernetes namespace holding the volume."`

@@ -67,8 +67,7 @@ func seedAdmin(ctx context.Context, cfg config.Config, users *store.UserRepo, lo
 
 // importTenants imports every System-defined tenant into the Platform tenants
 // table. The Tenant CRs are owned by the System layer and created before
-// Platform installs — Standard's chart seeds the built-in `default`; Lite's
-// axisml-core serves one or more read-only tenants from its static config.
+// Platform installs; the System chart seeds the built-in `default` tenant.
 // Platform discovers them via cluster-manager rather than creating its own,
 // which would double-create. Idempotent: tenants already in the table are left
 // as-is.

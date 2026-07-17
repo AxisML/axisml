@@ -1,6 +1,6 @@
 // Package k8sstore is the Kubernetes implementation of the cluster-manager
 // provider stores: full CRUD over the cluster-scoped ResourcePool and Tenant
-// CRs via a controller-runtime client.Client. The Lite form supplies read-only
+// CRs via a controller-runtime client.Client. The standalone deployment supplies read-only
 // config-backed stores instead.
 package k8sstore
 

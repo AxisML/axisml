@@ -114,7 +114,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 | 持续保证 | PVC 无 ownerRef → 被外部删除（如经数据卷目录）不会触发 watch 事件，故控制器在租户声明了卷时按 `DefaultVolumeResyncInterval`（默认 5min）周期性 requeue 重新 ensure，把「确保存在」窗口收敛在有限时间内 |
 | readiness | PVC 存在即 `ready=true`；绑定可延迟（WaitForFirstConsumer），不阻塞租户进入 `Active` |
 
-**不变量**：`volumes[].name` 为唯一 DNS-1123 label；`size` 必填且为合法正 Quantity（Standard 侧 PVC 需要存储请求；单机 Lite Runtime 忽略 size）。**拒绝 `hostPath`**：设了 `volumes[].hostPath` 的 Tenant CR 在 `Validate` 阶段直接失败（`phase=Failed`）——hostPath 破坏租户隔离、把 workload 钉到某节点、且无集群级「确保存在」语义，是单机部署专属能力，不在多租户 Standard 支持。数据卷生命周期（扩容 / 删除 / 占用守卫）仍归数据卷目录，见 [cluster-manager.md](cluster-manager.md) §3.4。
+**不变量**：`volumes[].name` 为唯一 DNS-1123 label；`size` 必填且为合法正 Quantity（PVC 需要存储请求；外部单机运行时可以忽略 size）。**拒绝 `hostPath`**：设了 `volumes[].hostPath` 的 Tenant CR 在 `Validate` 阶段直接失败（`phase=Failed`）——hostPath 破坏租户隔离、把 workload 钉到某节点、且无集群级「确保存在」语义，是单机部署专属能力，不在多租户 Kubernetes 形态中支持。数据卷生命周期（扩容 / 删除 / 占用守卫）仍归数据卷目录，见 [cluster-manager.md](cluster-manager.md) §3.4。
 
 ## 5. 关键机制
 

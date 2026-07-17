@@ -33,7 +33,7 @@ import (
 )
 
 // fakeResourceRuntime is a controllable extensions.ComputeRuntime standing in for
-// the Lite Standalone runtime. Apply* returns ResourceUnavailableError while
+// a standalone runtime. Apply* returns ResourceUnavailableError while
 // `unavailable` is set (no free GPU), and Observe* reports "no containers"
 // (NotFound) until `placed` is flipped, at which point the workload is Running/
 // Ready. Only the Run/Service Apply+Observe+Cancel+Delete methods are exercised
@@ -152,7 +152,7 @@ func servicePhase(t *testing.T, ctx context.Context, id uuid.UUID) string {
 	return row.Phase
 }
 
-// TestMLRun_WaitsForGPUThenRuns drives the Lite "no free GPU → Pending → retry →
+// TestMLRun_WaitsForGPUThenRuns drives the "no free GPU → Pending → retry →
 // Running" state machine through the real mlrun Reconciler + StatusPoller with a
 // fake runtime: the Run must reach Pending, STAY Pending (the poller must not
 // cancel a container-less Pending Run), then advance to Running once a card frees.

@@ -308,7 +308,7 @@ func uniqueNames(field string, names []string) (map[string]struct{}, error) {
 // validateVolumes checks predefined data volumes: each name is a valid DNS-1123
 // label (it becomes the PVC / claim name a workload mounts by), unique, and
 // carries a parseable non-empty size (a PVC needs a storage request to be valid
-// — the single-host Lite runtime ignores it but the field stays required for a
+// — the single-host standalone runtime ignores it but the field stays required for a
 // consistent declaration).
 func validateVolumes(vols []axisml.VolumeSpec) error {
 	seen := make(map[string]struct{}, len(vols))
@@ -316,12 +316,12 @@ func validateVolumes(vols []axisml.VolumeSpec) error {
 		if v.Name == "" {
 			return fmt.Errorf("spec.initResources.volumes[%d].name is required", i)
 		}
-		// hostPath volumes are a single-host Lite convenience only; in a
+		// hostPath volumes are a single-host standalone convenience only; in a
 		// multi-tenant cluster they break tenant isolation, pin the workload to a
 		// node, and have no cluster-wide "ensure exists" semantics. Reject them
 		// here so the Standard operator never materialises one.
 		if v.HostPath != "" {
-			return fmt.Errorf("spec.initResources.volumes[%d] uses hostPath, which is not supported in Standard (multi-tenant); hostPath volumes are a Lite-only feature", i)
+			return fmt.Errorf("spec.initResources.volumes[%d] uses hostPath, which is not supported in a multi-tenant Kubernetes deployment", i)
 		}
 		if len(v.Name) > 63 || !dns1123LabelRegex.MatchString(v.Name) {
 			return fmt.Errorf("spec.initResources.volumes[%d].name %q is not a valid DNS-1123 label", i, v.Name)

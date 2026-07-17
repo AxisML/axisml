@@ -1,1 +1,1 @@
-"""Environment provisioning entrypoints (test-setup / test-setup-lite)."""
+"""Environment provisioning entrypoints."""

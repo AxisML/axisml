@@ -124,7 +124,7 @@ make coverage            # 单元 + 集成覆盖率，合并到 coverage/coverag
 
 - **每个组件都是独立的 Go 模块**，并带有一个同级的 `test/integration/` 子模块 —— 在根目录执行 `go test ./...` 不会遍历所有内容；请使用 `make` target（按层操作时用 `make -C <layer> ...`）。
 - **OpenAPI 规范是生成的，而非手写的。** 在 `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend` 中改动 handler 签名或 DTO 后，提交前请运行 `make doc-gen`。pre-commit 钩子*不会*监视 Platform backend 的 DTO —— 那里需要你自己运行 `make -C axisml-platform doc-gen`。
-- **Conventional Commits，按层加 scope** —— `feat(infra|system|platform|lite)` 外加跨切面的 `build` / `repo` / `deps`；由 commitlint 在提交与 PR 标题上强制执行。
+- **Conventional Commits，按层加 scope** —— `feat(infra|system|platform)` 外加跨切面的 `build` / `repo` / `deps`；由 commitlint 在提交与 PR 标题上强制执行。
 - **算子引入的外部 CRD**（scheduler-plugins 的 `ElasticQuota` 与 `PodGroup`……）已 vendored 到 `axisml-system/test/crds/external/`。
 
 架构说明与坑点见 [CLAUDE.md](CLAUDE.md)；贡献者约定见 [AGENTS.md](AGENTS.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md)。

@@ -1,7 +1,7 @@
 // Package statusmap publishes the shared CR-Status → PG (phase, status)
 // mapping — the Compute domain state machine. Both runtime forms feed observed
 // CR status through these pure functions: the Kubernetes form from an apiserver
-// informer, the Lite form from a runtime Observe poll (design §4.2 / §9.1). The
+// informer, the standalone deployment from a runtime Observe poll (design §4.2 / §9.1). The
 // functions take the current PG phase + standardized status and the observed CR
 // status and return the next phase + status; they never touch the database.
 //

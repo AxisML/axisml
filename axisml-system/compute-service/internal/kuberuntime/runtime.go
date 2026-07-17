@@ -5,7 +5,7 @@
 // maps the CRs onto Job / Deployment / StatefulSet / Service / HTTPRoute.
 //
 // This adapter is the reference implementation the Standalone runtime
-// in the axisml-lite repo mirrors: both speak the same MLRun / MLService /
+// in the standalone implementation mirrors: both speak the same MLRun / MLService /
 // MLTrafficPolicy API types, CR Status semantics and AxisML labels.
 package kuberuntime
 

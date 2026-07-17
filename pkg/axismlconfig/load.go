@@ -17,7 +17,7 @@ const EnvPrefix = "AXISML"
 type Options struct {
 	// File is an explicit path (e.g. from a --config flag). Highest precedence.
 	File string
-	// EnvOnly skips the file layer entirely (the Lite axisml-core binary).
+	// EnvOnly skips the file layer entirely.
 	EnvOnly bool
 }
 

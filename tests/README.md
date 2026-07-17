@@ -17,34 +17,13 @@ tests/
   clients/      generated OpenAPI clients (committed) — make -C tests client-gen
   api/          API tests, one dir per component (black-box HTTP)
     cluster_manager/  compute_service/  artifact_hub/  platform/  golden_path/
-  e2e/          UI end-to-end (pytest-playwright, Standard-only)
+  e2e/          UI end-to-end (pytest-playwright)
     auth/  navigation/
 ```
 
-## Deployment forms (`--mode`) — shared by default
+## Deployment
 
-The form is chosen with a pytest-native option (default `standard`):
-
-- `--mode standard` — a real `axisml` Kubernetes cluster, reached over
-  `kubectl port-forward`. Backs every capability.
-- `--mode lite` — one `axisml-core` process (`:9080`).
-
-**Tests are shared by default.** An *unmarked* test runs under whichever `--mode`
-is selected — this is most of the suite (the System-layer lifecycle tests in
-`cluster_manager` / `compute_service` run unchanged against both forms). Two
-narrower mechanisms handle differences:
-
-- **`@pytest.mark.standard_only` / `lite_only`** — for a test that needs a whole
-  layer/capability the other form lacks. Lite has no Platform layer, no UI, no
-  registry in the default compose, and no multi-tenant, so `platform/`, `e2e/`,
-  `artifact_hub/` (real registry round-trip) and `golden_path/` are
-  `standard_only`. These *skip* under the other `--mode`.
-- **`harness.skip_unless(Capability.X)`** — for a *shared* test with a
-  form-specific sub-behaviour (e.g. the cluster-manager tenant test runs on both
-  forms but skips its write path on Lite via `MULTI_TENANT`). Prefer this over a
-  whole-test marker whenever only part of a test is form-specific.
-
-Capabilities are read from each service's `/api/v1/capabilities` document.
+The suite targets a real AxisML Kubernetes cluster through `kubectl port-forward`.
 
 ## One-time setup
 
@@ -61,12 +40,10 @@ Provisioning is **not** a pytest fixture — bring an environment up once, then 
 pytest against it many times.
 
 ```sh
-uv run test-setup                    # Standard: images -> minikube -> helm -> admin
-uv run test-setup --mode lite        # Lite: build axisml-core + compose up (:9080)
+uv run test-setup                    # images -> minikube -> helm -> admin
 
-uv run test-teardown                 # Standard: helm uninstall + cluster-down
-uv run test-teardown --mode standard --delete   # ... cluster-delete instead
-uv run test-teardown --mode lite [--clean]
+uv run test-teardown                 # helm uninstall + cluster-down
+uv run test-teardown --delete        # ... cluster-delete instead
 ```
 
 `test-setup` resets the Platform `admin` password in the metadata DB to a known
@@ -76,9 +53,8 @@ deterministic credential regardless of the cluster's prior state.
 ## Run
 
 ```sh
-uv run pytest --mode standard api    # all API tests against Standard
-uv run pytest --mode lite api        # System CORE tests against Lite
-uv run pytest e2e                    # UI end-to-end (Standard)
+uv run pytest api                    # all API tests
+uv run pytest e2e                    # UI end-to-end
 uv run pytest api/compute_service -k mlrun -v   # a slice
 ```
 
@@ -89,5 +65,5 @@ If the environment isn't ready, the session aborts with guidance to run
 
 Every knob has a stock-install default; override via env (see `lib/config.py`):
 `AXISML_DEFAULT_POOL`, `AXISML_DEFAULT_UNIT`, `AXISML_MLRUN_IMAGE`,
-`AXISML_ADMIN_PASSWORD`, `AXISML_LITE_URL`, the per-service `*_SVC`/`*_NS`, and the
+`AXISML_ADMIN_PASSWORD`, the per-service `*_SVC`/`*_NS`, and the
 timeout budgets.
