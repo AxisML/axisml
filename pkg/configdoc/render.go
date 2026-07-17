@@ -11,9 +11,9 @@ import (
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
-// Section renders the Markdown reference for one service. When envOnly is true
-// the service reads no config file (Lite axisml-core) and the keys are supplied
-// purely as AXISML_ environment variables.
+// Section renders the Markdown reference for one service. When envOnly is true,
+// the service reads no config file and keys are supplied purely as AXISML_
+// environment variables.
 func Section(name string, into any, envOnly bool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## %s\n\n", name)

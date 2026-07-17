@@ -1,5 +1,5 @@
 // Package module is the public assembly API for Artifact Hub. A composition
-// root — the Kubernetes binary, or Lite's axisml-system — injects the
+// root — the Kubernetes binary or an external composition root — injects the
 // form-neutral config (OCI registry endpoint, dataset bucket, lifecycle TTLs)
 // and receives the HTTP routes plus the background GC worker, then mounts the
 // routes on a shared /api/v1 router group and runs the worker behind its own
@@ -90,7 +90,7 @@ var artifactKinds = []string{"model", "image", "dataset"}
 
 // Capabilities returns the deployment-form capability document. A composition
 // root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
-// into an aggregate (Lite). Artifact Hub's surface is identical across forms.
+// into an aggregate. Artifact Hub's surface is identical across deployment forms.
 func (m *Module) Capabilities() server.Capabilities {
 	return server.Capabilities{Kinds: artifactKinds, Upload: true}
 }

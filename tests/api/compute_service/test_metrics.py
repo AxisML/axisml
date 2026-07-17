@@ -1,14 +1,11 @@
 """compute-service: Prometheus-backed workload metrics (N1).
 
-The metrics endpoints require a metrics backend (Prometheus), which only the
-Standard form provides, so these are marked ``standard_only``. The sampled
+The metrics endpoints require the Prometheus metrics backend. The sampled
 series may legitimately be empty (a short-lived run, or no scraped data yet), so
 the tests assert the contract shape rather than concrete values.
 """
 
 from __future__ import annotations
-
-import pytest
 
 from clients.computeservice.api.ml_runs import (
     create_ml_run,
@@ -24,7 +21,6 @@ from lib import builders
 from lib.naming import unique_name
 
 
-@pytest.mark.standard_only
 def test_mlrun_metrics(harness, cfg, tenant):
     ns = tenant
     name = unique_name("e2e-run-metrics")
@@ -54,7 +50,6 @@ def test_mlrun_metrics(harness, cfg, tenant):
         delete_ml_run.sync_detailed(ns, name, client=harness.compute_service)
 
 
-@pytest.mark.standard_only
 def test_mlservice_metrics(harness, cfg, tenant):
     ns = tenant
     name = unique_name("e2e-svc-metrics")

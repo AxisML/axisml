@@ -124,7 +124,7 @@ Things that bite if you don't know them:
 
 - **Each component is its own Go module** with a sibling `test/integration/` submodule — `go test ./...` from the root won't traverse everything; use the `make` targets (or `make -C <layer> ...` for per-layer work).
 - **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend`, run `make doc-gen` before committing. The pre-commit hook does *not* watch Platform backend DTOs — run `make -C axisml-platform doc-gen` yourself there.
-- **Conventional Commits, scoped to a layer** — `feat(infra|system|platform|lite)` plus the cross-cutting `build` / `repo` / `deps`; enforced by commitlint on commits and PR titles.
+- **Conventional Commits, scoped to a layer** — `feat(infra|system|platform)` plus the cross-cutting `build` / `repo` / `deps`; enforced by commitlint on commits and PR titles.
 - **External CRDs** the operators import (scheduler-plugins' `ElasticQuota`, scheduler-plugins' `PodGroup`, …) are vendored under `axisml-system/test/crds/external/`.
 
 Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conventions in [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).

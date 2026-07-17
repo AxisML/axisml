@@ -58,13 +58,6 @@ class Config:
     # Envoy gateway fronting the Platform SPA (UI e2e base URL is derived from it).
     gateway_name: str = field(default_factory=lambda: _env("AXISML_GATEWAY", "axisml-gateway"))
 
-    # Lite serves all three System modules from one axisml-core process at this
-    # base URL; axisml-platform (API + SPA) runs as a separate container.
-    lite_base_url: str = field(default_factory=lambda: _env("AXISML_LITE_URL", "http://localhost:8090"))
-    lite_platform_url: str = field(default_factory=lambda: _env("AXISML_LITE_PLATFORM_URL", "http://localhost:8080"))
-    # zot registry published by the Lite compose stack (two-phase artifact upload).
-    lite_oci_url: str = field(default_factory=lambda: _env("AXISML_LITE_OCI_URL", "http://localhost:5001"))
-
     # Identity stamped on every System call (X-Axisml-User). Platform uses JWT.
     user: str = field(default_factory=lambda: _env("AXISML_TEST_USER", "axisml-tester"))
 

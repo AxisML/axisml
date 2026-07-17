@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 
 	"github.com/axisml/axisml/test/testutil"
@@ -66,11 +67,13 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 		},
 	}
 	require.NoError(t, c.Create(ctx, mlrun))
+	jobName := workloadname.Role(mlrun, axisv1alpha1.DefaultRoleName)
 
-	// Dispatcher creates the underlying batch/v1.Job (named after the MLRun).
+	// Dispatcher creates the underlying batch/v1.Job using the shared
+	// workload-plus-role naming contract.
 	var job batchv1.Job
 	testutil.EventuallyExists(t, ctx, c,
-		types.NamespacedName{Namespace: ns, Name: mlrunName}, &job, testWaitTimeout)
+		types.NamespacedName{Namespace: ns, Name: jobName}, &job, testWaitTimeout)
 
 	// Simulate the kubelet completing the Job. The dispatcher's MapStatus
 	// reads JobComplete=True from Status.Conditions and maps it to Succeeded.
@@ -146,10 +149,11 @@ func TestMLRun_NativeJob_MountsVolume(t *testing.T) {
 		},
 	}
 	require.NoError(t, c.Create(ctx, mlrun))
+	jobName := workloadname.Role(mlrun, axisv1alpha1.DefaultRoleName)
 
 	var job batchv1.Job
 	testutil.EventuallyExists(t, ctx, c,
-		types.NamespacedName{Namespace: ns, Name: mlrunName}, &job, testWaitTimeout)
+		types.NamespacedName{Namespace: ns, Name: jobName}, &job, testWaitTimeout)
 
 	podSpec := job.Spec.Template.Spec
 	require.Len(t, podSpec.Volumes, 1, "PodSpec must carry the declared volume")

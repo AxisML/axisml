@@ -100,15 +100,15 @@ type ServiceAccountInit struct {
 }
 
 // TenantVolume is a predefined data volume the tenant guarantees exists: the
-// System layer ensures it as a managed PVC (a managed Docker volume in Lite) in
+// System layer ensures it as a managed PVC in
 // the tenant namespace, named by Name, so workspaces/jobs/experiments can mount
 // it by name. It is the same managed object the DataVolumes catalog surfaces;
 // declaring it here just seeds it at tenant-provision time. Size/storageClass/
-// accessModes are the initial PVC request (ignored by the single-host Lite
+// accessModes are the initial PVC request (ignored by the single-host standalone
 // runtime); ongoing expand/delete stays with the DataVolumes catalog.
 type TenantVolume struct {
 	Name         string   `json:"name" binding:"required,dns1123,max=40" desc:"Data volume (claim) name; workloads mount it by this name."`
-	Size         string   `json:"size,omitempty" desc:"Initial requested capacity (e.g. 50Gi). Required in Standard; ignored in Lite."`
+	Size         string   `json:"size,omitempty" desc:"Initial requested capacity (e.g. 50Gi); required when the backing store needs an explicit capacity request."`
 	StorageClass string   `json:"storageClass,omitempty" desc:"StorageClass backing the volume (Standard only)."`
 	AccessModes  []string `json:"accessModes,omitempty" desc:"Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany)."`
 	Description  string   `json:"description,omitempty" desc:"Free-text description surfaced in the DataVolumes catalog."`

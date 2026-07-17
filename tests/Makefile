@@ -6,9 +6,9 @@
 #
 #   uv sync                         install deps + build the venv
 #   uv run playwright install chromium
-#   uv run test-setup  [--mode standard|lite]
-#   uv run test-teardown [--mode standard|lite]
-#   uv run pytest --mode standard api
+#   uv run test-setup
+#   uv run test-teardown [--delete]
+#   uv run pytest api
 #   uv run pytest e2e
 #
 # The repo-root Makefile delegates `client-gen` here (`make -C tests client-gen`).

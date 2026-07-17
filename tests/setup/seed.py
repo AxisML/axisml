@@ -12,16 +12,10 @@ runs once against a throwaway test cluster, and is fully idempotent.
 
 from __future__ import annotations
 
-import time
-
 import bcrypt
-import httpx
 
 from lib import config
 from setup._proc import REPO_ROOT, log, run
-
-LITE_COMPOSE = "axisml-lite/deploy/docker-compose.yaml"
-
 
 def _admin_reset_sql(cfg: config.Config) -> str:
     hashed = bcrypt.hashpw(cfg.admin_password.encode(), bcrypt.gensalt()).decode()
@@ -44,37 +38,3 @@ def ensure_admin_ready() -> None:
         cwd=REPO_ROOT,
     )
     log("seed", f"admin '{cfg.admin_username}' password reset; forced-change cleared")
-
-
-def ensure_admin_ready_lite() -> None:
-    """Lite variant: reset the admin row via ``docker compose exec`` into the
-    compose Postgres. axisml-platform bootstraps the admin on first start, so we
-    wait for its ``/readyz`` before rewriting the password to the suite's known
-    credential (and clearing any forced change)."""
-    cfg = config.load()
-    _wait_platform_ready(cfg)
-    run(
-        [
-            "docker", "compose", "-f", LITE_COMPOSE, "exec", "-T",
-            "-e", f"PGPASSWORD={cfg.db_password}", "axisml-database",
-            "psql", "-U", cfg.db_user, "-d", cfg.db_name, "-v", "ON_ERROR_STOP=1", "-c", _admin_reset_sql(cfg),
-        ],
-        cwd=REPO_ROOT,
-    )
-    log("seed", f"admin '{cfg.admin_username}' password reset; forced-change cleared")
-
-
-def _wait_platform_ready(cfg: config.Config, *, timeout: float = 120.0) -> None:
-    """Poll axisml-platform /readyz until it serves (migrations + bootstrap done)."""
-    deadline = time.monotonic() + timeout
-    last = "no response"
-    while time.monotonic() < deadline:
-        try:
-            r = httpx.get(f"{cfg.lite_platform_url}/readyz", timeout=5.0)
-            if r.status_code == 200:
-                return
-            last = f"HTTP {r.status_code}"
-        except httpx.HTTPError as e:  # not up yet
-            last = str(e)
-        time.sleep(2.0)
-    raise SystemExit(f"axisml-platform not ready at {cfg.lite_platform_url}/readyz ({last})")

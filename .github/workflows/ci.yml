@@ -216,7 +216,7 @@ jobs:
       - uses: ./.github/actions/setup-go-cached
       - name: Verify generated docs are in sync with Go types
         # Regenerates the OpenAPI specs (axisml-system/docs/apis/*.yaml,
-        # axisml-platform/docs/apis/platform.yaml, axisml-lite spec) and the
+        # axisml-platform/docs/apis/platform.yaml) and the
         # config reference (docs/configuration.md) from the Go types, failing if
         # any committed file drifted. Run `make docs-gen` locally and commit.
         run: make docs-test

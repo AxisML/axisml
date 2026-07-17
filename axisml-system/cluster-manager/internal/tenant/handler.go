@@ -30,7 +30,7 @@ import (
 )
 
 // Handler implements /api/v1/tenants[/{tenant}[/quotas...]]. It owns no state;
-// reads/writes go through the injected stores (Kubernetes CRD or Lite config).
+// reads/writes go through the injected stores (Kubernetes CRD or static config).
 // Quota folding reads the ResourcePool store.
 type Handler struct {
 	tenants extensions.TenantProvider

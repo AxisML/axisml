@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 # tests/setup/_proc.py -> parents[2] == repo root (the dir holding the root Makefile).

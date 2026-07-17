@@ -1,11 +1,11 @@
 // Package module is the public assembly API for Cluster Manager. A composition
-// root — the Kubernetes binary, or Lite's axisml-system — injects the
+// root — the Kubernetes binary or an external composition root — injects the
 // deployment-form-neutral stores (ResourcePool + Tenant) and mounts the REST
 // routes on a shared /api/v1 router group.
 //
 // Cluster Manager is stateless (no PG, no migration): the source of truth is
 // either the cluster-scoped CRs (Kubernetes) or the static CR-YAML config
-// (Lite). The handlers, conversions and validation stay in internal packages;
+// (for example, a standalone deployment). The handlers, conversions and validation stay in internal packages;
 // only this constructor and route registration are exported.
 package module
 
@@ -56,7 +56,7 @@ func New(d Deps) *Module {
 
 // Capabilities returns the deployment-form capability document derived from the
 // injected stores. A composition root serves it at GET /api/v1/capabilities
-// (Standard, per-service) or folds it into an aggregate (Lite).
+// per-service or folds it into an aggregate.
 func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Cluster Manager route on the supplied group.

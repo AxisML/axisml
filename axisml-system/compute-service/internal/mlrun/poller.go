@@ -13,7 +13,7 @@ import (
 )
 
 // StatusPoller is the runtime-Observe status reflow for forms without an
-// apiserver informer (Lite, design §4.2 / §9.1). On each tick it observes every
+// apiserver informer in standalone deployments. On each tick it observes every
 // non-terminal MLRun through the ComputeRuntime and reflects the result onto PG
 // via the shared writeback helpers — the same mapping the Kubernetes informer
 // uses, so the two forms converge identically.
@@ -32,7 +32,7 @@ func NewStatusPoller(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger,
 	return &StatusPoller{repo: NewRepository(db), runtime: rt, log: log, interval: interval}
 }
 
-// NeedLeaderElection mirrors the informer; harmless under Lite's single replica.
+// NeedLeaderElection mirrors the informer and is harmless with a single replica.
 func (p *StatusPoller) NeedLeaderElection() bool { return true }
 
 func (p *StatusPoller) Start(ctx context.Context) error {

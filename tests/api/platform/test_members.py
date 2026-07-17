@@ -22,14 +22,12 @@ from clients.platform.models import (
     UserCreateRequest,
 )
 from lib import platform_helpers
-from lib.harness import Capability
 from lib.naming import unique_name
 
 PASSWORD = "password123"
 
 
 def test_add_and_update_member(harness):
-    harness.skip_unless(Capability.MULTI_TENANT)
     admin = harness.platform(harness.admin_token())
     owner = unique_name("mem-owner")
     extra = unique_name("mem-extra")

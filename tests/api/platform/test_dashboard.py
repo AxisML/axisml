@@ -1,14 +1,11 @@
 """platform: dashboard aggregates (activity, cluster-usage, cluster-metrics) and
 the workspace-image catalog.
 
-Activity and the cluster folds are tenant-scoped, so they scaffold a tenant
-(``MULTI_TENANT``). cluster-metrics additionally needs a metrics backend and is
-``standard_only``. The catalog is unscoped.
+Activity and the cluster folds are tenant-scoped, so they scaffold a tenant.
+Cluster metrics additionally needs a metrics backend. The catalog is unscoped.
 """
 
 from __future__ import annotations
-
-import pytest
 
 from clients.platform.api.dashboard import get_cluster_metrics, get_cluster_usage, list_activity
 from clients.platform.api.tenants import create_tenant, delete_tenant
@@ -16,7 +13,6 @@ from clients.platform.api.users import create_user
 from clients.platform.api.workspaces import list_workspace_images
 from clients.platform.models import GetClusterMetricsMetric, TenantCreateRequest, UserCreateRequest
 from lib import platform_helpers
-from lib.harness import Capability
 from lib.naming import unique_name
 
 OWNER_PASSWORD = "password123"
@@ -50,7 +46,6 @@ def _teardown_tenant(admin, tenant, owner):
 
 
 def test_dashboard_activity(harness):
-    harness.skip_unless(Capability.MULTI_TENANT)
     admin, tenant, owner = _scaffold_tenant(harness)
     try:
         # The tenant-create just performed is itself an audited mutation.
@@ -62,7 +57,6 @@ def test_dashboard_activity(harness):
 
 
 def test_dashboard_cluster_usage(harness):
-    harness.skip_unless(Capability.MULTI_TENANT)
     admin, tenant, owner = _scaffold_tenant(harness)
     try:
         resp = get_cluster_usage.sync_detailed(client=admin, x_axisml_tenant=tenant)
@@ -72,7 +66,6 @@ def test_dashboard_cluster_usage(harness):
         _teardown_tenant(admin, tenant, owner)
 
 
-@pytest.mark.standard_only
 def test_dashboard_cluster_metrics(harness, cfg):
     admin, tenant, owner = _scaffold_tenant(harness)
     try:

@@ -132,7 +132,7 @@ func (r *Repository) ActiveReferenceName(ctx context.Context, namespace, service
 }
 
 // FindObservable returns the live rows whose underlying route may still change
-// state and therefore need a runtime Observe poll. Used by the Lite status
+// state and therefore need a runtime Observe poll. Used by the standalone status
 // poller (the Kubernetes form reflows via informer events instead).
 func (r *Repository) FindObservable(ctx context.Context) ([]store.TrafficPolicy, error) {
 	var rows []store.TrafficPolicy

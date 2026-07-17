@@ -96,7 +96,7 @@ type InitResources struct {
 
 // VolumeSpec declares a predefined data volume the tenant guarantees exists.
 // The operator ensures it as a managed PersistentVolumeClaim (a managed Docker
-// volume in Lite) in the tenant namespace, named exactly Name, so a workload
+// volume in a single-host deployment) in the tenant namespace, named exactly Name, so a workload
 // can mount it by claim name without a separate provisioning step. Ensure is
 // idempotent and non-destructive: the PVC is created if absent and never
 // shrunk, relabeled away, or deleted by the operator — Size is the initial
@@ -111,7 +111,7 @@ type VolumeSpec struct {
 	Description  string                              `json:"description,omitempty"`
 	// HostPath, when set, makes this a host-backed volume instead of a managed
 	// PVC: a workload that mounts it by name gets the host directory bind-mounted.
-	// Supported ONLY in the single-host Lite runtime (rendered as a Docker bind
+	// Supported ONLY in the single-host standalone runtime (rendered as a Docker bind
 	// mount); the multi-tenant Standard operator REJECTS it — a hostPath breaks
 	// tenant isolation, pins the workload to a node, and has no cluster-wide
 	// "ensure exists" semantics. Mutually exclusive with size/storageClass.

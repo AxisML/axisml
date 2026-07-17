@@ -1,7 +1,7 @@
 // Module apis holds the AxisML system CRD Go types (Group axisml.io/v1alpha1):
 // MLRun, MLService, MLTrafficPolicy, Tenant, ResourcePool. It is a dependency-
 // light leaf module (only apimachinery + k8s.io/api) so every producer
-// (operators) and consumer (compute-service, cluster-manager, axisml-lite)
+// (operators) and consumer (compute-service, cluster-manager)
 // depends on the shared API contract instead of reaching through the operator
 // that happens to reconcile it. Owner semantics live in the design docs, not in
 // where the types physically sit.

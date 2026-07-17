@@ -1,6 +1,6 @@
 // openapi-gen renders the OpenAPI 3.0.3 description of the compute HTTP API to
 // axisml-system/docs/apis/compute-service.yaml. The document itself is built by
-// pkg/apidoc (the single source of truth, shared with axisml-core); this command
+// pkg/apidoc (the single source of truth); this command
 // only renders it to YAML.
 //
 // Run from the component root:

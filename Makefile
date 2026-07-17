@@ -64,10 +64,8 @@ docs-gen: api-docs-gen config-docs-gen ## Regenerate all generated docs (OpenAPI
 docs-test: api-docs-test config-docs-test ## Verify all generated docs are in sync (CI guard)
 api-docs-gen: ## Regenerate all OpenAPI specs
 	@set -e; for l in $(DOC_LAYERS); do $(MAKE) -C $$l doc-gen; done
-	@$(MAKE) -C axisml-lite doc-gen
 api-docs-test: ## Verify all OpenAPI specs are in sync
 	@set -e; for l in $(DOC_LAYERS); do $(MAKE) -C $$l doc-test; done
-	@$(MAKE) -C axisml-lite doc-test
 config-docs-gen: ## Regenerate docs/configuration.md from the service Config structs
 	@./scripts/gen-config-doc.sh
 config-docs-test: ## Verify docs/configuration.md is in sync with the Config structs
@@ -78,7 +76,7 @@ config-docs-test: ## Verify docs/configuration.md is in sync with the Config str
 	fi; rm -f $$tmp; echo "docs/configuration.md is in sync"
 
 ##@ Test execution
-.PHONY: setup-envtest integration-test client-gen lite-up lite-down lite-delete
+.PHONY: setup-envtest integration-test client-gen
 setup-envtest: ## Install the shared envtest binary (axisml-system/test/setup-envtest/)
 	@$(MAKE) -C axisml-system setup-envtest
 integration-test: ## Integration tests across every layer (hermetic, CI-friendly)
@@ -87,19 +85,12 @@ integration-test: ## Integration tests across every layer (hermetic, CI-friendly
 # Black-box test suite (Python + pytest) lives in tests/. Its dependencies, env
 # lifecycle, and runs are uv commands (see tests/README.md):
 #   cd tests && uv sync && uv run playwright install chromium
-#   uv run test-setup [--mode standard|lite]   # bring an environment up
-#   uv run pytest --mode standard api          # API tests (per component)
+#   uv run test-setup                          # bring a Standard environment up
+#   uv run pytest api                          # API tests (per component)
 #   uv run pytest e2e                          # UI end-to-end (Playwright)
 # Only client generation is a make target, delegated to the suite's Makefile:
 client-gen: ## Regenerate the test suite's typed Python clients from the OpenAPI specs
 	@$(MAKE) -C tests client-gen
-# Lite compose stack — also driven by `uv run test-setup --mode lite`.
-lite-up: ## Bring up the Lite stack (db + axisml-core on :9080) via Docker Compose
-	@$(MAKE) -C axisml-lite lite-up
-lite-down: ## Tear down the Lite stack (CLEAN=1 also removes data volumes)
-	@$(MAKE) -C axisml-lite lite-down
-lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & volumes
-	@$(MAKE) -C axisml-lite lite-delete
 
 ##@ Coverage
 .PHONY: coverage coverage-unit coverage-integration coverage-merge coverage-html coverage-clean

@@ -15,7 +15,6 @@ rules:
     - - infra
       - system
       - platform
-      - lite
       - build
       - repo
       - deps

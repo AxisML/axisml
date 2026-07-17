@@ -20,7 +20,7 @@ import (
 )
 
 // MetricsQuerier runs (tenant, pool) resource-utilisation queries against a
-// metrics backend. Implemented by internal/promql.Querier; may be nil (Lite /
+// metrics backend. Implemented by internal/promql.Querier; may be nil (standalone /
 // unconfigured), in which case the metrics route reports metrics-unavailable.
 type MetricsQuerier interface {
 	Enabled() bool
@@ -29,7 +29,7 @@ type MetricsQuerier interface {
 
 // Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
 // HTTP surface. It owns no state; all reads/writes go through the injected
-// ResourcePoolProvider (Kubernetes CRD or Lite config). usage/metrics also read
+// ResourcePoolProvider (Kubernetes CRD or static config). usage/metrics also read
 // the Tenant CR (tenants) and query Prometheus (metrics).
 type Handler struct {
 	pools   extensions.ResourcePoolProvider

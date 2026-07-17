@@ -113,7 +113,7 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 
 // FindObservable returns the live rows whose underlying workload may still
 // change state and therefore need a runtime Observe poll: everything that has
-// been (or is being) applied and is not yet terminal. Used by the Lite status
+// been (or is being) applied and is not yet terminal. Used by the standalone status
 // poller (the Kubernetes form reflows via informer events instead).
 func (r *Repository) FindObservable(ctx context.Context) ([]store.MLRun, error) {
 	var rows []store.MLRun

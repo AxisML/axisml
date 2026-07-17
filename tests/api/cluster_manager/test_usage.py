@@ -7,8 +7,6 @@ and needs no metrics backend, so it runs on both forms. Metrics query Prometheus
 
 from __future__ import annotations
 
-import pytest
-
 from clients.clustermanager.api.resource_pools import get_resource_pool_metrics, get_resource_pool_usage
 
 
@@ -27,7 +25,6 @@ def test_pool_usage_requires_tenant(harness, cfg):
     assert u.status_code == 400, u.content
 
 
-@pytest.mark.standard_only
 def test_pool_metrics(harness, cfg, tenant):
     ns, _ = tenant
     m = get_resource_pool_metrics.sync_detailed(

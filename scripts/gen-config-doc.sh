@@ -8,8 +8,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:-$ROOT/docs/configuration.md}"
 PREAMBLE="$ROOT/docs/configuration.preamble.md"
 
-# axisml-core (Lite) is intentionally excluded — it is env-only and configured
-# via its Docker Compose environment block, not this reference manual.
 SERVICES=(
   "axisml-system/compute-service"
   "axisml-system/artifact-hub"

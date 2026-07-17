@@ -4,10 +4,8 @@
 // The cluster-manager exposes ResourcePool and Tenant CRD CRUD (with embedded
 // spec.units[]); request/response types are mirrored from internal/server.
 //
-// The component's own cmd/openapi-gen renders Document to
-// axisml-system/docs/apis/cluster-manager.yaml; axisml-core imports Document
-// directly to fold the cluster-manager surface into the Lite composite spec,
-// without a YAML round-trip.
+// The component's cmd/openapi-gen renders Document to
+// axisml-system/docs/apis/cluster-manager.yaml.
 package apidoc
 
 import (

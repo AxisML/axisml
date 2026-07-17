@@ -1,6 +1,6 @@
 // Package volume hosts the REST handlers for durable data-volume materialisation.
 // Each Volume is backed by a namespace-scoped PersistentVolumeClaim (Kubernetes)
-// or a managed Docker volume (Lite). All handlers are stateless and translate
+// or a managed Docker volume in a single-host deployment. All handlers are stateless and translate
 // HTTP requests into VolumeManager calls. cluster-manager does not interpret the
 // volume's purpose — naming and mounting are the caller's job (design §4.5).
 package volume
@@ -19,7 +19,7 @@ import (
 
 // Handler implements the /api/v1/volumes[/{namespace}/{name}] HTTP surface. It
 // owns no state; all access goes through the injected VolumeManager (Kubernetes
-// PVC or Lite Docker volume).
+// PVC or managed Docker volume).
 type Handler struct {
 	volumes extensions.VolumeManager
 }

@@ -94,11 +94,11 @@ Pick the cheapest layer that proves what you need.
 |---|---|---|---|---|
 | **Unit** | none | `*_test.go` next to package | `controller-runtime` fake client | pure logic, validation, mapping |
 | **Integration** | `//go:build integration` | each component's `test/integration/` submodule | envtest apiserver+etcd; testcontainers Postgres for compute-service / artifact-hub; gin via `httptest` for HTTP contracts | reconciler behavior, REST endpoints |
-| **E2E (black-box)** | none (Python) | `tests/` (centralized, Python + pytest) | a **real** `axisml` minikube cluster (Standard, via `kubectl port-forward`) or one `axisml-core` process (Lite); Playwright for the UI | full-stack smoke over the HTTP contract + UI; **manual, not in CI** |
+| **E2E (black-box)** | none (Python) | `tests/` (centralized, Python + pytest) | a real `axisml` minikube cluster via `kubectl port-forward`; Playwright for the UI | full-stack smoke over the HTTP contract + UI; **manual, not in CI** |
 
 The E2E suite is Python + pytest (uv-managed), not Go. Bring an environment up
-with `uv run test-setup [--mode standard|lite]`, then run
-`uv run pytest --mode standard api` (API tests per component) or
+with `uv run test-setup`, then run
+`uv run pytest api` (API tests per component) or
 `uv run pytest e2e` (UI). It drives clients generated from the OpenAPI specs and
 treats the system as a black box. See [`tests/README.md`](../tests/README.md).
 

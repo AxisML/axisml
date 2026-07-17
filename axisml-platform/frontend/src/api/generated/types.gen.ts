@@ -2659,7 +2659,7 @@ export type TenantVolume = {
      */
     name: string;
     /**
-     * Initial requested capacity (e.g. 50Gi). Required in Standard; ignored in Lite.
+     * Initial requested capacity (e.g. 50Gi); required when the backing store needs an explicit capacity request.
      */
     size?: string;
     /**

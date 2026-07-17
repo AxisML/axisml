@@ -1,5 +1,5 @@
 // Package module is the public assembly API for Compute Service. A composition
-// root — the Kubernetes binary, or Lite's axisml-system — injects the
+// root — the Kubernetes binary or an external composition root — injects the
 // deployment-form-neutral dependencies (a ComputeRuntime, a resource catalog, a
 // workspace volume provisioner) and receives the HTTP routes plus the
 // background reconcilers, then mounts them on a shared router and runs them.
@@ -8,7 +8,7 @@
 // component's internal packages; only this constructor, the route registration,
 // the runnables and migration are exported. The status reflow is intentionally
 // NOT assembled here: it is form-specific (the Kubernetes binary uses an
-// apiserver informer; Lite polls the runtime), while both share the same CR
+// apiserver informer; a standalone deployment polls the runtime), while both share the same CR
 // Status → PG mapping (design §4.2).
 package module
 
@@ -54,7 +54,7 @@ type Deps struct {
 	// document ("kubernetes" or "standalone"). Defaults to "kubernetes".
 	RuntimeName string
 	// QuotaEnforcement reports whether the scheduler admits pods against an
-	// ElasticQuota (true on Kubernetes, false on the Lite Standalone runtime).
+	// ElasticQuota (true on Kubernetes, false on a standalone runtime).
 	QuotaEnforcement bool
 	// WorkloadTenantPrefix prefixes physical workload names with the tenant
 	// identifier. Logical API/DB names remain unchanged.
@@ -109,7 +109,7 @@ func New(d Deps) (*Module, error) {
 
 // Capabilities returns the deployment-form capability document. A composition
 // root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
-// into an aggregate (Lite).
+// into an aggregate.
 func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Compute route on the supplied /api/v1 group.
@@ -129,7 +129,7 @@ func (m *Module) Runnables() []Runnable { return m.runnables }
 
 // StatusReflowRunnables returns the runtime-Observe status pollers — the
 // form-specific status reflow for composition roots WITHOUT an apiserver
-// informer (Lite, design §4.2). The Kubernetes binary does not use these; it
+// informer (standalone deployments). The Kubernetes binary does not use these; it
 // reflows via internal informers instead. Both share the same CR Status → PG
 // mapping, so the two forms converge identically.
 func (m *Module) StatusReflowRunnables() []Runnable { return m.reflow }

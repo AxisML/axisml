@@ -47,7 +47,7 @@ Platform 是唯一调用方，做 pool/unit、tenant 与 volume CRUD（数据卷
 | Tenant | 租户的 K8s 物化 CR：namespace + 配额 + 初始化资源 | `metadata.name` = `identifier`（cluster-scoped，全局唯一） | 本服务写 `spec`，tenant-operator 写 `status`；schema 见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
 | Volume | 通用持久卷，直接物化为 namespace-scoped PVC | `(namespace, name)` | 无 CR；卷名 / size / storageClass / accessModes 由调用方携带；CRUD + 扩容幂等；运行态（phase / 已绑定容量 / 挂载占用）GET 时实时读；§3.4 |
 
-> 无独立 ResourceUnit CR——`units` 是 `ResourcePool.spec.units[]` 数组项，与 pool 同生灭、原子编辑。无独立配额 CRD——内联 `Tenant.spec.quotas[]`，折算后写入（§3.3）。Volume 亦无 CR——直接是一个受管 PVC（Lite 形态下是受管 Docker 卷）；卷的语义命名由调用方 Platform 决定，挂载由 compute 在 Pod 模板里以 PVC 引用完成（任何工作负载一视同仁），本服务只按 `(namespace, name)` 物化 / 回收并实时读运行态（§3.4）。挂载占用经扫描该 namespace 下引用此 PVC（`volumes[].persistentVolumeClaim.claimName`）的 Pod 实时计算，用于上游删除前置校验。
+> 无独立 ResourceUnit CR——`units` 是 `ResourcePool.spec.units[]` 数组项，与 pool 同生灭、原子编辑。无独立配额 CRD——内联 `Tenant.spec.quotas[]`，折算后写入（§3.3）。Volume 亦无 CR——直接是一个受管 PVC；卷的语义命名由调用方 Platform 决定，挂载由 compute 在 Pod 模板里以 PVC 引用完成（任何工作负载一视同仁），本服务只按 `(namespace, name)` 物化 / 回收并实时读运行态（§3.4）。挂载占用经扫描该 namespace 下引用此 PVC（`volumes[].persistentVolumeClaim.claimName`）的 Pod 实时计算，用于上游删除前置校验。
 
 ### 3.1 ResourcePool 形状
 
@@ -120,7 +120,7 @@ REST 入参按 quota 二选一：业务形态 `{pool, units:[{unitName, quantity
     "createdAt": "2026-02-11T08:00:00Z" } }
 ```
 
-K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim`（`spec.accessModes = accessModes`，`spec.resources.requests.storage = size`，可选 `storageClassName`），打 `resource.axisml.io/*` label 供 selector 区分。`status` 不落任何持久层，get / list 时合并 PVC `status.phase` / `status.capacity` 与 Pod 扫描结果实时拼出；`usedBytes` 来自监控栈（`kubelet_volume_stats_used_bytes`），不可得即省略。Lite 形态：物化为受管 Docker named volume（size / storageClass / accessModes 被接受但忽略——单机卷按需增长、无 class、恒等价单机读写）。
+`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim`（`spec.accessModes = accessModes`，`spec.resources.requests.storage = size`，可选 `storageClassName`），打 `resource.axisml.io/*` label 供 selector 区分。`status` 不落任何持久层，get / list 时合并 PVC `status.phase` / `status.capacity` 与 Pod 扫描结果实时拼出；`usedBytes` 来自监控栈（`kubelet_volume_stats_used_bytes`），不可得即省略。
 
 **契约**：`create` 幂等（卷已存在 = 成功）；`delete` 幂等（卷不存在 = 成功）；`patch` 仅允许 `size` 扩容（StorageClass 须 `allowVolumeExpansion`）与 `description` / `labels` 更新，`storageClass` / `accessModes` 不可变；`namespace` / `name` 必填；K8s 形态 `size` 必填且须为合法 Quantity。删除前置：默认拒绝删除被运行中 Pod 挂载的卷（`409 volume-in-use` + 占用清单），调用方确认后可带 `force=true` 强删。本服务不感知卷内容与挂载用途；上游 Platform 决定语义命名与挂载点，本服务只按 `(namespace, name)` 物化 / 回收并实时读运行态。
 

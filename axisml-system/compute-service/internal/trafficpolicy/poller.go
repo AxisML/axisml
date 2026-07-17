@@ -13,7 +13,7 @@ import (
 )
 
 // StatusPoller is the runtime-Observe status reflow for forms without an
-// apiserver informer (Lite, design §4.2 / §9.1). It reflects every non-terminal
+// apiserver informer in standalone deployments. It reflects every non-terminal
 // MLTrafficPolicy onto PG via the shared writeback helpers — the same mapping
 // the Kubernetes informer uses.
 type StatusPoller struct {

@@ -67,7 +67,7 @@ func BuildModules(
 		runnables = append(runnables, r)
 	}
 	// Kubernetes status reflow: apiserver informers mirror CR status into PG
-	// (leader-only). The Lite form replaces these with a runtime Observe poll.
+	// (leader-only). The standalone deployment replaces these with a runtime Observe poll.
 	runnables = append(runnables,
 		jobmod.NewInformer(gormDB, mgr, log.WithName("mlrun-informer")),
 		servicemod.NewInformer(gormDB, mgr, log.WithName("mlservice-informer")),

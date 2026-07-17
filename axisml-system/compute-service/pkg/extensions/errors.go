@@ -10,7 +10,7 @@ import (
 // GPU). It is not a failure: the reconciler keeps the workload Pending and
 // retries on the next tick. The Kubernetes runtime never returns it (the
 // in-cluster scheduler handles pending placement); it originates only in the
-// single-host Standalone runtime used by AxisML Lite.
+// single-host standalone runtime.
 type ResourceUnavailableError struct{ Msg string }
 
 func (e *ResourceUnavailableError) Error() string { return e.Msg }

@@ -39,14 +39,7 @@ packages = ["lib", "setup", "clients"]
 addopts = "--import-mode=importlib --strict-markers -ra"
 pythonpath = ["."]
 testpaths = ["api", "e2e"]
-# Tests are SHARED by default: an unmarked test runs under whichever --mode is
-# selected. Mark a test *_only ONLY when a whole layer/capability it needs is
-# absent from the other form (platform layer, UI, a registry, ...). For a shared
-# test with form-specific sub-behaviour, gate inline via harness.skip_unless(cap)
-# instead of marking the whole test.
 markers = [
-    "standard_only: requires the Standard form (Kubernetes) — skipped under --mode lite",
-    "lite_only: requires the Lite form (single-process axisml-core) — skipped under --mode standard",
     "cleanup: maintenance helpers (reap leftover e2e-* tenants), not part of a normal run",
     "slow: long-running scenarios (real scheduling / image pulls / kubelet startup)",
 ]
