@@ -1,6 +1,7 @@
 package svcutil_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -99,9 +100,65 @@ func TestBuildServiceInput_MinimalOmitsOptionals(t *testing.T) {
 	assert.Nil(t, out.Roles[0].Template.Command)
 	assert.Nil(t, out.Roles[0].Template.Args)
 	assert.Nil(t, out.Roles[0].Template.Env)
+	assert.Nil(t, out.Roles[0].Template.EnvFrom)
+	assert.Nil(t, out.Roles[0].Template.Volumes)
+	assert.Nil(t, out.Roles[0].Template.VolumeMounts)
 	assert.Nil(t, out.DisplayName)
 	assert.Nil(t, out.Description)
 	assert.Nil(t, out.Backend) // both backend fields empty
+}
+
+func TestBuildServiceInput_ForwardsConfigMapSources(t *testing.T) {
+	req := server.MLServiceCreateRequest{
+		Name: "svc-config", ModelName: "m", ModelVersion: "1", Image: "img",
+		Ports:    []server.ServicePort{{Name: "http", Port: 8080}},
+		PoolName: "p", UnitName: "u", Replicas: 1,
+		ConfigMaps: []server.WorkloadConfigMap{{
+			Name: "service-config",
+			Data: map[string]string{"log-level": "info"},
+		}},
+		Env: []server.EnvVar{{
+			Name: "LOG_LEVEL",
+			ValueFrom: map[string]any{
+				"configMapKeyRef": map[string]any{"name": "service-config", "key": "log-level"},
+			},
+		}},
+		EnvFrom: []map[string]any{{
+			"configMapRef": map[string]any{"name": "service-config"},
+		}},
+		Volumes: []map[string]any{{
+			"name": "config", "configMap": map[string]any{"name": "service-config"},
+		}},
+		VolumeMounts: []map[string]any{{
+			"name": "config", "mountPath": "/etc/service", "readOnly": true,
+		}},
+	}
+
+	out, err := svcutil.BuildServiceInput(req)
+	require.NoError(t, err)
+	tmpl := out.Roles[0].Template
+
+	require.NotNil(t, tmpl.Env)
+	require.NotNil(t, (*tmpl.Env)[0].ValueFrom)
+	require.NotNil(t, (*tmpl.Env)[0].ValueFrom.ConfigMapKeyRef)
+	assert.Equal(t, "service-config", *(*tmpl.Env)[0].ValueFrom.ConfigMapKeyRef.Name)
+	require.NotNil(t, tmpl.EnvFrom)
+	require.NotNil(t, (*tmpl.EnvFrom)[0].ConfigMapRef)
+	assert.Equal(t, "service-config", *(*tmpl.EnvFrom)[0].ConfigMapRef.Name)
+	require.NotNil(t, tmpl.Volumes)
+	require.NotNil(t, (*tmpl.Volumes)[0].ConfigMap)
+	assert.Equal(t, "service-config", *(*tmpl.Volumes)[0].ConfigMap.Name)
+	require.NotNil(t, tmpl.VolumeMounts)
+	assert.Equal(t, "/etc/service", (*tmpl.VolumeMounts)[0].MountPath)
+
+	wire, err := json.Marshal(out)
+	require.NoError(t, err)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(wire, &body))
+	configMaps, _ := body["configMaps"].([]any)
+	require.Len(t, configMaps, 1)
+	assert.Equal(t, "service-config", configMaps[0].(map[string]any)["name"])
+	assert.Equal(t, "info", configMaps[0].(map[string]any)["data"].(map[string]any)["log-level"])
 }
 
 func TestBuildWorkspaceInput(t *testing.T) {
@@ -253,6 +310,47 @@ func TestServiceToView_Full(t *testing.T) {
 
 	assert.True(t, v.Route.Enabled)
 	assert.Equal(t, "/svc", v.Route.Path)
+}
+
+func TestServiceToView_ProjectsConfigMapSources(t *testing.T) {
+	s := serviceFixture()
+	configMapName := "service-config"
+	readOnly := true
+	s.Spec.ConfigMaps = &[]gen.WorkloadconfigConfigMap{{
+		Name: configMapName,
+		Data: &map[string]string{"server.yaml": "port: 8080"},
+	}}
+	tmpl := &s.Spec.Roles[0].Template
+	tmpl.EnvFrom = &[]gen.Corev1EnvFromSource{{
+		ConfigMapRef: &gen.Corev1ConfigMapEnvSource{Name: &configMapName},
+	}}
+	tmpl.Volumes = &[]gen.Corev1Volume{{
+		Name:      "config",
+		ConfigMap: &gen.Corev1ConfigMapVolumeSource{Name: &configMapName},
+	}}
+	tmpl.VolumeMounts = &[]gen.Corev1VolumeMount{{
+		Name: "config", MountPath: "/etc/service", ReadOnly: &readOnly,
+	}}
+
+	v := svcutil.ServiceToView(s, "acme")
+	require.Len(t, v.ConfigMaps, 1)
+	assert.Equal(t, "port: 8080", v.ConfigMaps[0].Data["server.yaml"])
+	require.Len(t, v.EnvFrom, 1)
+	configMapRef, ok := v.EnvFrom[0]["configMapRef"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "service-config", configMapRef["name"])
+	assert.NotContains(t, v.EnvFrom[0], "secretRef", "unused generated union members must be omitted")
+
+	require.Len(t, v.Volumes, 1)
+	configMap, ok := v.Volumes[0]["configMap"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "service-config", configMap["name"])
+	assert.NotContains(t, v.Volumes[0], "persistentVolumeClaim")
+
+	require.Len(t, v.VolumeMounts, 1)
+	assert.Equal(t, "config", v.VolumeMounts[0]["name"])
+	assert.Equal(t, "/etc/service", v.VolumeMounts[0]["mountPath"])
+	assert.Equal(t, true, v.VolumeMounts[0]["readOnly"])
 }
 
 func TestServiceToView_NilOptionals(t *testing.T) {

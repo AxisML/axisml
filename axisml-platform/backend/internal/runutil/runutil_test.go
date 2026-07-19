@@ -116,6 +116,67 @@ func TestBuildRunInput_ForwardsVolumes(t *testing.T) {
 	assert.Equal(t, "/data", (*tmpl.VolumeMounts)[0].MountPath)
 }
 
+func TestBuildRunInput_ForwardsConfigMapSources(t *testing.T) {
+	spec := baseSpec()
+	spec.ConfigMaps = []server.WorkloadConfigMap{{
+		Name: "run-config",
+		Data: map[string]string{"log-level": "debug"},
+	}}
+	spec.Roles[0].Template.Env = []server.EnvVar{{
+		Name: "LOG_LEVEL",
+		ValueFrom: map[string]any{
+			"configMapKeyRef": map[string]any{"name": "run-config", "key": "log-level"},
+		},
+	}}
+	spec.Roles[0].Template.EnvFrom = []map[string]any{{
+		"prefix":       "APP_",
+		"configMapRef": map[string]any{"name": "run-config"},
+	}}
+	spec.Roles[0].Template.Volumes = []map[string]any{{
+		"name":      "config",
+		"configMap": map[string]any{"name": "run-config"},
+	}}
+	spec.Roles[0].Template.VolumeMounts = []map[string]any{{
+		"name": "config", "mountPath": "/etc/run", "readOnly": true,
+	}}
+
+	out, err := runutil.BuildRunInput(spec, nil, "job-config", "", nil, nil)
+	require.NoError(t, err)
+	tmpl := out.Roles[0].Template
+
+	require.NotNil(t, tmpl.Env)
+	require.Len(t, *tmpl.Env, 1)
+	require.NotNil(t, (*tmpl.Env)[0].ValueFrom)
+	require.NotNil(t, (*tmpl.Env)[0].ValueFrom.ConfigMapKeyRef)
+	assert.Equal(t, "run-config", *(*tmpl.Env)[0].ValueFrom.ConfigMapKeyRef.Name)
+	assert.Equal(t, "log-level", (*tmpl.Env)[0].ValueFrom.ConfigMapKeyRef.Key)
+
+	require.NotNil(t, tmpl.EnvFrom)
+	require.Len(t, *tmpl.EnvFrom, 1)
+	require.NotNil(t, (*tmpl.EnvFrom)[0].ConfigMapRef)
+	assert.Equal(t, "run-config", *(*tmpl.EnvFrom)[0].ConfigMapRef.Name)
+	assert.Equal(t, "APP_", *(*tmpl.EnvFrom)[0].Prefix)
+
+	require.NotNil(t, tmpl.Volumes)
+	require.Len(t, *tmpl.Volumes, 1)
+	require.NotNil(t, (*tmpl.Volumes)[0].ConfigMap)
+	assert.Equal(t, "run-config", *(*tmpl.Volumes)[0].ConfigMap.Name)
+	require.NotNil(t, tmpl.VolumeMounts)
+	require.Len(t, *tmpl.VolumeMounts, 1)
+	assert.Equal(t, "/etc/run", (*tmpl.VolumeMounts)[0].MountPath)
+	require.NotNil(t, (*tmpl.VolumeMounts)[0].ReadOnly)
+	assert.True(t, *(*tmpl.VolumeMounts)[0].ReadOnly)
+
+	wire, err := json.Marshal(out)
+	require.NoError(t, err)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(wire, &body))
+	configMaps, _ := body["configMaps"].([]any)
+	require.Len(t, configMaps, 1)
+	assert.Equal(t, "run-config", configMaps[0].(map[string]any)["name"])
+	assert.Equal(t, "debug", configMaps[0].(map[string]any)["data"].(map[string]any)["log-level"])
+}
+
 func TestBuildRunInput_OverridePrecedence(t *testing.T) {
 	// Trigger overrides win over the spec for pool/unit, resources (all
 	// roles), and per-role args/env.
@@ -177,6 +238,7 @@ func TestBuildRunInput_EmptyTemplateOmitsFields(t *testing.T) {
 	assert.Nil(t, r.Template.Command)
 	assert.Nil(t, r.Template.Args)
 	assert.Nil(t, r.Template.Env)
+	assert.Nil(t, r.Template.EnvFrom)
 	assert.Nil(t, r.Template.Resources)
 	assert.Nil(t, r.Template.Volumes)
 	assert.Nil(t, r.Template.VolumeMounts)
@@ -263,8 +325,14 @@ func TestRunToView_Full(t *testing.T) {
 		Owner:       &owner,
 		CreatedAt:   created,
 		UpdatedAt:   updated,
-		Spec:        gen.MLRunSpec{Scheduling: gen.MLRunSchedulingSpec{Quota: "quota-a"}},
-		Status:      gen.MLRunStatus{Message: &msg, StartedAt: &started, FinishedAt: &finished},
+		Spec: gen.MLRunSpec{
+			Scheduling: gen.MLRunSchedulingSpec{Quota: "quota-a"},
+			ConfigMaps: &[]gen.WorkloadconfigConfigMap{{
+				Name: "run-config",
+				Data: &map[string]string{"trainer.yaml": "epochs: 3"},
+			}},
+		},
+		Status: gen.MLRunStatus{Message: &msg, StartedAt: &started, FinishedAt: &finished},
 	}
 	v := runutil.RunToView(r, "acme", "job-1")
 
@@ -282,6 +350,9 @@ func TestRunToView_Full(t *testing.T) {
 
 	assert.Empty(t, v.PoolName)
 	assert.Empty(t, v.UnitName)
+	require.Len(t, v.Spec.ConfigMaps, 1)
+	assert.Equal(t, "run-config", v.Spec.ConfigMaps[0].Name)
+	assert.Equal(t, "epochs: 3", v.Spec.ConfigMaps[0].Data["trainer.yaml"])
 
 	// Status passthrough.
 	assert.Equal(t, "running now", v.Message)

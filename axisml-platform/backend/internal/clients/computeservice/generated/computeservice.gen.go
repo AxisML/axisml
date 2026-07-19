@@ -663,6 +663,9 @@ type MLRunCreateRequest struct {
 	// Backend Compute backend/engine that runs the workload; defaults to (native, job) when omitted.
 	Backend *MLRunBackendSpec `json:"backend"`
 
+	// ConfigMaps ConfigMaps created and owned by this MLRun before its pods are reconciled.
+	ConfigMaps *[]WorkloadconfigConfigMap `json:"configMaps,omitempty"`
+
 	// Description Free-text run description.
 	Description *string `json:"description,omitempty"`
 
@@ -794,10 +797,11 @@ type MLRunSchedulingSpec struct {
 
 // MLRunSpec defines model for MLRunSpec.
 type MLRunSpec struct {
-	Backend    MLRunBackendSpec    `json:"backend"`
-	Roles      []MLRunRoleSpec     `json:"roles"`
-	RunPolicy  *MLRunRunPolicySpec `json:"runPolicy,omitempty"`
-	Scheduling MLRunSchedulingSpec `json:"scheduling"`
+	Backend    MLRunBackendSpec           `json:"backend"`
+	ConfigMaps *[]WorkloadconfigConfigMap `json:"configMaps,omitempty"`
+	Roles      []MLRunRoleSpec            `json:"roles"`
+	RunPolicy  *MLRunRunPolicySpec        `json:"runPolicy,omitempty"`
+	Scheduling MLRunSchedulingSpec        `json:"scheduling"`
 }
 
 // MLRunStatus defines model for MLRunStatus.
@@ -881,6 +885,9 @@ type MLServiceCreateRequest struct {
 
 	// Backend Compute backend/engine that serves the workload; defaults to (native, deployment) when omitted.
 	Backend *MLServiceBackend `json:"backend"`
+
+	// ConfigMaps ConfigMaps created and owned by this MLService before its pods are reconciled.
+	ConfigMaps *[]WorkloadconfigConfigMap `json:"configMaps,omitempty"`
 
 	// Description Free-text service description.
 	Description *string `json:"description,omitempty"`
@@ -1068,11 +1075,12 @@ type MLServiceScheduling struct {
 
 // MLServiceSpec defines model for MLServiceSpec.
 type MLServiceSpec struct {
-	Backend    MLServiceBackend    `json:"backend"`
-	Roles      []MLServiceRoleSpec `json:"roles"`
-	Route      *MLServiceRoute     `json:"route"`
-	RunPolicy  *MLServiceRunPolicy `json:"runPolicy,omitempty"`
-	Scheduling MLServiceScheduling `json:"scheduling"`
+	Backend    MLServiceBackend           `json:"backend"`
+	ConfigMaps *[]WorkloadconfigConfigMap `json:"configMaps,omitempty"`
+	Roles      []MLServiceRoleSpec        `json:"roles"`
+	Route      *MLServiceRoute            `json:"route"`
+	RunPolicy  *MLServiceRunPolicy        `json:"runPolicy,omitempty"`
+	Scheduling MLServiceScheduling        `json:"scheduling"`
 }
 
 // MLServiceStatus defines model for MLServiceStatus.
@@ -1388,6 +1396,15 @@ type TrafficPolicyWeightUpdate struct {
 
 	// Weight New weight for the member (weights across members sum to 100).
 	Weight int32 `json:"weight"`
+}
+
+// WorkloadconfigConfigMap defines model for WorkloadconfigConfigMap.
+type WorkloadconfigConfigMap struct {
+	// Data UTF-8 configuration entries keyed by file or environment-variable name.
+	Data *map[string]string `json:"data,omitempty"`
+
+	// Name DNS-1123 name of the workload-owned ConfigMap created in the workload namespace.
+	Name string `json:"name"`
 }
 
 // ListMLRunsParams defines parameters for ListMLRuns.

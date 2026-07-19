@@ -61,11 +61,12 @@
 spec:
   backend:    { name, engine, config }     # 路由元组 + 后端专属 schemaless 配置
   scheduling: { quota, priorityClass, nodeSelector, tolerations }
+  configMaps: [{ name, data }]              # 工作负载自有，同 namespace 自动创建
   roles:      [{ name, replicas, restartPolicy, template }]
   runPolicy:  { suspend, activeDeadlineSeconds, ttlSecondsAfterFinished, backoffLimit }
 ```
 
-`backend.{name,engine}` 创建后不可变，`runPolicy.suspend` 是唯一允许由 API（`/cancel`）翻转的字段。
+`configMaps[*]` 在底层工作负载创建前由 dispatcher 幂等创建，带 MLRun controller ownerReference；同名对象若不属于当前 MLRun 则拒绝覆盖。Pod 模板通过 `configMapKeyRef`、`envFrom.configMapRef` 或 `volumes.configMap` 按名称引用。`backend.{name,engine}` 创建后不可变，`runPolicy.suspend` 是唯一允许由 API（`/cancel`）翻转的字段。
 
 ```
 ADD ─▶ Pending ─(any pod Running)─▶ Running ─┬─▶ Succeeded
@@ -88,12 +89,13 @@ suspend=true: Pending/Running ─(Handler 完成 suspend)─▶ conditions[Suspe
 spec:
   backend:    { name, engine, config }
   scheduling: { quota, priorityClass, nodeSelector, tolerations }
+  configMaps: [{ name, data }]              # 工作负载自有，同 namespace 自动创建
   roles:      [{ name, replicas, template{ports,volumes,volumeMounts,…} }]
   runPolicy:  { progressDeadlineSeconds }
   route:      { enabled, targetRole, portName, hostname, path, auth, rateLimit, timeout }  # 可选
 ```
 
-`roles[*].replicas` 是唯一允许由 API（`/scale`）变更的字段；`spec.route` 整块不可变。
+`configMaps[*]` 同样由 dispatcher 在 Handler 前幂等创建并由 MLService 持有；不接管或覆盖外部同名 ConfigMap。`roles[*].replicas` 是唯一允许由 API（`/scale`）变更的字段；`spec.configMaps` 与 `spec.route` 均不可变。
 
 ```
 ADD ─▶ Pending ─┬─▶ Ready ◀──▶ Degraded
@@ -109,7 +111,7 @@ ADD ─▶ Pending ─┬─▶ Ready ◀──▶ Degraded
 | 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute；SecurityPolicy / BackendTrafficPolicy 尚未交付 | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → compute.axisml.io/replica-index` |
 | 必填 | 单 role `predictor`，`template.image` + `ports[]` | 同左 |
 | 映射 | `replicas → Deployment.replicas`；`volumes/volumeMounts → PodSpec`（`Validate` 强制 volumeMounts 在同 role volumes、PVC 同 namespace） | `replicas → StatefulSet.replicas`；`config.podManagementPolicy`（默认 `OrderedReady`）、`config.serviceName`（默认 = `compute.axisml.io/workload-name` 物理基础名） |
-| RBAC | `deployments.apps` / `services` / `pods` / `events` + Gateway / Envoy CRD（按 `route`）；`secrets` RO（仅 `apiKey`） | `statefulsets.apps` / `services` / `pods` / `events` |
+| RBAC | `deployments.apps` / `services` / `pods` / `configmaps` / `events` + Gateway / Envoy CRD（按 `route`）；`secrets` RO（仅 `apiKey`） | `statefulsets.apps` / `services` / `pods` / `configmaps` / `events` |
 
 > `volumeClaimTemplates` / `updateStrategy` 等见 §9。
 
@@ -226,7 +228,7 @@ Compute Service 通过 `compute.axisml.io/workload-name` annotation 下发物理
 | 进程 | 单二进制 `axisml-compute-operator`，承载三个 dispatcher |
 | 副本 | 单副本，K8s Lease leader election |
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
-| RBAC scope | 三 dispatcher 权限并集（含 `mltrafficpolicies` + `httproutes` / `securitypolicies` / `services` RO），按 `--enable-*` 分段渲染；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` / `configmaps` / `serviceaccounts`（属 tenant-operator） |
+| RBAC scope | 三 dispatcher 权限并集（含 workload 自有 `configmaps`、`mltrafficpolicies` + `httproutes` / `securitypolicies` / `services` RO），按 `--enable-*` 分段渲染；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` / `serviceaccounts`（属 tenant-operator） |
 | Flag | `--enable-ml{run,service,trafficpolicy}`（默认 `true`，`false` 时不挂 reconciler、不渲染 ClusterRole 分段）；`--leader-elect` / `--leader-election-id` / `--metrics-bind-address :8081` / `--health-probe-bind-address :8082` |
 | 镜像 / Helm | 见 [deployment.md](../../../docs/deployment.md) |
 

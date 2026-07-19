@@ -15,9 +15,13 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.backend import Backend
     from ..models.env_var import EnvVar
+    from ..models.ml_service_env_from_item import MLServiceEnvFromItem
     from ..models.ml_service_route import MLServiceRoute
+    from ..models.ml_service_volume_mounts_item import MLServiceVolumeMountsItem
+    from ..models.ml_service_volumes_item import MLServiceVolumesItem
     from ..models.resource_map import ResourceMap
     from ..models.service_port import ServicePort
+    from ..models.workload_config_map import WorkloadConfigMap
 
 
 T = TypeVar("T", bound="MLService")
@@ -25,20 +29,23 @@ T = TypeVar("T", bound="MLService")
 
 @_attrs_define
 class MLService:
-    """
+    r"""
     Example:
         {'accessUrl': 'https://gateway.axisml.io/v1/models/llama3-8b', 'args': ['--model', 'meta-llama/Llama-3-8b', '--
             max-model-len', '8192'], 'backend': {'engine': 'llminference', 'name': 'kserve'}, 'command': ['python', '-m',
-            'vllm.entrypoints.openai.api_server'], 'computeNamespace': 'axisml-team-nlp', 'createdAt':
-            '2026-06-20T08:00:00Z', 'description': 'Llama3-8B online inference service.', 'desiredState': 'Running',
-            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'id':
-            '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image': 'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All
-            replicas ready.', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-
-            nlp', 'owner': 'zhang.san', 'ownerId': '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Ready', 'poolName':
-            'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'readyReplicas': 3, 'replicas': 3, 'resources': {'cpu':
-            '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
-            'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x', 'updatedAt':
-            '2026-06-28T09:30:00Z'}
+            'vllm.entrypoints.openai.api_server'], 'computeNamespace': 'axisml-team-nlp', 'configMaps': [{'data':
+            {'server.yaml': 'maxTokens: 4096\n'}, 'name': 'llama3-serving-config'}], 'createdAt': '2026-06-20T08:00:00Z',
+            'description': 'Llama3-8B online inference service.', 'desiredState': 'Running', 'displayName': 'Llama3 chat
+            service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'envFrom': [{'configMapRef': {'name':
+            'llama3-serving-config'}}], 'id': '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image':
+            'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All replicas ready.', 'modelName': 'llama3-8b',
+            'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-nlp', 'owner': 'zhang.san', 'ownerId':
+            '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Ready', 'poolName': 'gpu-a100', 'ports': [{'name': 'http',
+            'port': 8080}], 'readyReplicas': 3, 'replicas': 3, 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
+            '1'}, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'}, 'tenantDisplayName': 'Vision Team',
+            'tenantName': 'team-nlp', 'unitName': 'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumeMounts':
+            [{'mountPath': '/etc/axisml', 'name': 'config', 'readOnly': True}], 'volumes': [{'configMap': {'name':
+            'llama3-serving-config'}, 'name': 'config'}]}
 
     Attributes:
         created_at (datetime.datetime): Time the service was created.
@@ -53,10 +60,13 @@ class MLService:
         backend (Backend | Unset):  Example: {'engine': 'pytorchjob', 'name': 'native'}.
         command (list[str] | Unset): Container entrypoint override.
         compute_namespace (str | Unset): Underlying compute (Kubernetes) namespace running the service.
+        config_maps (list[WorkloadConfigMap] | Unset): ConfigMaps created and owned by this MLService.
         description (str | Unset): Free-text service description.
         desired_state (MLServiceDesiredState | Unset):
         display_name (str | Unset): Human-readable service label.
         env (list[EnvVar] | Unset): Environment variables injected into the serving pods.
+        env_from (list[MLServiceEnvFromItem] | Unset): Environment sources injected into the serving pods (pass-through
+            to the K8s EnvFromSource shape, including configMapRef).
         image (str | Unset): Serving container image reference.
         message (str | Unset): Human-readable status detail for the current phase.
         model_name (str | Unset): Model artifact definition name being served.
@@ -72,6 +82,10 @@ class MLService:
         route (MLServiceRoute | Unset):  Example: {'enabled': True, 'path': '/v1/models/llama3-8b'}.
         tenant_display_name (str | Unset): Human-readable tenant name.
         unit_name (str | Unset): Resource unit (shape) within the pool.
+        volume_mounts (list[MLServiceVolumeMountsItem] | Unset): Container volume mounts (pass-through to the K8s
+            VolumeMount shape).
+        volumes (list[MLServiceVolumesItem] | Unset): Pod volumes (pass-through to the K8s PodSpec volumes shape,
+            including configMap).
     """
 
     created_at: datetime.datetime
@@ -86,10 +100,12 @@ class MLService:
     backend: Backend | Unset = UNSET
     command: list[str] | Unset = UNSET
     compute_namespace: str | Unset = UNSET
+    config_maps: list[WorkloadConfigMap] | Unset = UNSET
     description: str | Unset = UNSET
     desired_state: MLServiceDesiredState | Unset = UNSET
     display_name: str | Unset = UNSET
     env: list[EnvVar] | Unset = UNSET
+    env_from: list[MLServiceEnvFromItem] | Unset = UNSET
     image: str | Unset = UNSET
     message: str | Unset = UNSET
     model_name: str | Unset = UNSET
@@ -104,6 +120,8 @@ class MLService:
     route: MLServiceRoute | Unset = UNSET
     tenant_display_name: str | Unset = UNSET
     unit_name: str | Unset = UNSET
+    volume_mounts: list[MLServiceVolumeMountsItem] | Unset = UNSET
+    volumes: list[MLServiceVolumesItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -137,6 +155,13 @@ class MLService:
 
         compute_namespace = self.compute_namespace
 
+        config_maps: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.config_maps, Unset):
+            config_maps = []
+            for config_maps_item_data in self.config_maps:
+                config_maps_item = config_maps_item_data.to_dict()
+                config_maps.append(config_maps_item)
+
         description = self.description
 
         desired_state: str | Unset = UNSET
@@ -151,6 +176,13 @@ class MLService:
             for env_item_data in self.env:
                 env_item = env_item_data.to_dict()
                 env.append(env_item)
+
+        env_from: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.env_from, Unset):
+            env_from = []
+            for env_from_item_data in self.env_from:
+                env_from_item = env_from_item_data.to_dict()
+                env_from.append(env_from_item)
 
         image = self.image
 
@@ -193,6 +225,20 @@ class MLService:
 
         unit_name = self.unit_name
 
+        volume_mounts: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volume_mounts, Unset):
+            volume_mounts = []
+            for volume_mounts_item_data in self.volume_mounts:
+                volume_mounts_item = volume_mounts_item_data.to_dict()
+                volume_mounts.append(volume_mounts_item)
+
+        volumes: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volumes, Unset):
+            volumes = []
+            for volumes_item_data in self.volumes:
+                volumes_item = volumes_item_data.to_dict()
+                volumes.append(volumes_item)
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -216,6 +262,8 @@ class MLService:
             field_dict["command"] = command
         if compute_namespace is not UNSET:
             field_dict["computeNamespace"] = compute_namespace
+        if config_maps is not UNSET:
+            field_dict["configMaps"] = config_maps
         if description is not UNSET:
             field_dict["description"] = description
         if desired_state is not UNSET:
@@ -224,6 +272,8 @@ class MLService:
             field_dict["displayName"] = display_name
         if env is not UNSET:
             field_dict["env"] = env
+        if env_from is not UNSET:
+            field_dict["envFrom"] = env_from
         if image is not UNSET:
             field_dict["image"] = image
         if message is not UNSET:
@@ -252,6 +302,10 @@ class MLService:
             field_dict["tenantDisplayName"] = tenant_display_name
         if unit_name is not UNSET:
             field_dict["unitName"] = unit_name
+        if volume_mounts is not UNSET:
+            field_dict["volumeMounts"] = volume_mounts
+        if volumes is not UNSET:
+            field_dict["volumes"] = volumes
 
         return field_dict
 
@@ -259,9 +313,13 @@ class MLService:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.backend import Backend
         from ..models.env_var import EnvVar
+        from ..models.ml_service_env_from_item import MLServiceEnvFromItem
         from ..models.ml_service_route import MLServiceRoute
+        from ..models.ml_service_volume_mounts_item import MLServiceVolumeMountsItem
+        from ..models.ml_service_volumes_item import MLServiceVolumesItem
         from ..models.resource_map import ResourceMap
         from ..models.service_port import ServicePort
+        from ..models.workload_config_map import WorkloadConfigMap
 
         d = dict(src_dict)
         created_at = datetime.datetime.fromisoformat(d.pop("createdAt"))
@@ -293,6 +351,15 @@ class MLService:
 
         compute_namespace = d.pop("computeNamespace", UNSET)
 
+        _config_maps = d.pop("configMaps", UNSET)
+        config_maps: list[WorkloadConfigMap] | Unset = UNSET
+        if _config_maps is not UNSET:
+            config_maps = []
+            for config_maps_item_data in _config_maps:
+                config_maps_item = WorkloadConfigMap.from_dict(config_maps_item_data)
+
+                config_maps.append(config_maps_item)
+
         description = d.pop("description", UNSET)
 
         _desired_state = d.pop("desiredState", UNSET)
@@ -312,6 +379,15 @@ class MLService:
                 env_item = EnvVar.from_dict(env_item_data)
 
                 env.append(env_item)
+
+        _env_from = d.pop("envFrom", UNSET)
+        env_from: list[MLServiceEnvFromItem] | Unset = UNSET
+        if _env_from is not UNSET:
+            env_from = []
+            for env_from_item_data in _env_from:
+                env_from_item = MLServiceEnvFromItem.from_dict(env_from_item_data)
+
+                env_from.append(env_from_item)
 
         image = d.pop("image", UNSET)
 
@@ -368,6 +444,26 @@ class MLService:
 
         unit_name = d.pop("unitName", UNSET)
 
+        _volume_mounts = d.pop("volumeMounts", UNSET)
+        volume_mounts: list[MLServiceVolumeMountsItem] | Unset = UNSET
+        if _volume_mounts is not UNSET:
+            volume_mounts = []
+            for volume_mounts_item_data in _volume_mounts:
+                volume_mounts_item = MLServiceVolumeMountsItem.from_dict(
+                    volume_mounts_item_data
+                )
+
+                volume_mounts.append(volume_mounts_item)
+
+        _volumes = d.pop("volumes", UNSET)
+        volumes: list[MLServiceVolumesItem] | Unset = UNSET
+        if _volumes is not UNSET:
+            volumes = []
+            for volumes_item_data in _volumes:
+                volumes_item = MLServiceVolumesItem.from_dict(volumes_item_data)
+
+                volumes.append(volumes_item)
+
         ml_service = cls(
             created_at=created_at,
             id=id,
@@ -381,10 +477,12 @@ class MLService:
             backend=backend,
             command=command,
             compute_namespace=compute_namespace,
+            config_maps=config_maps,
             description=description,
             desired_state=desired_state,
             display_name=display_name,
             env=env,
+            env_from=env_from,
             image=image,
             message=message,
             model_name=model_name,
@@ -399,6 +497,8 @@ class MLService:
             route=route,
             tenant_display_name=tenant_display_name,
             unit_name=unit_name,
+            volume_mounts=volume_mounts,
+            volumes=volumes,
         )
 
         ml_service.additional_properties = d

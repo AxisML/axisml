@@ -22,17 +22,18 @@ T = TypeVar("T", bound="MLService")
 
 @_attrs_define
 class MLService:
-    """
+    r"""
     Example:
         {'annotations': {'axisml.io/created-by': 'li.wei', 'git-commit': '8c1f4e2'}, 'createdAt':
             '2026-06-28T09:25:00Z', 'description': 'Llama-3 8B online inference on the vLLM backend.', 'displayName':
             'Llama-3 8B inference service', 'generation': 3, 'id': 'c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e', 'kind':
             'service', 'labels': {'team': 'vision'}, 'name': 'llama3-8b', 'namespace': 'team-vision', 'observedGeneration':
             3, 'owner': 'li.wei', 'phase': 'Ready', 'spec': {'backend': {'engine': 'llminference', 'name': 'kserve'},
-            'roles': [{'name': 'predictor', 'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-
-            model-len', '8192'], 'image': 'registry.axisml.io/serving/vllm:0.6.2', 'ports': [{'containerPort': 8080, 'name':
-            'http', 'protocol': 'TCP'}], 'resources': {'limits': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'},
-            'requests': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}], 'route': {'auth': {'jwt': {'issuer':
+            'configMaps': [{'data': {'config.yaml': 'model: llama3-8b\n'}, 'name': 'serving-config'}], 'roles': [{'name':
+            'predictor', 'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-len',
+            '8192'], 'image': 'registry.axisml.io/serving/vllm:0.6.2', 'ports': [{'containerPort': 8080, 'name': 'http',
+            'protocol': 'TCP'}], 'resources': {'limits': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}, 'requests':
+            {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}], 'route': {'auth': {'jwt': {'issuer':
             'https://auth.axisml.io', 'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled':
             True, 'hostname': 'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole':
             'predictor'}, 'runPolicy': {'progressDeadlineSeconds': 600}, 'scheduling': {'quota': 'axisml-team-vision-

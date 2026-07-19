@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -94,6 +95,13 @@ func (in *MLRunSpec) DeepCopyInto(out *MLRunSpec) {
 	*out = *in
 	in.Backend.DeepCopyInto(&out.Backend)
 	in.Scheduling.DeepCopyInto(&out.Scheduling)
+	if in.ConfigMaps != nil {
+		in, out := &in.ConfigMaps, &out.ConfigMaps
+		*out = make([]workloadconfig.ConfigMap, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.Roles != nil {
 		in, out := &in.Roles, &out.Roles
 		*out = make([]RoleSpec, len(*in))

@@ -52,14 +52,19 @@ func registerExamples(g *openapigen.Generator) {
 		"ttlSecondsAfterFinished": 3600,
 		"backoffLimit":            2,
 	}
+	mlrunConfigMaps := []any{obj{
+		"name": "trainer-config",
+		"data": obj{"trainer.yaml": "epochs: 90\nbatchSize: 256\n"},
+	}}
 	mlrunSpec := obj{
 		"backend": mlrunBackend,
 		"scheduling": obj{
 			"quota":         "axisml-team-vision-gpu-a100",
 			"priorityClass": "high-priority",
 		},
-		"roles":     []any{mlrunRole},
-		"runPolicy": mlrunRunPolicy,
+		"configMaps": mlrunConfigMaps,
+		"roles":      []any{mlrunRole},
+		"runPolicy":  mlrunRunPolicy,
 	}
 
 	g.SetExample("MLRunCreateRequest", obj{
@@ -70,6 +75,7 @@ func registerExamples(g *openapigen.Generator) {
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
 		"backend":     mlrunBackend,
+		"configMaps":  mlrunConfigMaps,
 		"roles":       []any{mlrunRole},
 		"runPolicy":   mlrunRunPolicy,
 	})
@@ -99,6 +105,10 @@ func registerExamples(g *openapigen.Generator) {
 
 	// ---- MLService ---------------------------------------------------------
 	mlsvcBackend := obj{"name": "kserve", "engine": "llminference"}
+	mlsvcConfigMaps := []any{obj{
+		"name": "serving-config",
+		"data": obj{"config.yaml": "model: llama3-8b\n"},
+	}}
 	mlsvcRole := obj{
 		"name":     "predictor",
 		"replicas": 2,
@@ -125,9 +135,10 @@ func registerExamples(g *openapigen.Generator) {
 		"scheduling": obj{
 			"quota": "axisml-team-vision-gpu-a100",
 		},
-		"roles":     []any{mlsvcRole},
-		"runPolicy": obj{"progressDeadlineSeconds": 600},
-		"route":     mlsvcRoute,
+		"configMaps": mlsvcConfigMaps,
+		"roles":      []any{mlsvcRole},
+		"runPolicy":  obj{"progressDeadlineSeconds": 600},
+		"route":      mlsvcRoute,
 	}
 
 	g.SetExample("MLServiceCreateRequest", obj{
@@ -139,6 +150,7 @@ func registerExamples(g *openapigen.Generator) {
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
 		"backend":     mlsvcBackend,
+		"configMaps":  mlsvcConfigMaps,
 		"roles":       []any{mlsvcRole},
 		"runPolicy":   obj{"progressDeadlineSeconds": 600},
 		"route":       mlsvcRoute,

@@ -99,17 +99,21 @@ def sync_detailed(
     body: MLServiceCreateRequest,
     x_axisml_tenant: str | Unset = UNSET,
 ) -> Response[MLService | Problem]:
-    """Deploy a new online inference service
+    r"""Deploy a new online inference service
 
     Args:
         x_axisml_tenant (str | Unset):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama3-8B online inference service.', 'displayName': 'Llama3
-            chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
+            'kserve'}, 'configMaps': [{'data': {'server.yaml': 'maxTokens: 4096\n'}, 'name':
+            'llama3-serving-config'}], 'description': 'Llama3-8B online inference service.',
+            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}],
+            'envFrom': [{'configMapRef': {'name': 'llama3-serving-config'}}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
             8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
-            'unitName': 'a100-1x'}.
+            'unitName': 'a100-1x', 'volumeMounts': [{'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'configMap': {'name': 'llama3-serving-config'}, 'name':
+            'config'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -137,17 +141,21 @@ def sync(
     body: MLServiceCreateRequest,
     x_axisml_tenant: str | Unset = UNSET,
 ) -> MLService | Problem | None:
-    """Deploy a new online inference service
+    r"""Deploy a new online inference service
 
     Args:
         x_axisml_tenant (str | Unset):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama3-8B online inference service.', 'displayName': 'Llama3
-            chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
+            'kserve'}, 'configMaps': [{'data': {'server.yaml': 'maxTokens: 4096\n'}, 'name':
+            'llama3-serving-config'}], 'description': 'Llama3-8B online inference service.',
+            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}],
+            'envFrom': [{'configMapRef': {'name': 'llama3-serving-config'}}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
             8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
-            'unitName': 'a100-1x'}.
+            'unitName': 'a100-1x', 'volumeMounts': [{'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'configMap': {'name': 'llama3-serving-config'}, 'name':
+            'config'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -170,17 +178,21 @@ async def asyncio_detailed(
     body: MLServiceCreateRequest,
     x_axisml_tenant: str | Unset = UNSET,
 ) -> Response[MLService | Problem]:
-    """Deploy a new online inference service
+    r"""Deploy a new online inference service
 
     Args:
         x_axisml_tenant (str | Unset):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama3-8B online inference service.', 'displayName': 'Llama3
-            chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
+            'kserve'}, 'configMaps': [{'data': {'server.yaml': 'maxTokens: 4096\n'}, 'name':
+            'llama3-serving-config'}], 'description': 'Llama3-8B online inference service.',
+            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}],
+            'envFrom': [{'configMapRef': {'name': 'llama3-serving-config'}}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
             8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
-            'unitName': 'a100-1x'}.
+            'unitName': 'a100-1x', 'volumeMounts': [{'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'configMap': {'name': 'llama3-serving-config'}, 'name':
+            'config'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -206,17 +218,21 @@ async def asyncio(
     body: MLServiceCreateRequest,
     x_axisml_tenant: str | Unset = UNSET,
 ) -> MLService | Problem | None:
-    """Deploy a new online inference service
+    r"""Deploy a new online inference service
 
     Args:
         x_axisml_tenant (str | Unset):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama3-8B online inference service.', 'displayName': 'Llama3
-            chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
+            'kserve'}, 'configMaps': [{'data': {'server.yaml': 'maxTokens: 4096\n'}, 'name':
+            'llama3-serving-config'}], 'description': 'Llama3-8B online inference service.',
+            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}],
+            'envFrom': [{'configMapRef': {'name': 'llama3-serving-config'}}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
             8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
-            'unitName': 'a100-1x'}.
+            'unitName': 'a100-1x', 'volumeMounts': [{'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'configMap': {'name': 'llama3-serving-config'}, 'name':
+            'config'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

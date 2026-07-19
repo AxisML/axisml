@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 )
 
 // MLServiceCreateRequest is the API request body. Caller selects pool/unit by
@@ -27,6 +28,7 @@ type MLServiceCreateRequest struct {
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the service's pods."`
 	Backend       *mlservicev1alpha1.Backend   `json:"backend" desc:"Compute backend/engine that serves the workload; defaults to (native, deployment) when omitted."`
+	ConfigMaps    []workloadconfig.ConfigMap   `json:"configMaps,omitempty" binding:"omitempty,dive" desc:"ConfigMaps created and owned by this MLService before its pods are reconciled."`
 	Roles         []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1" desc:"Service topology roles (at least one)."`
 	RunPolicy     *mlservicev1alpha1.RunPolicy `json:"runPolicy" desc:"Service-level lifecycle controls (progress deadline)."`
 	Route         *mlservicev1alpha1.Route     `json:"route" desc:"Optional external entrypoint (HTTPRoute plus auth/rate-limit policies)."`

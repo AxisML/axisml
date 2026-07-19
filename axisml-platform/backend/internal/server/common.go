@@ -32,6 +32,13 @@ type EnvVar struct {
 	ValueFrom map[string]any `json:"valueFrom,omitempty" desc:"Source the value from a secret/configmap/field (pass-through to the K8s EnvVarSource shape)."`
 }
 
+// WorkloadConfigMap declares configuration that compute creates in the
+// workload namespace and owns for the lifetime of the MLRun or MLService.
+type WorkloadConfigMap struct {
+	Name string            `json:"name" binding:"required,configmap_name" desc:"DNS-1123 ConfigMap name in the workload namespace."`
+	Data map[string]string `json:"data,omitempty" desc:"UTF-8 configuration entries keyed by file or environment-variable name."`
+}
+
 // Condition is a Kubernetes-style status condition.
 type Condition struct {
 	Type               string          `json:"type" desc:"Condition type (e.g. Ready, Available)."`

@@ -87,7 +87,8 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 	}
 
 	spec := mlrunv1alpha1.MLRunSpec{
-		Backend: backend,
+		Backend:    backend,
+		ConfigMaps: in.ConfigMaps,
 		Scheduling: mlrunv1alpha1.SchedulingSpec{
 			Quota:         tenantv1alpha1.ElasticQuotaName(namespace, in.PoolName),
 			PriorityClass: in.PriorityClass,

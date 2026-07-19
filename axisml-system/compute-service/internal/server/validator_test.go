@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/require"
+
+	configapi "github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 )
 
 // fakeFL satisfies the validator.FieldLevel surface that the predicate uses.
@@ -64,6 +66,19 @@ func TestIsResourceUnitName_Predicate(t *testing.T) {
 	}
 }
 
+func TestIsConfigMapName_Predicate(t *testing.T) {
+	for _, name := range []string{"config", "trainer.config", "a"} {
+		if !isConfigMapName(fakeFL{v: name}) {
+			t.Errorf("isConfigMapName(%q) = false; want true", name)
+		}
+	}
+	for _, name := range []string{"Config", "bad_name", ".bad", "bad."} {
+		if isConfigMapName(fakeFL{v: name}) {
+			t.Errorf("isConfigMapName(%q) = true; want false", name)
+		}
+	}
+}
+
 func TestRegisterValidators_NoErrorOnSecondCall(t *testing.T) {
 	require.NoError(t, RegisterValidators())
 	require.NoError(t, RegisterValidators(),
@@ -74,4 +89,14 @@ func TestRegisterValidators_NoErrorOnSecondCall(t *testing.T) {
 	if v == nil {
 		t.Fatal("nil validator engine")
 	}
+}
+
+func TestConfigMapNameValidatorNestedRequest(t *testing.T) {
+	require.NoError(t, RegisterValidators())
+	v := binding.Validator.Engine().(*validator.Validate)
+	type payload struct {
+		ConfigMaps []configapi.ConfigMap `binding:"dive"`
+	}
+	require.NoError(t, v.Struct(payload{ConfigMaps: []configapi.ConfigMap{{Name: "trainer.config"}}}))
+	require.Error(t, v.Struct(payload{ConfigMaps: []configapi.ConfigMap{{Name: "bad_name"}}}))
 }

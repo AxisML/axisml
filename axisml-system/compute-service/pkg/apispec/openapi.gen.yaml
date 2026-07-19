@@ -1152,6 +1152,12 @@ components:
           backend:
             engine: pytorchjob
             name: kubeflow-trainer
+          configMaps:
+          - data:
+              trainer.yaml: |
+                epochs: 90
+                batchSize: 256
+            name: trainer-config
           roles:
           - name: worker
             replicas: 4
@@ -1274,6 +1280,12 @@ components:
         backend:
           engine: pytorchjob
           name: kubeflow-trainer
+        configMaps:
+        - data:
+            trainer.yaml: |
+              epochs: 90
+              batchSize: 256
+          name: trainer-config
         description: Distributed ResNet-50 training on ImageNet.
         displayName: 'ResNet-50 Training #7'
         labels:
@@ -1324,6 +1336,12 @@ components:
           description: Compute backend/engine that runs the workload; defaults to
             (native, job) when omitted.
           nullable: true
+        configMaps:
+          description: ConfigMaps created and owned by this MLRun before its pods
+            are reconciled.
+          items:
+            $ref: '#/components/schemas/WorkloadconfigConfigMap'
+          type: array
         description:
           description: Free-text run description.
           type: string
@@ -1389,6 +1407,12 @@ components:
             backend:
               engine: pytorchjob
               name: kubeflow-trainer
+            configMaps:
+            - data:
+                trainer.yaml: |
+                  epochs: 90
+                  batchSize: 256
+              name: trainer-config
             roles:
             - name: worker
               replicas: 4
@@ -1613,6 +1637,10 @@ components:
       properties:
         backend:
           $ref: '#/components/schemas/MLRunBackendSpec'
+        configMaps:
+          items:
+            $ref: '#/components/schemas/WorkloadconfigConfigMap'
+          type: array
         roles:
           items:
             $ref: '#/components/schemas/MLRunRoleSpec'
@@ -1664,6 +1692,11 @@ components:
           backend:
             engine: llminference
             name: kserve
+          configMaps:
+          - data:
+              config.yaml: |
+                model: llama3-8b
+            name: serving-config
           roles:
           - name: predictor
             replicas: 2
@@ -1808,6 +1841,11 @@ components:
         backend:
           engine: llminference
           name: kserve
+        configMaps:
+        - data:
+            config.yaml: |
+              model: llama3-8b
+          name: serving-config
         description: Llama-3 8B online inference on the vLLM backend.
         displayName: Llama-3 8B inference service
         kind: service
@@ -1865,6 +1903,12 @@ components:
           description: Compute backend/engine that serves the workload; defaults to
             (native, deployment) when omitted.
           nullable: true
+        configMaps:
+          description: ConfigMaps created and owned by this MLService before its pods
+            are reconciled.
+          items:
+            $ref: '#/components/schemas/WorkloadconfigConfigMap'
+          type: array
         description:
           description: Free-text service description.
           type: string
@@ -1943,6 +1987,11 @@ components:
             backend:
               engine: llminference
               name: kserve
+            configMaps:
+            - data:
+                config.yaml: |
+                  model: llama3-8b
+              name: serving-config
             roles:
             - name: predictor
               replicas: 2
@@ -2263,6 +2312,10 @@ components:
       properties:
         backend:
           $ref: '#/components/schemas/MLServiceBackend'
+        configMaps:
+          items:
+            $ref: '#/components/schemas/WorkloadconfigConfigMap'
+          type: array
         roles:
           items:
             $ref: '#/components/schemas/MLServiceRoleSpec'
@@ -2940,6 +2993,24 @@ components:
       required:
       - serviceName
       - weight
+      type: object
+    WorkloadconfigConfigMap:
+      properties:
+        data:
+          additionalProperties:
+            type: string
+          description: UTF-8 configuration entries keyed by file or environment-variable
+            name.
+          type: object
+        name:
+          description: DNS-1123 name of the workload-owned ConfigMap created in the
+            workload namespace.
+          maxLength: 253
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+          type: string
+      required:
+      - name
       type: object
 info:
   description: REST API for per-namespace Jobs, Services and traffic policies. Tenant/Quota

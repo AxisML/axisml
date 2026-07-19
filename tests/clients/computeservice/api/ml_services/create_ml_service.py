@@ -103,12 +103,13 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: MLServiceCreateRequest,
 ) -> Response[ComputeServiceError | MLService]:
-    """Submit an MLService
+    r"""Submit an MLService
 
     Args:
         namespace (str):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama-3 8B online inference on the vLLM backend.',
+            'kserve'}, 'configMaps': [{'data': {'config.yaml': 'model: llama3-8b\n'}, 'name':
+            'serving-config'}], 'description': 'Llama-3 8B online inference on the vLLM backend.',
             'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team':
             'vision'}, 'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor',
             'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-
@@ -147,12 +148,13 @@ def sync(
     client: AuthenticatedClient | Client,
     body: MLServiceCreateRequest,
 ) -> ComputeServiceError | MLService | None:
-    """Submit an MLService
+    r"""Submit an MLService
 
     Args:
         namespace (str):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama-3 8B online inference on the vLLM backend.',
+            'kserve'}, 'configMaps': [{'data': {'config.yaml': 'model: llama3-8b\n'}, 'name':
+            'serving-config'}], 'description': 'Llama-3 8B online inference on the vLLM backend.',
             'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team':
             'vision'}, 'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor',
             'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-
@@ -186,12 +188,13 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: MLServiceCreateRequest,
 ) -> Response[ComputeServiceError | MLService]:
-    """Submit an MLService
+    r"""Submit an MLService
 
     Args:
         namespace (str):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama-3 8B online inference on the vLLM backend.',
+            'kserve'}, 'configMaps': [{'data': {'config.yaml': 'model: llama3-8b\n'}, 'name':
+            'serving-config'}], 'description': 'Llama-3 8B online inference on the vLLM backend.',
             'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team':
             'vision'}, 'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor',
             'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-
@@ -228,12 +231,13 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: MLServiceCreateRequest,
 ) -> ComputeServiceError | MLService | None:
-    """Submit an MLService
+    r"""Submit an MLService
 
     Args:
         namespace (str):
         body (MLServiceCreateRequest):  Example: {'backend': {'engine': 'llminference', 'name':
-            'kserve'}, 'description': 'Llama-3 8B online inference on the vLLM backend.',
+            'kserve'}, 'configMaps': [{'data': {'config.yaml': 'model: llama3-8b\n'}, 'name':
+            'serving-config'}], 'description': 'Llama-3 8B online inference on the vLLM backend.',
             'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team':
             'vision'}, 'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor',
             'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-

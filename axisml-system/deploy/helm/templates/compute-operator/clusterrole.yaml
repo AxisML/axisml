@@ -68,10 +68,12 @@ rules:
   {{- end }}
 
   {{- /*
-    Pods: union across MLRun (native-podgroup renders bare Pods) and
-    MLService (native-deployment indirectly creates Pods via Deployment).
+    ConfigMaps and Pods: shared workload resources across MLRun and MLService.
   */ -}}
   {{- if or $op.controllers.mlrun.enabled $op.controllers.mlservice.enabled }}
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

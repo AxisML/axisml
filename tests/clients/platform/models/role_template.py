@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.env_var import EnvVar
     from ..models.resource_map import ResourceMap
+    from ..models.role_template_env_from_item import RoleTemplateEnvFromItem
     from ..models.role_template_ports_item import RoleTemplatePortsItem
     from ..models.role_template_volume_mounts_item import RoleTemplateVolumeMountsItem
     from ..models.role_template_volumes_item import RoleTemplateVolumesItem
@@ -24,15 +25,19 @@ class RoleTemplate:
     """
     Example:
         {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports':
-            [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi',
-            'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data',
-            'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}]}
+            'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom': [{'configMapRef': {'name': 'resnet-training-config'}}], 'image':
+            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
+            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
+            '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config', 'readOnly': True}], 'volumes':
+            [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}, {'configMap': {'name': 'resnet-
+            training-config'}, 'name': 'config'}]}
 
     Attributes:
         args (list[str] | Unset): Container args override.
         command (list[str] | Unset): Container entrypoint override.
         env (list[EnvVar] | Unset): Environment variables injected into the role's pods.
+        env_from (list[RoleTemplateEnvFromItem] | Unset): Environment sources injected into the role's pods (pass-
+            through to the K8s EnvFromSource shape, including configMapRef).
         image (str | Unset): Container image reference for this role's pods.
         ports (list[RoleTemplatePortsItem] | Unset): Container ports (pass-through to the K8s container ports shape).
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
@@ -45,6 +50,7 @@ class RoleTemplate:
     args: list[str] | Unset = UNSET
     command: list[str] | Unset = UNSET
     env: list[EnvVar] | Unset = UNSET
+    env_from: list[RoleTemplateEnvFromItem] | Unset = UNSET
     image: str | Unset = UNSET
     ports: list[RoleTemplatePortsItem] | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
@@ -67,6 +73,13 @@ class RoleTemplate:
             for env_item_data in self.env:
                 env_item = env_item_data.to_dict()
                 env.append(env_item)
+
+        env_from: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.env_from, Unset):
+            env_from = []
+            for env_from_item_data in self.env_from:
+                env_from_item = env_from_item_data.to_dict()
+                env_from.append(env_from_item)
 
         image = self.image
 
@@ -104,6 +117,8 @@ class RoleTemplate:
             field_dict["command"] = command
         if env is not UNSET:
             field_dict["env"] = env
+        if env_from is not UNSET:
+            field_dict["envFrom"] = env_from
         if image is not UNSET:
             field_dict["image"] = image
         if ports is not UNSET:
@@ -121,6 +136,7 @@ class RoleTemplate:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.env_var import EnvVar
         from ..models.resource_map import ResourceMap
+        from ..models.role_template_env_from_item import RoleTemplateEnvFromItem
         from ..models.role_template_ports_item import RoleTemplatePortsItem
         from ..models.role_template_volume_mounts_item import (
             RoleTemplateVolumeMountsItem,
@@ -140,6 +156,15 @@ class RoleTemplate:
                 env_item = EnvVar.from_dict(env_item_data)
 
                 env.append(env_item)
+
+        _env_from = d.pop("envFrom", UNSET)
+        env_from: list[RoleTemplateEnvFromItem] | Unset = UNSET
+        if _env_from is not UNSET:
+            env_from = []
+            for env_from_item_data in _env_from:
+                env_from_item = RoleTemplateEnvFromItem.from_dict(env_from_item_data)
+
+                env_from.append(env_from_item)
 
         image = d.pop("image", UNSET)
 
@@ -183,6 +208,7 @@ class RoleTemplate:
             args=args,
             command=command,
             env=env,
+            env_from=env_from,
             image=image,
             ports=ports,
             resources=resources,

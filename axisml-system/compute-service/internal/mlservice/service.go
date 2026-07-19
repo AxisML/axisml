@@ -109,7 +109,8 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	}
 
 	spec := mlservicev1alpha1.MLServiceSpec{
-		Backend: backend,
+		Backend:    backend,
+		ConfigMaps: in.ConfigMaps,
 		Scheduling: mlservicev1alpha1.Scheduling{
 			Quota:         tenantv1alpha1.ElasticQuotaName(namespace, in.PoolName),
 			PriorityClass: in.PriorityClass,

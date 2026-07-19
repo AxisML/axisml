@@ -98,8 +98,8 @@ func TestExpectedCounts(t *testing.T) {
 	if got := len(doc.Paths); got != 86 {
 		t.Errorf("path count = %d, want 86", got)
 	}
-	if got := len(doc.Components.Schemas); got != 154 {
-		t.Errorf("schema count = %d, want 154", got)
+	if got := len(doc.Components.Schemas); got != 155 {
+		t.Errorf("schema count = %d, want 155", got)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestKeySchemasPresent(t *testing.T) {
 	for _, name := range []string{
 		"Problem", "Tenant", "Workspace", "Job", "Run", "MLService",
 		"Model", "Image", "Experiment", "TrafficPolicy", "ResourcePool",
-		"StringMap", "ResourceMap", "ModelSpec",
+		"StringMap", "ResourceMap", "ModelSpec", "WorkloadConfigMap",
 	} {
 		if _, ok := doc.Components.Schemas[name]; !ok {
 			t.Errorf("missing component schema %q", name)

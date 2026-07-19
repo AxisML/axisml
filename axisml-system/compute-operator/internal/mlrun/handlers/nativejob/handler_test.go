@@ -173,6 +173,55 @@ func TestBuildJob_PropagatesVolumes(t *testing.T) {
 	}
 }
 
+func TestBuildJob_PropagatesConfigMapSources(t *testing.T) {
+	h := New()
+	mlj := newMLRun(1, func(m *axisv1alpha1.MLRun) {
+		m.Spec.Roles[0].Template.Env = []corev1.EnvVar{{
+			Name: "LOG_LEVEL",
+			ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "run-config"},
+				Key:                  "log-level",
+			}},
+		}}
+		m.Spec.Roles[0].Template.EnvFrom = []corev1.EnvFromSource{{
+			Prefix: "APP_",
+			ConfigMapRef: &corev1.ConfigMapEnvSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "run-config"},
+			},
+		}}
+		m.Spec.Roles[0].Template.Volumes = []corev1.Volume{{
+			Name: "config",
+			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "run-config"},
+			}},
+		}}
+		m.Spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{{
+			Name: "config", MountPath: "/etc/run", ReadOnly: true,
+		}}
+	})
+
+	job, err := h.buildJob(mlj)
+	if err != nil {
+		t.Fatalf("buildJob: %v", err)
+	}
+	c := job.Spec.Template.Spec.Containers[0]
+	if len(c.Env) != 1 || c.Env[0].ValueFrom == nil || c.Env[0].ValueFrom.ConfigMapKeyRef == nil ||
+		c.Env[0].ValueFrom.ConfigMapKeyRef.Name != "run-config" {
+		t.Fatalf("configMapKeyRef not propagated: %+v", c.Env)
+	}
+	if len(c.EnvFrom) != 1 || c.EnvFrom[0].ConfigMapRef == nil ||
+		c.EnvFrom[0].ConfigMapRef.Name != "run-config" || c.EnvFrom[0].Prefix != "APP_" {
+		t.Fatalf("configMapRef not propagated: %+v", c.EnvFrom)
+	}
+	vols := job.Spec.Template.Spec.Volumes
+	if len(vols) != 1 || vols[0].ConfigMap == nil || vols[0].ConfigMap.Name != "run-config" {
+		t.Fatalf("ConfigMap volume not propagated: %+v", vols)
+	}
+	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].MountPath != "/etc/run" || !c.VolumeMounts[0].ReadOnly {
+		t.Fatalf("ConfigMap volume mount not propagated: %+v", c.VolumeMounts)
+	}
+}
+
 func TestMapStatus_TransitionTable(t *testing.T) {
 	h := New()
 	now := metav1.Now()

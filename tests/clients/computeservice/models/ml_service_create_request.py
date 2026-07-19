@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ..models.ml_service_role_spec import MLServiceRoleSpec
     from ..models.ml_service_route import MLServiceRoute
     from ..models.ml_service_run_policy import MLServiceRunPolicy
+    from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
 
 T = TypeVar("T", bound="MLServiceCreateRequest")
@@ -24,18 +25,19 @@ T = TypeVar("T", bound="MLServiceCreateRequest")
 
 @_attrs_define
 class MLServiceCreateRequest:
-    """
+    r"""
     Example:
-        {'backend': {'engine': 'llminference', 'name': 'kserve'}, 'description': 'Llama-3 8B online inference on the
-            vLLM backend.', 'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team': 'vision'},
-            'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor', 'replicas': 2, 'template': {'args':
-            ['--model', 'meta-llama/Llama-3-8b', '--max-model-len', '8192'], 'image':
-            'registry.axisml.io/serving/vllm:0.6.2', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}],
-            'resources': {'limits': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}, 'requests': {'cpu': '8',
-            'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}], 'route': {'auth': {'jwt': {'issuer': 'https://auth.axisml.io',
-            'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled': True, 'hostname':
-            'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole': 'predictor'}, 'runPolicy':
-            {'progressDeadlineSeconds': 600}, 'unitName': 'a100-2x'}
+        {'backend': {'engine': 'llminference', 'name': 'kserve'}, 'configMaps': [{'data': {'config.yaml': 'model:
+            llama3-8b\n'}, 'name': 'serving-config'}], 'description': 'Llama-3 8B online inference on the vLLM backend.',
+            'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team': 'vision'}, 'name':
+            'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor', 'replicas': 2, 'template': {'args': ['--
+            model', 'meta-llama/Llama-3-8b', '--max-model-len', '8192'], 'image': 'registry.axisml.io/serving/vllm:0.6.2',
+            'ports': [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'limits': {'cpu': '8',
+            'memory': '48Gi', 'nvidia.com/gpu': '1'}, 'requests': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}],
+            'route': {'auth': {'jwt': {'issuer': 'https://auth.axisml.io', 'jwksUri': 'https://auth.axisml.io/.well-
+            known/jwks.json'}, 'type': 'jwt'}, 'enabled': True, 'hostname': 'llama3-8b.team-vision.axisml.io', 'path':
+            '/v1', 'portName': 'http', 'targetRole': 'predictor'}, 'runPolicy': {'progressDeadlineSeconds': 600},
+            'unitName': 'a100-2x'}
 
     Attributes:
         name (str): MLService name, unique within the namespace.
@@ -46,6 +48,8 @@ class MLServiceCreateRequest:
             onto the CR.
         backend (MLServiceBackend | None | Unset): Compute backend/engine that serves the workload; defaults to (native,
             deployment) when omitted.
+        config_maps (list[WorkloadconfigConfigMap] | Unset): ConfigMaps created and owned by this MLService before its
+            pods are reconciled.
         description (str | Unset): Free-text service description.
         display_name (str | Unset): Human-readable service label.
         kind (str | Unset): Service kind (service, workspace, tensorboard); immutable after create, defaults to service.
@@ -61,6 +65,7 @@ class MLServiceCreateRequest:
     unit_name: str
     annotations: MLServiceCreateRequestAnnotations | Unset = UNSET
     backend: MLServiceBackend | None | Unset = UNSET
+    config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
     description: str | Unset = UNSET
     display_name: str | Unset = UNSET
     kind: str | Unset = UNSET
@@ -97,6 +102,13 @@ class MLServiceCreateRequest:
             backend = self.backend.to_dict()
         else:
             backend = self.backend
+
+        config_maps: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.config_maps, Unset):
+            config_maps = []
+            for config_maps_item_data in self.config_maps:
+                config_maps_item = config_maps_item_data.to_dict()
+                config_maps.append(config_maps_item)
 
         description = self.description
 
@@ -140,6 +152,8 @@ class MLServiceCreateRequest:
             field_dict["annotations"] = annotations
         if backend is not UNSET:
             field_dict["backend"] = backend
+        if config_maps is not UNSET:
+            field_dict["configMaps"] = config_maps
         if description is not UNSET:
             field_dict["description"] = description
         if display_name is not UNSET:
@@ -169,6 +183,7 @@ class MLServiceCreateRequest:
         from ..models.ml_service_role_spec import MLServiceRoleSpec
         from ..models.ml_service_route import MLServiceRoute
         from ..models.ml_service_run_policy import MLServiceRunPolicy
+        from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
         d = dict(src_dict)
         name = d.pop("name")
@@ -207,6 +222,17 @@ class MLServiceCreateRequest:
             return cast(MLServiceBackend | None | Unset, data)
 
         backend = _parse_backend(d.pop("backend", UNSET))
+
+        _config_maps = d.pop("configMaps", UNSET)
+        config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
+        if _config_maps is not UNSET:
+            config_maps = []
+            for config_maps_item_data in _config_maps:
+                config_maps_item = WorkloadconfigConfigMap.from_dict(
+                    config_maps_item_data
+                )
+
+                config_maps.append(config_maps_item)
 
         description = d.pop("description", UNSET)
 
@@ -264,6 +290,7 @@ class MLServiceCreateRequest:
             unit_name=unit_name,
             annotations=annotations,
             backend=backend,
+            config_maps=config_maps,
             description=description,
             display_name=display_name,
             kind=kind,

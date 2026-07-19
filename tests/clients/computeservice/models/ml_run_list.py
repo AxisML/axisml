@@ -17,17 +17,18 @@ T = TypeVar("T", bound="MLRunList")
 
 @_attrs_define
 class MLRunList:
-    """
+    r"""
     Example:
         {'items': [{'annotations': {'axisml.io/created-by': 'li.wei', 'git-commit': '8c1f4e2'}, 'createdAt':
             '2026-06-28T09:25:00Z', 'description': 'Distributed ResNet-50 training on ImageNet.', 'displayName': 'ResNet-50
             Training #7', 'id': 'b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5', 'labels': {'team': 'vision'}, 'name': 'resnet-
             train-7', 'namespace': 'team-vision', 'owner': 'li.wei', 'phase': 'Running', 'spec': {'backend': {'engine':
-            'pytorchjob', 'name': 'kubeflow-trainer'}, 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy':
-            'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'],
-            'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
-            'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8',
-            'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'pytorchjob', 'name': 'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'trainer-config'}], 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure',
+            'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env':
+            [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources':
+            {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8', 'memory': '64Gi',
+            'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'ttlSecondsAfterFinished': 3600}, 'scheduling': {'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-
             gpu-a100'}}, 'status': {'message': 'All worker replicas ready.', 'startedAt': '2026-06-28T09:30:00Z'},
             'updatedAt': '2026-06-28T09:45:00Z'}], 'total': 1}

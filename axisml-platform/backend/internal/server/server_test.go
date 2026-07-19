@@ -9,7 +9,30 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 )
+
+func TestConfigMapNameValidator(t *testing.T) {
+	if err := RegisterValidators(); err != nil {
+		t.Fatal(err)
+	}
+	v := binding.Validator.Engine().(*validator.Validate)
+	type payload struct {
+		ConfigMaps []WorkloadConfigMap `binding:"dive"`
+	}
+	for _, name := range []string{"config", "trainer.config", "a"} {
+		if err := v.Struct(payload{ConfigMaps: []WorkloadConfigMap{{Name: name}}}); err != nil {
+			t.Errorf("valid ConfigMap name %q rejected: %v", name, err)
+		}
+	}
+	for _, name := range []string{"Config", "bad_name", ".bad", "bad."} {
+		if err := v.Struct(payload{ConfigMaps: []WorkloadConfigMap{{Name: name}}}); err == nil {
+			t.Errorf("invalid ConfigMap name %q accepted", name)
+		}
+	}
+}
 
 func newTestServer(t *testing.T, staticFS fs.FS) *Server {
 	t.Helper()

@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/strutil"
 )
@@ -19,6 +20,9 @@ func RegisterValidators() error {
 	if err := v.RegisterValidation("axisml_resource_unit", isResourceUnitName); err != nil {
 		return err
 	}
+	if err := v.RegisterValidation("configmap_name", isConfigMapName); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -28,4 +32,8 @@ func isAxisMLName(fl validator.FieldLevel) bool {
 
 func isResourceUnitName(fl validator.FieldLevel) bool {
 	return strutil.IsValidResourceUnitName(fl.Field().String())
+}
+
+func isConfigMapName(fl validator.FieldLevel) bool {
+	return len(k8svalidation.IsDNS1123Subdomain(fl.Field().String())) == 0
 }

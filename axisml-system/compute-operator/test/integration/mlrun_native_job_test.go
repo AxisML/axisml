@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	configapi "github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 
@@ -55,6 +56,10 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
+			ConfigMaps: []configapi.ConfigMap{{
+				Name: "trainer-config",
+				Data: map[string]string{"trainer.yaml": "epochs: 3"},
+			}},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,
@@ -62,6 +67,9 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 				Template: axisv1alpha1.PodTemplateSubset{
 					Image:   "busybox:latest",
 					Command: []string{"sh", "-c", "echo hello"},
+					EnvFrom: []corev1.EnvFromSource{{
+						ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "trainer-config"}},
+					}},
 				},
 			}},
 		},
@@ -74,6 +82,12 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 	var job batchv1.Job
 	testutil.EventuallyExists(t, ctx, c,
 		types.NamespacedName{Namespace: ns, Name: jobName}, &job, testWaitTimeout)
+	var configMap corev1.ConfigMap
+	testutil.EventuallyExists(t, ctx, c,
+		types.NamespacedName{Namespace: ns, Name: "trainer-config"}, &configMap, testWaitTimeout)
+	require.Equal(t, "epochs: 3", configMap.Data["trainer.yaml"])
+	require.True(t, metav1.IsControlledBy(&configMap, mlrun))
+	require.Equal(t, "trainer-config", job.Spec.Template.Spec.Containers[0].EnvFrom[0].ConfigMapRef.Name)
 
 	// Simulate the kubelet completing the Job. The dispatcher's MapStatus
 	// reads JobComplete=True from Status.Conditions and maps it to Succeeded.

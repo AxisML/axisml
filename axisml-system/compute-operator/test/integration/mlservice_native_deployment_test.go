@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	configapi "github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 
 	"github.com/axisml/axisml/test/testutil"
 )
@@ -55,12 +56,19 @@ func TestMLService_NativeDeployment_HappyPath(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
+			ConfigMaps: []configapi.ConfigMap{{
+				Name: "serving-config",
+				Data: map[string]string{"server.yaml": "port: 80"},
+			}},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
 				Template: axisml.PodTemplate{
 					Image: "nginx:1.27",
 					Ports: []axisml.PodPort{{Name: "http", ContainerPort: 80, Protocol: corev1.ProtocolTCP}},
+					EnvFrom: []corev1.EnvFromSource{{
+						ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "serving-config"}},
+					}},
 				},
 			}},
 		},
@@ -72,6 +80,12 @@ func TestMLService_NativeDeployment_HappyPath(t *testing.T) {
 	testutil.Eventually(t, testWaitTimeout, 200*time.Millisecond, func() error {
 		return findOwnedDeployment(ctx, c, ns, svcName, &dep)
 	})
+	var configMap corev1.ConfigMap
+	testutil.EventuallyExists(t, ctx, c,
+		types.NamespacedName{Namespace: ns, Name: "serving-config"}, &configMap, testWaitTimeout)
+	require.Equal(t, "port: 80", configMap.Data["server.yaml"])
+	require.True(t, metav1.IsControlledBy(&configMap, svc))
+	require.Equal(t, "serving-config", dep.Spec.Template.Spec.Containers[0].EnvFrom[0].ConfigMapRef.Name)
 
 	// And the Service.
 	var k8sSvc corev1.Service

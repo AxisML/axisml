@@ -55,6 +55,64 @@ func TestMLServiceCreateModelPrecheck(t *testing.T) {
 	assert.Contains(t, names, "AXISML_MODEL_URI", "resolved model URI must be injected")
 }
 
+// TestMLServiceForwardsConfigMap covers the complete Platform HTTP → compute
+// create path for both ConfigMap environment injection and file mounts.
+func TestMLServiceForwardsConfigMap(t *testing.T) {
+	admin := loginAdmin(t)
+	code, _ := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "svccmowner", "password": "password123", "displayName": "Svc CM Owner",
+	})
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, code)
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "svccm-team", "kubernetesNamespace": "axisml-tenant",
+		"displayName": "Svc CM", "initialAdmin": "svccmowner",
+	})
+	require.Equal(t, http.StatusCreated, code)
+	artStub.seedModel("svccm-team", "m", "v1", "Ready")
+
+	code, svc := doTenant(t, http.MethodPost, "/api/v1/mlservices", admin, "svccm-team", map[string]any{
+		"name": "configured", "modelName": "m", "modelVersion": "v1", "image": "serve:1",
+		"ports":    []map[string]any{{"name": "http", "port": 8080}},
+		"poolName": "gpu-a100", "unitName": "small", "replicas": 1,
+		"configMaps": []map[string]any{{
+			"name": "service-config", "data": map[string]string{"log-level": "info"},
+		}},
+		"env": []map[string]any{{
+			"name": "LOG_LEVEL",
+			"valueFrom": map[string]any{
+				"configMapKeyRef": map[string]any{"name": "service-config", "key": "log-level"},
+			},
+		}},
+		"envFrom": []map[string]any{{
+			"configMapRef": map[string]any{"name": "service-config"},
+		}},
+		"volumes": []map[string]any{{
+			"name": "config", "configMap": map[string]any{"name": "service-config"},
+		}},
+		"volumeMounts": []map[string]any{{
+			"name": "config", "mountPath": "/etc/service", "readOnly": true,
+		}},
+	})
+	require.Equal(t, http.StatusCreated, code, "%v", svc)
+
+	tmpl := computeStub.lastServiceTmpl()
+	require.NotNil(t, tmpl)
+	envFrom, _ := tmpl["envFrom"].([]any)
+	require.Len(t, envFrom, 1)
+	configMapRef, _ := envFrom[0].(map[string]any)["configMapRef"].(map[string]any)
+	assert.Equal(t, "service-config", configMapRef["name"])
+	volumes, _ := tmpl["volumes"].([]any)
+	require.Len(t, volumes, 1)
+	configMap, _ := volumes[0].(map[string]any)["configMap"].(map[string]any)
+	assert.Equal(t, "service-config", configMap["name"])
+	mounts, _ := tmpl["volumeMounts"].([]any)
+	require.Len(t, mounts, 1)
+	assert.Equal(t, "/etc/service", mounts[0].(map[string]any)["mountPath"])
+	configs := computeStub.lastServiceConfigMaps()
+	require.Len(t, configs, 1)
+	assert.Equal(t, "info", configs[0].(map[string]any)["data"].(map[string]any)["log-level"])
+}
+
 // TestJobMetadataOnlyPatch covers a metadata-only Job PATCH (no spec): the
 // embedded JobSpec's dns1123/min validators must not trip when spec is omitted,
 // so JobPatchRequest.Spec is a pointer left nil.
@@ -147,6 +205,67 @@ func TestJobRunForwardsVolumes(t *testing.T) {
 	m0, _ := mounts[0].(map[string]any)
 	assert.Equal(t, "data", m0["name"])
 	assert.Equal(t, "/data", m0["mountPath"])
+}
+
+// TestJobRunForwardsConfigMap covers the complete Platform HTTP → compute Run
+// path for both ConfigMap environment injection and file mounts.
+func TestJobRunForwardsConfigMap(t *testing.T) {
+	admin := loginAdmin(t)
+	code, _ := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "runcmowner", "password": "password123", "displayName": "Run CM Owner",
+	})
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, code)
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "runcm-team", "kubernetesNamespace": "axisml-tenant",
+		"displayName": "Run CM", "initialAdmin": "runcmowner",
+	})
+	require.Equal(t, http.StatusCreated, code)
+
+	code, created := doTenant(t, http.MethodPost, "/api/v1/jobs", admin, "runcm-team", map[string]any{
+		"name": "configured", "displayName": "Configured",
+		"spec": map[string]any{
+			"backend":  map[string]any{"name": "native", "engine": "job"},
+			"poolName": "gpu-a100", "unitName": "small",
+			"configMaps": []map[string]any{{
+				"name": "run-config", "data": map[string]string{"log-level": "debug"},
+			}},
+			"roles": []map[string]any{{
+				"name": "worker", "replicas": 1,
+				"template": map[string]any{
+					"image": "busybox:latest",
+					"envFrom": []map[string]any{{
+						"configMapRef": map[string]any{"name": "run-config"},
+					}},
+					"volumes": []map[string]any{{
+						"name": "config", "configMap": map[string]any{"name": "run-config"},
+					}},
+					"volumeMounts": []map[string]any{{
+						"name": "config", "mountPath": "/etc/run", "readOnly": true,
+					}},
+				},
+			}},
+		},
+	})
+	require.Equal(t, http.StatusCreated, code, "%v", created)
+	code, run := doTenant(t, http.MethodPost, "/api/v1/jobs/configured/runs", admin, "runcm-team", nil)
+	require.Equal(t, http.StatusCreated, code, "%v", run)
+
+	tmpl := computeStub.lastRunTmpl()
+	require.NotNil(t, tmpl)
+	envFrom, _ := tmpl["envFrom"].([]any)
+	require.Len(t, envFrom, 1)
+	configMapRef, _ := envFrom[0].(map[string]any)["configMapRef"].(map[string]any)
+	assert.Equal(t, "run-config", configMapRef["name"])
+	volumes, _ := tmpl["volumes"].([]any)
+	require.Len(t, volumes, 1)
+	configMap, _ := volumes[0].(map[string]any)["configMap"].(map[string]any)
+	assert.Equal(t, "run-config", configMap["name"])
+	mounts, _ := tmpl["volumeMounts"].([]any)
+	require.Len(t, mounts, 1)
+	assert.Equal(t, "/etc/run", mounts[0].(map[string]any)["mountPath"])
+	configs := computeStub.lastRunConfigMaps()
+	require.Len(t, configs, 1)
+	assert.Equal(t, "debug", configs[0].(map[string]any)["data"].(map[string]any)["log-level"])
 }
 
 // TestWorkspaceMountsVolume covers the platform → compute Workspace path: a

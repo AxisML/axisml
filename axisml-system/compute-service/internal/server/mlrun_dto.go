@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 )
 
 // MLRunCreateRequest is the API request body. Caller selects pool/unit by name;
@@ -20,6 +21,7 @@ type MLRunCreateRequest struct {
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the run's pods."`
 	Backend       *mlrunv1alpha1.BackendSpec   `json:"backend" desc:"Compute backend/engine that runs the workload; defaults to (native, job) when omitted."`
+	ConfigMaps    []workloadconfig.ConfigMap   `json:"configMaps,omitempty" binding:"omitempty,dive" desc:"ConfigMaps created and owned by this MLRun before its pods are reconciled."`
 	Roles         []mlrunv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1" desc:"Run topology roles (at least one)."`
 	RunPolicy     *mlrunv1alpha1.RunPolicySpec `json:"runPolicy" desc:"Run-level execution limits (deadline, TTL, backoff)."`
 }
