@@ -17,20 +17,23 @@ T = TypeVar("T", bound="MLServiceList")
 
 @_attrs_define
 class MLServiceList:
-    """
+    r"""
     Example:
         {'continueToken': '', 'count': 1, 'items': [{'accessUrl': 'https://gateway.axisml.io/v1/models/llama3-8b',
             'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-len', '8192'], 'backend': {'engine': 'llminference',
             'name': 'kserve'}, 'command': ['python', '-m', 'vllm.entrypoints.openai.api_server'], 'computeNamespace':
-            'axisml-team-nlp', 'createdAt': '2026-06-20T08:00:00Z', 'description': 'Llama3-8B online inference service.',
+            'axisml-team-nlp', 'configMaps': [{'data': {'server.yaml': 'maxTokens: 4096\n'}, 'name': 'llama3-serving-
+            config'}], 'createdAt': '2026-06-20T08:00:00Z', 'description': 'Llama3-8B online inference service.',
             'desiredState': 'Running', 'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value':
-            '4096'}], 'id': '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image': 'registry.axisml.io/serving/vllm:0.6.0',
-            'message': 'All replicas ready.', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name': 'llama3-chat',
-            'namespace': 'team-nlp', 'owner': 'zhang.san', 'ownerId': '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase':
-            'Ready', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'readyReplicas': 3, 'replicas': 3,
-            'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x',
-            'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
+            '4096'}], 'envFrom': [{'configMapRef': {'name': 'llama3-serving-config'}}], 'id':
+            '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image': 'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All
+            replicas ready.', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-
+            nlp', 'owner': 'zhang.san', 'ownerId': '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Ready', 'poolName':
+            'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'readyReplicas': 3, 'replicas': 3, 'resources': {'cpu':
+            '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x', 'updatedAt':
+            '2026-06-28T09:30:00Z', 'volumeMounts': [{'mountPath': '/etc/axisml', 'name': 'config', 'readOnly': True}],
+            'volumes': [{'configMap': {'name': 'llama3-serving-config'}, 'name': 'config'}]}], 'partial': False}
 
     Attributes:
         count (int): Number of services in this page.

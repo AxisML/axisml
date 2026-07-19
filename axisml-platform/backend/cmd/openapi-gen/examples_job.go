@@ -7,14 +7,21 @@ func exJob(g *openapigen.Generator) {
 	backend := obj{"name": "native", "engine": "pytorchjob"}
 
 	roleTemplate := obj{
-		"image":        "registry.axisml.io/training/resnet:1.4.0",
-		"command":      []any{"python", "train.py"},
-		"args":         []any{"--epochs", "90", "--batch-size", "256"},
-		"env":          []any{obj{"name": "NCCL_DEBUG", "value": "INFO"}},
-		"ports":        []any{obj{"name": "http", "containerPort": 8080, "protocol": "TCP"}},
-		"resources":    obj{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "2"},
-		"volumes":      []any{obj{"name": "data", "persistentVolumeClaim": obj{"claimName": "resnet-imagenet"}}},
-		"volumeMounts": []any{obj{"name": "data", "mountPath": "/data"}},
+		"image":     "registry.axisml.io/training/resnet:1.4.0",
+		"command":   []any{"python", "train.py"},
+		"args":      []any{"--epochs", "90", "--batch-size", "256"},
+		"env":       []any{obj{"name": "NCCL_DEBUG", "value": "INFO"}},
+		"envFrom":   []any{obj{"configMapRef": obj{"name": "resnet-training-config"}}},
+		"ports":     []any{obj{"name": "http", "containerPort": 8080, "protocol": "TCP"}},
+		"resources": obj{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "2"},
+		"volumes": []any{
+			obj{"name": "data", "persistentVolumeClaim": obj{"claimName": "resnet-imagenet"}},
+			obj{"name": "config", "configMap": obj{"name": "resnet-training-config"}},
+		},
+		"volumeMounts": []any{
+			obj{"name": "data", "mountPath": "/data"},
+			obj{"name": "config", "mountPath": "/etc/axisml", "readOnly": true},
+		},
 	}
 
 	role := obj{
@@ -30,14 +37,19 @@ func exJob(g *openapigen.Generator) {
 		"backoffLimit":            2,
 		"progressDeadlineSeconds": 600,
 	}
+	configMaps := []any{obj{
+		"name": "resnet-training-config",
+		"data": obj{"trainer.yaml": "epochs: 90\nbatchSize: 256\n"},
+	}}
 
 	jobSpec := obj{
-		"backend":   backend,
-		"poolName":  "gpu-a100",
-		"unitName":  "a100-2x",
-		"roles":     []any{role},
-		"runPolicy": runPolicy,
-		"artifacts": []any{obj{"kind": "model", "name": "resnet50", "version": "1.4.0"}},
+		"backend":    backend,
+		"poolName":   "gpu-a100",
+		"unitName":   "a100-2x",
+		"configMaps": configMaps,
+		"roles":      []any{role},
+		"runPolicy":  runPolicy,
+		"artifacts":  []any{obj{"kind": "model", "name": "resnet50", "version": "1.4.0"}},
 	}
 
 	g.SetExample("Backend", backend)
@@ -45,6 +57,7 @@ func exJob(g *openapigen.Generator) {
 	g.SetExample("MLRunRole", role)
 	g.SetExample("RunPolicy", runPolicy)
 	g.SetExample("ArtifactRef", obj{"kind": "model", "name": "resnet50", "version": "1.4.0"})
+	g.SetExample("WorkloadConfigMap", configMaps[0])
 	g.SetExample("JobSpec", jobSpec)
 
 	runSummary := obj{
@@ -106,6 +119,7 @@ func exJob(g *openapigen.Generator) {
 	mlRunSpec := obj{
 		"backend":    backend,
 		"scheduling": obj{"quota": "axisml-team-vision-gpu-a100", "priorityClass": "high-priority", "minMember": 4},
+		"configMaps": configMaps,
 		"roles":      []any{role},
 		"runPolicy":  runPolicy,
 	}

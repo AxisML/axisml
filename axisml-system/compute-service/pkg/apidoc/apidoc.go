@@ -33,7 +33,8 @@ const (
 // clients don't import strutil. Same constants live in
 // axisml-system/compute-service/pkg/strutil — keep them in sync if the policy changes.
 const (
-	axisMLNamePattern = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
+	axisMLNamePattern    = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
+	configMapNamePattern = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
 )
 
 // withErrors returns the standard Problem-bearing error responses with the
@@ -74,6 +75,7 @@ func Document(version string) *openapigen.Document {
 		},
 		PatternRules: []openapigen.PatternRule{
 			{Tag: "axisml_name", Pattern: axisMLNamePattern, MinLength: 3, MaxLength: 40},
+			{Tag: "configmap_name", Pattern: configMapNamePattern, MinLength: 1, MaxLength: 253},
 		},
 		PackageNamer: packageNamer,
 	})

@@ -129,6 +129,41 @@ func TestBuildDeployment_InjectsRequiredLabels(t *testing.T) {
 	}
 }
 
+func TestBuildDeployment_PropagatesConfigMapSources(t *testing.T) {
+	spec := minimalSpec()
+	spec.Roles[0].Template.EnvFrom = []corev1.EnvFromSource{{
+		ConfigMapRef: &corev1.ConfigMapEnvSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "service-config"},
+		},
+	}}
+	spec.Roles[0].Template.Volumes = []corev1.Volume{{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "service-config"},
+		}},
+	}}
+	spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{{
+		Name: "config", MountPath: "/etc/service", ReadOnly: true,
+	}}
+	mls := &axisml.MLService{
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		Spec:       *spec,
+	}
+
+	dep := buildDeployment(mls)
+	c := dep.Spec.Template.Spec.Containers[0]
+	if len(c.EnvFrom) != 1 || c.EnvFrom[0].ConfigMapRef == nil || c.EnvFrom[0].ConfigMapRef.Name != "service-config" {
+		t.Fatalf("configMapRef not propagated: %+v", c.EnvFrom)
+	}
+	if len(dep.Spec.Template.Spec.Volumes) != 1 || dep.Spec.Template.Spec.Volumes[0].ConfigMap == nil ||
+		dep.Spec.Template.Spec.Volumes[0].ConfigMap.Name != "service-config" {
+		t.Fatalf("ConfigMap volume not propagated: %+v", dep.Spec.Template.Spec.Volumes)
+	}
+	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].MountPath != "/etc/service" || !c.VolumeMounts[0].ReadOnly {
+		t.Fatalf("ConfigMap mount not propagated: %+v", c.VolumeMounts)
+	}
+}
+
 func TestBuildService_TargetPortMatchesContainerPort(t *testing.T) {
 	mls := &axisml.MLService{
 		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},

@@ -18,30 +18,36 @@ T = TypeVar("T", bound="JobCreateRequest")
 
 @_attrs_define
 class JobCreateRequest:
-    """
+    r"""
     Example:
         {'description': 'Distributed ResNet-50 training job on ImageNet.', 'displayName': 'ResNet-50 Training',
             'labels': {'team': 'vision'}, 'name': 'resnet-train', 'spec': {'artifacts': [{'kind': 'model', 'name':
-            'resnet50', 'version': '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100',
+            'resnet50', 'version': '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'configMaps': [{'data':
+            {'trainer.yaml': 'epochs: 90\nbatchSize: 256\n'}, 'name': 'resnet-training-config'}], 'poolName': 'gpu-a100',
             'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs',
             '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
-            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http',
-            'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts':
-            [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName':
-            'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'INFO'}], 'envFrom': [{'configMapRef': {'name': 'resnet-training-config'}}], 'image':
+            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
+            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
+            '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config', 'readOnly': True}], 'volumes':
+            [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}, {'configMap': {'name': 'resnet-
+            training-config'}, 'name': 'config'}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}}
 
     Attributes:
         name (str): Job definition name (unique within the tenant).
         spec (JobSpec):  Example: {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend':
-            {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            {'engine': 'pytorchjob', 'name': 'native'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'resnet-training-config'}], 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom': [{'configMapRef': {'name':
+            'resnet-training-config'}}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort':
+            8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'},
+            'volumeMounts': [{'mountPath': '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}},
+            {'configMap': {'name': 'resnet-training-config'}, 'name': 'config'}]}}], 'runPolicy': {'activeDeadlineSeconds':
+            86400, 'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName':
+            'a100-2x'}.
         annotations (StringMap | Unset):
         description (str | Unset): Free-text job description.
         display_name (str | Unset): Human-readable job label.

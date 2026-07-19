@@ -21,11 +21,12 @@ class MLRunRoleStatus:
     Example:
         {'activeReplicas': 4, 'failedReplicas': 0, 'name': 'worker', 'readyReplicas': 4, 'replicas': 4, 'restartPolicy':
             'OnFailure', 'succeededReplicas': 0, 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom': [{'configMapRef': {'name':
+            'resnet-training-config'}}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort':
+            8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'},
+            'volumeMounts': [{'mountPath': '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}},
+            {'configMap': {'name': 'resnet-training-config'}, 'name': 'config'}]}}
 
     Attributes:
         active_replicas (int | Unset): Pods currently running.
@@ -36,11 +37,12 @@ class MLRunRoleStatus:
         restart_policy (str | Unset): Effective restart policy for the role.
         succeeded_replicas (int | Unset): Pods that completed successfully.
         template (RoleTemplate | Unset):  Example: {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}.
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom': [{'configMapRef': {'name':
+            'resnet-training-config'}}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort':
+            8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'},
+            'volumeMounts': [{'mountPath': '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}},
+            {'configMap': {'name': 'resnet-training-config'}, 'name': 'config'}]}.
     """
 
     active_replicas: int | Unset = UNSET

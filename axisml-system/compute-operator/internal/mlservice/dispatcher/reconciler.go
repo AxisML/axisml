@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"sort"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,6 +26,7 @@ import (
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
+	workloadconfig "github.com/axisml/axisml/axisml-system/compute-operator/internal/workloadconfig"
 )
 
 // Reconciler is the dispatcher. It owns no Handler-specific knowledge: it
@@ -56,7 +59,8 @@ func NewReconciler(mgr manager.Manager, handlers map[hpkg.Key]hpkg.Handler) *Rec
 // reference regardless of predicate.
 func (r *Reconciler) SetupWithManager(mgr manager.Manager, allHandlers []hpkg.Handler) error {
 	b := ctrl.NewControllerManagedBy(mgr).
-		For(&axisml.MLService{}, builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+		For(&axisml.MLService{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&corev1.ConfigMap{})
 
 	seen := map[schema.GroupVersionKind]struct{}{}
 	for _, h := range allHandlers {
@@ -131,6 +135,31 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if v := h.Validate(&mls.Spec); !v.OK() {
 		return ctrl.Result{}, r.writeFailedStatus(ctx, mls,
 			fmt.Sprintf("validation failed: %s", joinErrors(v.Errors)))
+	}
+	if errs := workloadconfig.Validate(mls.Spec.ConfigMaps, field.NewPath("spec", "configMaps")); len(errs) > 0 {
+		return ctrl.Result{}, r.writeFailedStatus(ctx, mls,
+			fmt.Sprintf("validation failed: %s", errs.ToAggregate().Error()))
+	}
+
+	if err := workloadconfig.Reconcile(
+		ctx,
+		r.client,
+		mls,
+		axisml.GroupVersion.WithKind("MLService"),
+		mls.Spec.ConfigMaps,
+		map[string]string{
+			axisml.LabelServiceID: mls.Labels[axisml.LabelServiceID],
+			axisml.LabelTenant:    mls.Labels[axisml.LabelTenant],
+		},
+	); err != nil {
+		logger.Error(err, "ConfigMap reconcile failed")
+		if statusErr := r.writeFailedStatus(ctx, mls, fmt.Sprintf("reconcile ConfigMaps: %v", err)); statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
+		if workloadconfig.IsOwnershipConflict(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
 	}
 
 	if _, err := h.Reconcile(ctx, mls); err != nil {

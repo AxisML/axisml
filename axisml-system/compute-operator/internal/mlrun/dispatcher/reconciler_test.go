@@ -6,14 +6,17 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	configapi "github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 )
@@ -58,6 +61,9 @@ func (h *recordingHandler) Sweep(ctx context.Context, c client.Client, mlJob *ax
 func newReconcilerScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 	if err := axisv1alpha1.AddToScheme(s); err != nil {
 		t.Fatal(err)
 	}
@@ -274,6 +280,56 @@ func TestReconcile_ValidateFailureFails(t *testing.T) {
 	}
 	if got.Status.Phase != axisv1alpha1.PhaseFailed {
 		t.Fatalf("phase: want Failed, got %q", got.Status.Phase)
+	}
+}
+
+func TestReconcile_CreatesOwnedConfigMapBeforeHandler(t *testing.T) {
+	mlrun := &axisv1alpha1.MLRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config-run",
+			Namespace: "tenant-demo",
+			UID:       types.UID("run-uid"),
+			Labels: map[string]string{
+				axisv1alpha1.LabelRunID:  "run-id",
+				axisv1alpha1.LabelTenant: "tenant-demo",
+			},
+		},
+		Spec: axisv1alpha1.MLRunSpec{
+			Backend: axisv1alpha1.BackendSpec{Name: "test", Engine: "engine"},
+			ConfigMaps: []configapi.ConfigMap{{
+				Name: "run-config",
+				Data: map[string]string{"trainer.yaml": "epochs: 3"},
+			}},
+			Roles: []axisv1alpha1.RoleSpec{{
+				Name:     axisv1alpha1.DefaultRoleName,
+				Replicas: 1,
+				Template: axisv1alpha1.PodTemplateSubset{Image: "example/train:latest"},
+			}},
+		},
+	}
+	scheme := newReconcilerScheme(t)
+	cli := fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(mlrun).
+		WithStatusSubresource(&axisv1alpha1.MLRun{}).Build()
+	h := &recordingHandler{}
+	registry := NewRegistry()
+	registry.Register(h)
+	r := &MLRunReconciler{Client: cli, Registry: registry}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(mlrun)}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if !h.reconcileCalled {
+		t.Fatal("handler was not called")
+	}
+	created := &corev1.ConfigMap{}
+	if err := cli.Get(context.Background(), client.ObjectKey{Namespace: mlrun.Namespace, Name: "run-config"}, created); err != nil {
+		t.Fatalf("get created ConfigMap: %v", err)
+	}
+	if got := created.Data["trainer.yaml"]; got != "epochs: 3" {
+		t.Errorf("ConfigMap data = %q; want %q", got, "epochs: 3")
+	}
+	if !metav1.IsControlledBy(created, mlrun) {
+		t.Fatal("ConfigMap is not controlled by the MLRun")
 	}
 }
 

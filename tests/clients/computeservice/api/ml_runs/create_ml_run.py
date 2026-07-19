@@ -103,14 +103,15 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: MLRunCreateRequest,
 ) -> Response[ComputeServiceError | MLRun]:
-    """Submit an MLRun
+    r"""Submit an MLRun
 
     Args:
         namespace (str):
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
-            'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
-            'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'trainer-config'}], 'description': 'Distributed ResNet-50 training on
+            ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name':
+            'resnet-train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
             '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
             'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
@@ -144,14 +145,15 @@ def sync(
     client: AuthenticatedClient | Client,
     body: MLRunCreateRequest,
 ) -> ComputeServiceError | MLRun | None:
-    """Submit an MLRun
+    r"""Submit an MLRun
 
     Args:
         namespace (str):
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
-            'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
-            'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'trainer-config'}], 'description': 'Distributed ResNet-50 training on
+            ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name':
+            'resnet-train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
             '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
             'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
@@ -180,14 +182,15 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: MLRunCreateRequest,
 ) -> Response[ComputeServiceError | MLRun]:
-    """Submit an MLRun
+    r"""Submit an MLRun
 
     Args:
         namespace (str):
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
-            'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
-            'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'trainer-config'}], 'description': 'Distributed ResNet-50 training on
+            ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name':
+            'resnet-train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
             '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
             'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
@@ -219,14 +222,15 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: MLRunCreateRequest,
 ) -> ComputeServiceError | MLRun | None:
-    """Submit an MLRun
+    r"""Submit an MLRun
 
     Args:
         namespace (str):
         body (MLRunCreateRequest):  Example: {'backend': {'engine': 'pytorchjob', 'name':
-            'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training on ImageNet.',
-            'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-
-            train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'trainer-config'}], 'description': 'Distributed ResNet-50 training on
+            ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name':
+            'resnet-train-7', 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
             '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
             'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':

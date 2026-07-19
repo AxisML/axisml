@@ -1570,6 +1570,12 @@ components:
           backend:
             engine: pytorchjob
             name: native
+          configMaps:
+          - data:
+              trainer.yaml: |
+                epochs: 90
+                batchSize: 256
+            name: resnet-training-config
           poolName: gpu-a100
           roles:
           - name: worker
@@ -1587,6 +1593,9 @@ components:
               env:
               - name: NCCL_DEBUG
                 value: INFO
+              envFrom:
+              - configMapRef:
+                  name: resnet-training-config
               image: registry.axisml.io/training/resnet:1.4.0
               ports:
               - containerPort: 8080
@@ -1599,10 +1608,16 @@ components:
               volumeMounts:
               - mountPath: /data
                 name: data
+              - mountPath: /etc/axisml
+                name: config
+                readOnly: true
               volumes:
               - name: data
                 persistentVolumeClaim:
                   claimName: resnet-imagenet
+              - configMap:
+                  name: resnet-training-config
+                name: config
           runPolicy:
             activeDeadlineSeconds: 86400
             backoffLimit: 2
@@ -1689,6 +1704,12 @@ components:
           backend:
             engine: pytorchjob
             name: native
+          configMaps:
+          - data:
+              trainer.yaml: |
+                epochs: 90
+                batchSize: 256
+            name: resnet-training-config
           poolName: gpu-a100
           roles:
           - name: worker
@@ -1706,6 +1727,9 @@ components:
               env:
               - name: NCCL_DEBUG
                 value: INFO
+              envFrom:
+              - configMapRef:
+                  name: resnet-training-config
               image: registry.axisml.io/training/resnet:1.4.0
               ports:
               - containerPort: 8080
@@ -1718,10 +1742,16 @@ components:
               volumeMounts:
               - mountPath: /data
                 name: data
+              - mountPath: /etc/axisml
+                name: config
+                readOnly: true
               volumes:
               - name: data
                 persistentVolumeClaim:
                   claimName: resnet-imagenet
+              - configMap:
+                  name: resnet-training-config
+                name: config
           runPolicy:
             activeDeadlineSeconds: 86400
             backoffLimit: 2
@@ -1796,6 +1826,12 @@ components:
             backend:
               engine: pytorchjob
               name: native
+            configMaps:
+            - data:
+                trainer.yaml: |
+                  epochs: 90
+                  batchSize: 256
+              name: resnet-training-config
             poolName: gpu-a100
             roles:
             - name: worker
@@ -1813,6 +1849,9 @@ components:
                 env:
                 - name: NCCL_DEBUG
                   value: INFO
+                envFrom:
+                - configMapRef:
+                    name: resnet-training-config
                 image: registry.axisml.io/training/resnet:1.4.0
                 ports:
                 - containerPort: 8080
@@ -1825,10 +1864,16 @@ components:
                 volumeMounts:
                 - mountPath: /data
                   name: data
+                - mountPath: /etc/axisml
+                  name: config
+                  readOnly: true
                 volumes:
                 - name: data
                   persistentVolumeClaim:
                     claimName: resnet-imagenet
+                - configMap:
+                    name: resnet-training-config
+                  name: config
             runPolicy:
               activeDeadlineSeconds: 86400
               backoffLimit: 2
@@ -1894,6 +1939,12 @@ components:
         backend:
           engine: pytorchjob
           name: native
+        configMaps:
+        - data:
+            trainer.yaml: |
+              epochs: 90
+              batchSize: 256
+          name: resnet-training-config
         poolName: gpu-a100
         roles:
         - name: worker
@@ -1911,6 +1962,9 @@ components:
             env:
             - name: NCCL_DEBUG
               value: INFO
+            envFrom:
+            - configMapRef:
+                name: resnet-training-config
             image: registry.axisml.io/training/resnet:1.4.0
             ports:
             - containerPort: 8080
@@ -1923,10 +1977,16 @@ components:
             volumeMounts:
             - mountPath: /data
               name: data
+            - mountPath: /etc/axisml
+              name: config
+              readOnly: true
             volumes:
             - name: data
               persistentVolumeClaim:
                 claimName: resnet-imagenet
+            - configMap:
+                name: resnet-training-config
+              name: config
         runPolicy:
           activeDeadlineSeconds: 86400
           backoffLimit: 2
@@ -1943,6 +2003,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/Backend'
           description: Compute backend/engine the runs use.
+        configMaps:
+          description: ConfigMaps created and owned by each triggered MLRun.
+          items:
+            $ref: '#/components/schemas/WorkloadConfigMap'
+          type: array
         poolName:
           description: Default resource pool for runs.
           maxLength: 40
@@ -2042,6 +2107,9 @@ components:
           env:
           - name: NCCL_DEBUG
             value: INFO
+          envFrom:
+          - configMapRef:
+              name: resnet-training-config
           image: registry.axisml.io/training/resnet:1.4.0
           ports:
           - containerPort: 8080
@@ -2054,10 +2122,16 @@ components:
           volumeMounts:
           - mountPath: /data
             name: data
+          - mountPath: /etc/axisml
+            name: config
+            readOnly: true
           volumes:
           - name: data
             persistentVolumeClaim:
               claimName: resnet-imagenet
+          - configMap:
+              name: resnet-training-config
+            name: config
       properties:
         name:
           description: Role name within the run topology (e.g. master, worker).
@@ -2102,6 +2176,9 @@ components:
           env:
           - name: NCCL_DEBUG
             value: INFO
+          envFrom:
+          - configMapRef:
+              name: resnet-training-config
           image: registry.axisml.io/training/resnet:1.4.0
           ports:
           - containerPort: 8080
@@ -2114,10 +2191,16 @@ components:
           volumeMounts:
           - mountPath: /data
             name: data
+          - mountPath: /etc/axisml
+            name: config
+            readOnly: true
           volumes:
           - name: data
             persistentVolumeClaim:
               claimName: resnet-imagenet
+          - configMap:
+              name: resnet-training-config
+            name: config
       properties:
         activeReplicas:
           description: Pods currently running.
@@ -2150,6 +2233,12 @@ components:
         backend:
           engine: pytorchjob
           name: native
+        configMaps:
+        - data:
+            trainer.yaml: |
+              epochs: 90
+              batchSize: 256
+          name: resnet-training-config
         roles:
         - name: worker
           replicas: 4
@@ -2166,6 +2255,9 @@ components:
             env:
             - name: NCCL_DEBUG
               value: INFO
+            envFrom:
+            - configMapRef:
+                name: resnet-training-config
             image: registry.axisml.io/training/resnet:1.4.0
             ports:
             - containerPort: 8080
@@ -2178,10 +2270,16 @@ components:
             volumeMounts:
             - mountPath: /data
               name: data
+            - mountPath: /etc/axisml
+              name: config
+              readOnly: true
             volumes:
             - name: data
               persistentVolumeClaim:
                 claimName: resnet-imagenet
+            - configMap:
+                name: resnet-training-config
+              name: config
         runPolicy:
           activeDeadlineSeconds: 86400
           backoffLimit: 2
@@ -2196,6 +2294,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/Backend'
           description: Compute backend/engine.
+        configMaps:
+          description: ConfigMaps created and owned by the triggered MLRun.
+          items:
+            $ref: '#/components/schemas/WorkloadConfigMap'
+          type: array
         roles:
           description: Run topology roles.
           items:
@@ -2226,6 +2329,11 @@ components:
         - -m
         - vllm.entrypoints.openai.api_server
         computeNamespace: axisml-team-nlp
+        configMaps:
+        - data:
+            server.yaml: |
+              maxTokens: 4096
+          name: llama3-serving-config
         createdAt: "2026-06-20T08:00:00Z"
         description: Llama3-8B online inference service.
         desiredState: Running
@@ -2233,6 +2341,9 @@ components:
         env:
         - name: MAX_TOKENS
           value: "4096"
+        envFrom:
+        - configMapRef:
+            name: llama3-serving-config
         id: 5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90
         image: registry.axisml.io/serving/vllm:0.6.0
         message: All replicas ready.
@@ -2260,6 +2371,14 @@ components:
         tenantName: team-nlp
         unitName: a100-1x
         updatedAt: "2026-06-28T09:30:00Z"
+        volumeMounts:
+        - mountPath: /etc/axisml
+          name: config
+          readOnly: true
+        volumes:
+        - configMap:
+            name: llama3-serving-config
+          name: config
       properties:
         accessUrl:
           description: Resolved URL clients use to reach the service.
@@ -2281,6 +2400,11 @@ components:
         computeNamespace:
           description: Underlying compute (Kubernetes) namespace running the service.
           type: string
+        configMaps:
+          description: ConfigMaps created and owned by this MLService.
+          items:
+            $ref: '#/components/schemas/WorkloadConfigMap'
+          type: array
         createdAt:
           description: Time the service was created.
           format: date-time
@@ -2300,6 +2424,13 @@ components:
           description: Environment variables injected into the serving pods.
           items:
             $ref: '#/components/schemas/EnvVar'
+          type: array
+        envFrom:
+          description: Environment sources injected into the serving pods (pass-through
+            to the K8s EnvFromSource shape, including configMapRef).
+          items:
+            additionalProperties: {}
+            type: object
           type: array
         id:
           description: Stable service identifier.
@@ -2375,6 +2506,20 @@ components:
           description: Time the service was last updated.
           format: date-time
           type: string
+        volumeMounts:
+          description: Container volume mounts (pass-through to the K8s VolumeMount
+            shape).
+          items:
+            additionalProperties: {}
+            type: object
+          type: array
+        volumes:
+          description: Pod volumes (pass-through to the K8s PodSpec volumes shape,
+            including configMap).
+          items:
+            additionalProperties: {}
+            type: object
+          type: array
       required:
       - createdAt
       - id
@@ -2389,11 +2534,19 @@ components:
         backend:
           engine: llminference
           name: kserve
+        configMaps:
+        - data:
+            server.yaml: |
+              maxTokens: 4096
+          name: llama3-serving-config
         description: Llama3-8B online inference service.
         displayName: Llama3 chat service
         env:
         - name: MAX_TOKENS
           value: "4096"
+        envFrom:
+        - configMapRef:
+            name: llama3-serving-config
         image: registry.axisml.io/serving/vllm:0.6.0
         modelName: llama3-8b
         modelVersion: 1.2.0
@@ -2407,6 +2560,14 @@ components:
           enabled: true
           path: /v1/models/llama3-8b
         unitName: a100-1x
+        volumeMounts:
+        - mountPath: /etc/axisml
+          name: config
+          readOnly: true
+        volumes:
+        - configMap:
+            name: llama3-serving-config
+          name: config
       properties:
         args:
           description: Container args override.
@@ -2423,6 +2584,11 @@ components:
           items:
             type: string
           type: array
+        configMaps:
+          description: ConfigMaps created and owned by this MLService.
+          items:
+            $ref: '#/components/schemas/WorkloadConfigMap'
+          type: array
         description:
           description: Free-text service description.
           maxLength: 1000
@@ -2435,6 +2601,13 @@ components:
           description: Environment variables injected into the serving pods.
           items:
             $ref: '#/components/schemas/EnvVar'
+          type: array
+        envFrom:
+          description: Environment sources injected into the serving pods (pass-through
+            to the K8s EnvFromSource shape, including configMapRef).
+          items:
+            additionalProperties: {}
+            type: object
           type: array
         image:
           description: Serving container image reference.
@@ -2475,6 +2648,20 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        volumeMounts:
+          description: Container volume mounts (pass-through to the K8s VolumeMount
+            shape).
+          items:
+            additionalProperties: {}
+            type: object
+          type: array
+        volumes:
+          description: Pod volumes (pass-through to the K8s PodSpec volumes shape,
+            including configMap).
+          items:
+            additionalProperties: {}
+            type: object
+          type: array
       required:
       - image
       - modelName
@@ -2509,6 +2696,11 @@ components:
           - -m
           - vllm.entrypoints.openai.api_server
           computeNamespace: axisml-team-nlp
+          configMaps:
+          - data:
+              server.yaml: |
+                maxTokens: 4096
+            name: llama3-serving-config
           createdAt: "2026-06-20T08:00:00Z"
           description: Llama3-8B online inference service.
           desiredState: Running
@@ -2516,6 +2708,9 @@ components:
           env:
           - name: MAX_TOKENS
             value: "4096"
+          envFrom:
+          - configMapRef:
+              name: llama3-serving-config
           id: 5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90
           image: registry.axisml.io/serving/vllm:0.6.0
           message: All replicas ready.
@@ -2543,6 +2738,14 @@ components:
           tenantName: team-nlp
           unitName: a100-1x
           updatedAt: "2026-06-28T09:30:00Z"
+          volumeMounts:
+          - mountPath: /etc/axisml
+            name: config
+            readOnly: true
+          volumes:
+          - configMap:
+              name: llama3-serving-config
+            name: config
         partial: false
       properties:
         continueToken:
@@ -3836,6 +4039,9 @@ components:
         env:
         - name: NCCL_DEBUG
           value: INFO
+        envFrom:
+        - configMapRef:
+            name: resnet-training-config
         image: registry.axisml.io/training/resnet:1.4.0
         ports:
         - containerPort: 8080
@@ -3848,10 +4054,16 @@ components:
         volumeMounts:
         - mountPath: /data
           name: data
+        - mountPath: /etc/axisml
+          name: config
+          readOnly: true
         volumes:
         - name: data
           persistentVolumeClaim:
             claimName: resnet-imagenet
+        - configMap:
+            name: resnet-training-config
+          name: config
       properties:
         args:
           description: Container args override.
@@ -3867,6 +4079,13 @@ components:
           description: Environment variables injected into the role's pods.
           items:
             $ref: '#/components/schemas/EnvVar'
+          type: array
+        envFrom:
+          description: Environment sources injected into the role's pods (pass-through
+            to the K8s EnvFromSource shape, including configMapRef).
+          items:
+            additionalProperties: {}
+            type: object
           type: array
         image:
           description: Container image reference for this role's pods.
@@ -3936,6 +4155,9 @@ components:
             env:
             - name: NCCL_DEBUG
               value: INFO
+            envFrom:
+            - configMapRef:
+                name: resnet-training-config
             image: registry.axisml.io/training/resnet:1.4.0
             ports:
             - containerPort: 8080
@@ -3948,10 +4170,16 @@ components:
             volumeMounts:
             - mountPath: /data
               name: data
+            - mountPath: /etc/axisml
+              name: config
+              readOnly: true
             volumes:
             - name: data
               persistentVolumeClaim:
                 claimName: resnet-imagenet
+            - configMap:
+                name: resnet-training-config
+              name: config
         runNumber: 7
         runPolicy:
           activeDeadlineSeconds: 86400
@@ -3963,6 +4191,12 @@ components:
           backend:
             engine: pytorchjob
             name: native
+          configMaps:
+          - data:
+              trainer.yaml: |
+                epochs: 90
+                batchSize: 256
+            name: resnet-training-config
           roles:
           - name: worker
             replicas: 4
@@ -3979,6 +4213,9 @@ components:
               env:
               - name: NCCL_DEBUG
                 value: INFO
+              envFrom:
+              - configMapRef:
+                  name: resnet-training-config
               image: registry.axisml.io/training/resnet:1.4.0
               ports:
               - containerPort: 8080
@@ -3991,10 +4228,16 @@ components:
               volumeMounts:
               - mountPath: /data
                 name: data
+              - mountPath: /etc/axisml
+                name: config
+                readOnly: true
               volumes:
               - name: data
                 persistentVolumeClaim:
                   claimName: resnet-imagenet
+              - configMap:
+                  name: resnet-training-config
+                name: config
           runPolicy:
             activeDeadlineSeconds: 86400
             backoffLimit: 2
@@ -4163,6 +4406,9 @@ components:
               env:
               - name: NCCL_DEBUG
                 value: INFO
+              envFrom:
+              - configMapRef:
+                  name: resnet-training-config
               image: registry.axisml.io/training/resnet:1.4.0
               ports:
               - containerPort: 8080
@@ -4175,10 +4421,16 @@ components:
               volumeMounts:
               - mountPath: /data
                 name: data
+              - mountPath: /etc/axisml
+                name: config
+                readOnly: true
               volumes:
               - name: data
                 persistentVolumeClaim:
                   claimName: resnet-imagenet
+              - configMap:
+                  name: resnet-training-config
+                name: config
           runNumber: 7
           runPolicy:
             activeDeadlineSeconds: 86400
@@ -4190,6 +4442,12 @@ components:
             backend:
               engine: pytorchjob
               name: native
+            configMaps:
+            - data:
+                trainer.yaml: |
+                  epochs: 90
+                  batchSize: 256
+              name: resnet-training-config
             roles:
             - name: worker
               replicas: 4
@@ -4206,6 +4464,9 @@ components:
                 env:
                 - name: NCCL_DEBUG
                   value: INFO
+                envFrom:
+                - configMapRef:
+                    name: resnet-training-config
                 image: registry.axisml.io/training/resnet:1.4.0
                 ports:
                 - containerPort: 8080
@@ -4218,10 +4479,16 @@ components:
                 volumeMounts:
                 - mountPath: /data
                   name: data
+                - mountPath: /etc/axisml
+                  name: config
+                  readOnly: true
                 volumes:
                 - name: data
                   persistentVolumeClaim:
                     claimName: resnet-imagenet
+                - configMap:
+                    name: resnet-training-config
+                  name: config
             runPolicy:
               activeDeadlineSeconds: 86400
               backoffLimit: 2
@@ -5497,6 +5764,29 @@ components:
       required:
       - roleName
       - tenantName
+      type: object
+    WorkloadConfigMap:
+      example:
+        data:
+          trainer.yaml: |
+            epochs: 90
+            batchSize: 256
+        name: resnet-training-config
+      properties:
+        data:
+          additionalProperties:
+            type: string
+          description: UTF-8 configuration entries keyed by file or environment-variable
+            name.
+          type: object
+        name:
+          description: DNS-1123 ConfigMap name in the workload namespace.
+          maxLength: 253
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+          type: string
+      required:
+      - name
       type: object
     WorkloadMetricName:
       description: Run / workload resource metric.

@@ -4,6 +4,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 )
 
 // Phase enumerates the four states declared in mlservice-operator.md §4.
@@ -125,9 +127,11 @@ type Route struct {
 type MLServiceSpec struct {
 	Backend    Backend    `json:"backend"`
 	Scheduling Scheduling `json:"scheduling"`
-	Roles      []RoleSpec `json:"roles"`
-	RunPolicy  RunPolicy  `json:"runPolicy,omitempty"`
-	Route      *Route     `json:"route,omitempty"`
+	// ConfigMaps are created in the MLService namespace and owned by the MLService.
+	ConfigMaps []workloadconfig.ConfigMap `json:"configMaps,omitempty"`
+	Roles      []RoleSpec                 `json:"roles"`
+	RunPolicy  RunPolicy                  `json:"runPolicy,omitempty"`
+	Route      *Route                     `json:"route,omitempty"`
 }
 
 // RoleStatus aggregates per-role replica counts for observability (§4).

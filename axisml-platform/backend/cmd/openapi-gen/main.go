@@ -66,6 +66,7 @@ const (
 // clients must send"; clients don't import our Go helpers.
 const (
 	dns1123Pattern         = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+	configMapNamePattern   = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
 	artifactNamePattern    = "^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$"
 	artifactVersionPattern = "^[A-Za-z0-9_.-]{1,128}$"
 )
@@ -99,6 +100,7 @@ func buildDocument(version string) *openapigen.Document {
 		WellKnown: wellKnown,
 		PatternRules: []openapigen.PatternRule{
 			{Tag: "dns1123", Pattern: dns1123Pattern},
+			{Tag: "configmap_name", Pattern: configMapNamePattern, MinLength: 1, MaxLength: 253},
 			{Tag: "artifactname", Pattern: artifactNamePattern},
 		},
 		// All types live in internal/api; map that package to an empty prefix so
@@ -250,6 +252,7 @@ func registerSchemas(g *openapigen.Generator) {
 		"WorkspaceImage":          server.WorkspaceImage{},
 		"WorkspaceImageList":      server.WorkspaceImageList{},
 		"Backend":                 server.Backend{},
+		"WorkloadConfigMap":       server.WorkloadConfigMap{},
 		"RoleTemplate":            server.RoleTemplate{},
 		"MLRunRole":               server.MLRunRole{},
 		"MLRunRoleStatus":         server.MLRunRoleStatus{},

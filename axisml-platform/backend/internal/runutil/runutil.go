@@ -63,6 +63,9 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, d
 		if len(env) > 0 {
 			tmpl["env"] = env
 		}
+		if len(t.EnvFrom) > 0 {
+			tmpl["envFrom"] = t.EnvFrom
+		}
 		if len(resources) > 0 {
 			tmpl["resources"] = map[string]any{"requests": resources, "limits": resources}
 		}
@@ -111,6 +114,9 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, d
 	if rp := runPolicyMap(spec.RunPolicy); rp != nil {
 		input["runPolicy"] = rp
 	}
+	if len(spec.ConfigMaps) > 0 {
+		input["configMaps"] = spec.ConfigMaps
+	}
 
 	var out computeservice.MLRunCreate
 	b, err := json.Marshal(input)
@@ -158,7 +164,8 @@ func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
 	}
 	// Pull scheduling convenience fields by re-reading the spec as JSON.
 	var spec struct {
-		Scheduling map[string]any `json:"scheduling"`
+		Scheduling map[string]any             `json:"scheduling"`
+		ConfigMaps []server.WorkloadConfigMap `json:"configMaps"`
 	}
 	if b, err := json.Marshal(r.Spec); err == nil {
 		_ = json.Unmarshal(b, &spec)
@@ -167,6 +174,7 @@ func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
 		v.PoolName, _ = spec.Scheduling["poolName"].(string)
 		v.UnitName, _ = spec.Scheduling["unitName"].(string)
 	}
+	v.Spec.ConfigMaps = spec.ConfigMaps
 	// Status passthrough (message/started/finished).
 	var st struct {
 		Message    string     `json:"message"`

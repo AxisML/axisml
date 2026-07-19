@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +25,7 @@ import (
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
+	workloadconfig "github.com/axisml/axisml/axisml-system/compute-operator/internal/workloadconfig"
 )
 
 // MLRunReconciler is the dispatcher Reconciler. It owns the only write
@@ -115,6 +118,48 @@ func (r *MLRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+	if errs := workloadconfig.Validate(mlJob.Spec.ConfigMaps, field.NewPath("spec", "configMaps")); len(errs) > 0 {
+		if err := r.writeStatus(ctx, &mlJob, axishandler.MapStatusResult{
+			Phase:   axisv1alpha1.PhaseFailed,
+			Message: errs.ToAggregate().Error(),
+		}, axishandler.ReconcileResult{}); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if err := workloadconfig.Reconcile(
+		ctx,
+		r.Client,
+		&mlJob,
+		axisv1alpha1.GroupVersion.WithKind("MLRun"),
+		mlJob.Spec.ConfigMaps,
+		map[string]string{
+			axisv1alpha1.LabelRunID:  mlJob.Labels[axisv1alpha1.LabelRunID],
+			axisv1alpha1.LabelTenant: mlJob.Labels[axisv1alpha1.LabelTenant],
+		},
+	); err != nil {
+		if workloadconfig.IsOwnershipConflict(err) {
+			if statusErr := r.writeStatus(ctx, &mlJob, axishandler.MapStatusResult{
+				Phase:   axisv1alpha1.PhaseFailed,
+				Message: fmt.Sprintf("reconcile ConfigMaps: %v", err),
+			}, axishandler.ReconcileResult{}); statusErr != nil {
+				return ctrl.Result{}, statusErr
+			}
+			return ctrl.Result{}, nil
+		}
+		phase := mlJob.Status.Phase
+		if phase == "" {
+			phase = axisv1alpha1.PhasePending
+		}
+		if statusErr := r.writeStatus(ctx, &mlJob, axishandler.MapStatusResult{
+			Phase:   phase,
+			Message: fmt.Sprintf("reconcile ConfigMaps: %v", err),
+		}, axishandler.ReconcileResult{}); statusErr != nil {
+			logger.Error(statusErr, "failed to write status after ConfigMap reconcile error")
+		}
+		return ctrl.Result{}, err
 	}
 
 	underlying, recRes, err := h.Reconcile(ctx, r.Client, &mlJob)
@@ -214,17 +259,7 @@ func (r *MLRunReconciler) assertSpecImmutable(ctx context.Context, mlJob *axisv1
 // in declaration order — without us having to hand-roll serialisation
 // for every field we lock.
 func specFingerprint(mlJob *axisv1alpha1.MLRun) string {
-	snapshot := struct {
-		Backend    axisv1alpha1.BackendSpec    `json:"backend"`
-		Scheduling axisv1alpha1.SchedulingSpec `json:"scheduling"`
-		Roles      []axisv1alpha1.RoleSpec     `json:"roles"`
-		RunPolicy  axisv1alpha1.RunPolicySpec  `json:"runPolicy"`
-	}{
-		Backend:    mlJob.Spec.Backend,
-		Scheduling: mlJob.Spec.Scheduling,
-		Roles:      mlJob.Spec.Roles,
-		RunPolicy:  mlJob.Spec.RunPolicy,
-	}
+	snapshot := mlJob.Spec.DeepCopy()
 	snapshot.RunPolicy.Suspend = false
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
@@ -248,7 +283,8 @@ func statusEqual(a, b axisv1alpha1.MLRunStatus) bool {
 // kind don't double-wire informers.
 func (r *MLRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
-		For(&axisv1alpha1.MLRun{}, builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+		For(&axisv1alpha1.MLRun{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Owns(&corev1.ConfigMap{})
 	seen := map[schema.GroupVersionKind]struct{}{}
 	for _, h := range r.Registry.All() {
 		for _, target := range h.WatchTargets() {

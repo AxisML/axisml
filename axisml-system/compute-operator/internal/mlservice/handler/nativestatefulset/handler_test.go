@@ -203,6 +203,41 @@ func TestBuildStatefulSet_InjectsReplicaIndexEnvVar(t *testing.T) {
 	t.Errorf("env var %s not injected; got %v", replicaIndexEnvVarName, c.Env)
 }
 
+func TestBuildStatefulSet_PropagatesConfigMapSources(t *testing.T) {
+	spec := minimalSpec()
+	spec.Roles[0].Template.EnvFrom = []corev1.EnvFromSource{{
+		ConfigMapRef: &corev1.ConfigMapEnvSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "service-config"},
+		},
+	}}
+	spec.Roles[0].Template.Volumes = []corev1.Volume{{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "service-config"},
+		}},
+	}}
+	spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{{
+		Name: "config", MountPath: "/etc/service", ReadOnly: true,
+	}}
+	mls := &axisml.MLService{
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		Spec:       *spec,
+	}
+
+	sts := buildStatefulSet(mls, Config{})
+	c := sts.Spec.Template.Spec.Containers[0]
+	if len(c.EnvFrom) != 1 || c.EnvFrom[0].ConfigMapRef == nil || c.EnvFrom[0].ConfigMapRef.Name != "service-config" {
+		t.Fatalf("configMapRef not propagated: %+v", c.EnvFrom)
+	}
+	if len(sts.Spec.Template.Spec.Volumes) != 1 || sts.Spec.Template.Spec.Volumes[0].ConfigMap == nil ||
+		sts.Spec.Template.Spec.Volumes[0].ConfigMap.Name != "service-config" {
+		t.Fatalf("ConfigMap volume not propagated: %+v", sts.Spec.Template.Spec.Volumes)
+	}
+	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].MountPath != "/etc/service" || !c.VolumeMounts[0].ReadOnly {
+		t.Fatalf("ConfigMap mount not propagated: %+v", c.VolumeMounts)
+	}
+}
+
 func TestBuildStatefulSet_DefaultsServiceName(t *testing.T) {
 	mls := &axisml.MLService{
 		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},

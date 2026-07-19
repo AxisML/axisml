@@ -794,6 +794,14 @@ export const examples: Record<string, unknown> = {
         "engine": "pytorchjob",
         "name": "native"
       },
+      "configMaps": [
+        {
+          "data": {
+            "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+          },
+          "name": "resnet-training-config"
+        }
+      ],
       "poolName": "gpu-a100",
       "roles": [
         {
@@ -817,6 +825,13 @@ export const examples: Record<string, unknown> = {
                 "value": "INFO"
               }
             ],
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "resnet-training-config"
+                }
+              }
+            ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
             "ports": [
               {
@@ -834,6 +849,11 @@ export const examples: Record<string, unknown> = {
               {
                 "mountPath": "/data",
                 "name": "data"
+              },
+              {
+                "mountPath": "/etc/axisml",
+                "name": "config",
+                "readOnly": true
               }
             ],
             "volumes": [
@@ -842,6 +862,12 @@ export const examples: Record<string, unknown> = {
                 "persistentVolumeClaim": {
                   "claimName": "resnet-imagenet"
                 }
+              },
+              {
+                "configMap": {
+                  "name": "resnet-training-config"
+                },
+                "name": "config"
               }
             ]
           }
@@ -877,6 +903,14 @@ export const examples: Record<string, unknown> = {
         "engine": "pytorchjob",
         "name": "native"
       },
+      "configMaps": [
+        {
+          "data": {
+            "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+          },
+          "name": "resnet-training-config"
+        }
+      ],
       "poolName": "gpu-a100",
       "roles": [
         {
@@ -900,6 +934,13 @@ export const examples: Record<string, unknown> = {
                 "value": "INFO"
               }
             ],
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "resnet-training-config"
+                }
+              }
+            ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
             "ports": [
               {
@@ -917,6 +958,11 @@ export const examples: Record<string, unknown> = {
               {
                 "mountPath": "/data",
                 "name": "data"
+              },
+              {
+                "mountPath": "/etc/axisml",
+                "name": "config",
+                "readOnly": true
               }
             ],
             "volumes": [
@@ -925,6 +971,12 @@ export const examples: Record<string, unknown> = {
                 "persistentVolumeClaim": {
                   "claimName": "resnet-imagenet"
                 }
+              },
+              {
+                "configMap": {
+                  "name": "resnet-training-config"
+                },
+                "name": "config"
               }
             ]
           }
@@ -984,6 +1036,14 @@ export const examples: Record<string, unknown> = {
             "engine": "pytorchjob",
             "name": "native"
           },
+          "configMaps": [
+            {
+              "data": {
+                "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+              },
+              "name": "resnet-training-config"
+            }
+          ],
           "poolName": "gpu-a100",
           "roles": [
             {
@@ -1007,6 +1067,13 @@ export const examples: Record<string, unknown> = {
                     "value": "INFO"
                   }
                 ],
+                "envFrom": [
+                  {
+                    "configMapRef": {
+                      "name": "resnet-training-config"
+                    }
+                  }
+                ],
                 "image": "registry.axisml.io/training/resnet:1.4.0",
                 "ports": [
                   {
@@ -1024,6 +1091,11 @@ export const examples: Record<string, unknown> = {
                   {
                     "mountPath": "/data",
                     "name": "data"
+                  },
+                  {
+                    "mountPath": "/etc/axisml",
+                    "name": "config",
+                    "readOnly": true
                   }
                 ],
                 "volumes": [
@@ -1032,6 +1104,12 @@ export const examples: Record<string, unknown> = {
                     "persistentVolumeClaim": {
                       "claimName": "resnet-imagenet"
                     }
+                  },
+                  {
+                    "configMap": {
+                      "name": "resnet-training-config"
+                    },
+                    "name": "config"
                   }
                 ]
               }
@@ -1067,6 +1145,14 @@ export const examples: Record<string, unknown> = {
       "engine": "pytorchjob",
       "name": "native"
     },
+    "configMaps": [
+      {
+        "data": {
+          "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+        },
+        "name": "resnet-training-config"
+      }
+    ],
     "poolName": "gpu-a100",
     "roles": [
       {
@@ -1090,6 +1176,13 @@ export const examples: Record<string, unknown> = {
               "value": "INFO"
             }
           ],
+          "envFrom": [
+            {
+              "configMapRef": {
+                "name": "resnet-training-config"
+              }
+            }
+          ],
           "image": "registry.axisml.io/training/resnet:1.4.0",
           "ports": [
             {
@@ -1107,6 +1200,11 @@ export const examples: Record<string, unknown> = {
             {
               "mountPath": "/data",
               "name": "data"
+            },
+            {
+              "mountPath": "/etc/axisml",
+              "name": "config",
+              "readOnly": true
             }
           ],
           "volumes": [
@@ -1115,6 +1213,12 @@ export const examples: Record<string, unknown> = {
               "persistentVolumeClaim": {
                 "claimName": "resnet-imagenet"
               }
+            },
+            {
+              "configMap": {
+                "name": "resnet-training-config"
+              },
+              "name": "config"
             }
           ]
         }
@@ -1260,6 +1364,13 @@ export const examples: Record<string, unknown> = {
           "value": "INFO"
         }
       ],
+      "envFrom": [
+        {
+          "configMapRef": {
+            "name": "resnet-training-config"
+          }
+        }
+      ],
       "image": "registry.axisml.io/training/resnet:1.4.0",
       "ports": [
         {
@@ -1277,6 +1388,11 @@ export const examples: Record<string, unknown> = {
         {
           "mountPath": "/data",
           "name": "data"
+        },
+        {
+          "mountPath": "/etc/axisml",
+          "name": "config",
+          "readOnly": true
         }
       ],
       "volumes": [
@@ -1285,6 +1401,12 @@ export const examples: Record<string, unknown> = {
           "persistentVolumeClaim": {
             "claimName": "resnet-imagenet"
           }
+        },
+        {
+          "configMap": {
+            "name": "resnet-training-config"
+          },
+          "name": "config"
         }
       ]
     }
@@ -1314,6 +1436,13 @@ export const examples: Record<string, unknown> = {
           "value": "INFO"
         }
       ],
+      "envFrom": [
+        {
+          "configMapRef": {
+            "name": "resnet-training-config"
+          }
+        }
+      ],
       "image": "registry.axisml.io/training/resnet:1.4.0",
       "ports": [
         {
@@ -1331,6 +1460,11 @@ export const examples: Record<string, unknown> = {
         {
           "mountPath": "/data",
           "name": "data"
+        },
+        {
+          "mountPath": "/etc/axisml",
+          "name": "config",
+          "readOnly": true
         }
       ],
       "volumes": [
@@ -1339,6 +1473,12 @@ export const examples: Record<string, unknown> = {
           "persistentVolumeClaim": {
             "claimName": "resnet-imagenet"
           }
+        },
+        {
+          "configMap": {
+            "name": "resnet-training-config"
+          },
+          "name": "config"
         }
       ]
     }
@@ -1348,6 +1488,14 @@ export const examples: Record<string, unknown> = {
       "engine": "pytorchjob",
       "name": "native"
     },
+    "configMaps": [
+      {
+        "data": {
+          "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+        },
+        "name": "resnet-training-config"
+      }
+    ],
     "roles": [
       {
         "name": "worker",
@@ -1370,6 +1518,13 @@ export const examples: Record<string, unknown> = {
               "value": "INFO"
             }
           ],
+          "envFrom": [
+            {
+              "configMapRef": {
+                "name": "resnet-training-config"
+              }
+            }
+          ],
           "image": "registry.axisml.io/training/resnet:1.4.0",
           "ports": [
             {
@@ -1387,6 +1542,11 @@ export const examples: Record<string, unknown> = {
             {
               "mountPath": "/data",
               "name": "data"
+            },
+            {
+              "mountPath": "/etc/axisml",
+              "name": "config",
+              "readOnly": true
             }
           ],
           "volumes": [
@@ -1395,6 +1555,12 @@ export const examples: Record<string, unknown> = {
               "persistentVolumeClaim": {
                 "claimName": "resnet-imagenet"
               }
+            },
+            {
+              "configMap": {
+                "name": "resnet-training-config"
+              },
+              "name": "config"
             }
           ]
         }
@@ -1430,6 +1596,14 @@ export const examples: Record<string, unknown> = {
       "vllm.entrypoints.openai.api_server"
     ],
     "computeNamespace": "axisml-team-nlp",
+    "configMaps": [
+      {
+        "data": {
+          "server.yaml": "maxTokens: 4096\n"
+        },
+        "name": "llama3-serving-config"
+      }
+    ],
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Llama3-8B online inference service.",
     "desiredState": "Running",
@@ -1438,6 +1612,13 @@ export const examples: Record<string, unknown> = {
       {
         "name": "MAX_TOKENS",
         "value": "4096"
+      }
+    ],
+    "envFrom": [
+      {
+        "configMapRef": {
+          "name": "llama3-serving-config"
+        }
       }
     ],
     "id": "5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90",
@@ -1471,19 +1652,49 @@ export const examples: Record<string, unknown> = {
     "tenantDisplayName": "Vision Team",
     "tenantName": "team-nlp",
     "unitName": "a100-1x",
-    "updatedAt": "2026-06-28T09:30:00Z"
+    "updatedAt": "2026-06-28T09:30:00Z",
+    "volumeMounts": [
+      {
+        "mountPath": "/etc/axisml",
+        "name": "config",
+        "readOnly": true
+      }
+    ],
+    "volumes": [
+      {
+        "configMap": {
+          "name": "llama3-serving-config"
+        },
+        "name": "config"
+      }
+    ]
   },
   "MLServiceCreateRequest": {
     "backend": {
       "engine": "llminference",
       "name": "kserve"
     },
+    "configMaps": [
+      {
+        "data": {
+          "server.yaml": "maxTokens: 4096\n"
+        },
+        "name": "llama3-serving-config"
+      }
+    ],
     "description": "Llama3-8B online inference service.",
     "displayName": "Llama3 chat service",
     "env": [
       {
         "name": "MAX_TOKENS",
         "value": "4096"
+      }
+    ],
+    "envFrom": [
+      {
+        "configMapRef": {
+          "name": "llama3-serving-config"
+        }
       }
     ],
     "image": "registry.axisml.io/serving/vllm:0.6.0",
@@ -1502,7 +1713,22 @@ export const examples: Record<string, unknown> = {
       "enabled": true,
       "path": "/v1/models/llama3-8b"
     },
-    "unitName": "a100-1x"
+    "unitName": "a100-1x",
+    "volumeMounts": [
+      {
+        "mountPath": "/etc/axisml",
+        "name": "config",
+        "readOnly": true
+      }
+    ],
+    "volumes": [
+      {
+        "configMap": {
+          "name": "llama3-serving-config"
+        },
+        "name": "config"
+      }
+    ]
   },
   "MLServiceList": {
     "continueToken": "",
@@ -1526,6 +1752,14 @@ export const examples: Record<string, unknown> = {
           "vllm.entrypoints.openai.api_server"
         ],
         "computeNamespace": "axisml-team-nlp",
+        "configMaps": [
+          {
+            "data": {
+              "server.yaml": "maxTokens: 4096\n"
+            },
+            "name": "llama3-serving-config"
+          }
+        ],
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Llama3-8B online inference service.",
         "desiredState": "Running",
@@ -1534,6 +1768,13 @@ export const examples: Record<string, unknown> = {
           {
             "name": "MAX_TOKENS",
             "value": "4096"
+          }
+        ],
+        "envFrom": [
+          {
+            "configMapRef": {
+              "name": "llama3-serving-config"
+            }
           }
         ],
         "id": "5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90",
@@ -1567,7 +1808,22 @@ export const examples: Record<string, unknown> = {
         "tenantDisplayName": "Vision Team",
         "tenantName": "team-nlp",
         "unitName": "a100-1x",
-        "updatedAt": "2026-06-28T09:30:00Z"
+        "updatedAt": "2026-06-28T09:30:00Z",
+        "volumeMounts": [
+          {
+            "mountPath": "/etc/axisml",
+            "name": "config",
+            "readOnly": true
+          }
+        ],
+        "volumes": [
+          {
+            "configMap": {
+              "name": "llama3-serving-config"
+            },
+            "name": "config"
+          }
+        ]
       }
     ],
     "partial": false
@@ -2023,6 +2279,13 @@ export const examples: Record<string, unknown> = {
         "value": "INFO"
       }
     ],
+    "envFrom": [
+      {
+        "configMapRef": {
+          "name": "resnet-training-config"
+        }
+      }
+    ],
     "image": "registry.axisml.io/training/resnet:1.4.0",
     "ports": [
       {
@@ -2040,6 +2303,11 @@ export const examples: Record<string, unknown> = {
       {
         "mountPath": "/data",
         "name": "data"
+      },
+      {
+        "mountPath": "/etc/axisml",
+        "name": "config",
+        "readOnly": true
       }
     ],
     "volumes": [
@@ -2048,6 +2316,12 @@ export const examples: Record<string, unknown> = {
         "persistentVolumeClaim": {
           "claimName": "resnet-imagenet"
         }
+      },
+      {
+        "configMap": {
+          "name": "resnet-training-config"
+        },
+        "name": "config"
       }
     ]
   },
@@ -2100,6 +2374,13 @@ export const examples: Record<string, unknown> = {
               "value": "INFO"
             }
           ],
+          "envFrom": [
+            {
+              "configMapRef": {
+                "name": "resnet-training-config"
+              }
+            }
+          ],
           "image": "registry.axisml.io/training/resnet:1.4.0",
           "ports": [
             {
@@ -2117,6 +2398,11 @@ export const examples: Record<string, unknown> = {
             {
               "mountPath": "/data",
               "name": "data"
+            },
+            {
+              "mountPath": "/etc/axisml",
+              "name": "config",
+              "readOnly": true
             }
           ],
           "volumes": [
@@ -2125,6 +2411,12 @@ export const examples: Record<string, unknown> = {
               "persistentVolumeClaim": {
                 "claimName": "resnet-imagenet"
               }
+            },
+            {
+              "configMap": {
+                "name": "resnet-training-config"
+              },
+              "name": "config"
             }
           ]
         }
@@ -2143,6 +2435,14 @@ export const examples: Record<string, unknown> = {
         "engine": "pytorchjob",
         "name": "native"
       },
+      "configMaps": [
+        {
+          "data": {
+            "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+          },
+          "name": "resnet-training-config"
+        }
+      ],
       "roles": [
         {
           "name": "worker",
@@ -2165,6 +2465,13 @@ export const examples: Record<string, unknown> = {
                 "value": "INFO"
               }
             ],
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "resnet-training-config"
+                }
+              }
+            ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
             "ports": [
               {
@@ -2182,6 +2489,11 @@ export const examples: Record<string, unknown> = {
               {
                 "mountPath": "/data",
                 "name": "data"
+              },
+              {
+                "mountPath": "/etc/axisml",
+                "name": "config",
+                "readOnly": true
               }
             ],
             "volumes": [
@@ -2190,6 +2502,12 @@ export const examples: Record<string, unknown> = {
                 "persistentVolumeClaim": {
                   "claimName": "resnet-imagenet"
                 }
+              },
+              {
+                "configMap": {
+                  "name": "resnet-training-config"
+                },
+                "name": "config"
               }
             ]
           }
@@ -2266,6 +2584,13 @@ export const examples: Record<string, unknown> = {
                   "value": "INFO"
                 }
               ],
+              "envFrom": [
+                {
+                  "configMapRef": {
+                    "name": "resnet-training-config"
+                  }
+                }
+              ],
               "image": "registry.axisml.io/training/resnet:1.4.0",
               "ports": [
                 {
@@ -2283,6 +2608,11 @@ export const examples: Record<string, unknown> = {
                 {
                   "mountPath": "/data",
                   "name": "data"
+                },
+                {
+                  "mountPath": "/etc/axisml",
+                  "name": "config",
+                  "readOnly": true
                 }
               ],
               "volumes": [
@@ -2291,6 +2621,12 @@ export const examples: Record<string, unknown> = {
                   "persistentVolumeClaim": {
                     "claimName": "resnet-imagenet"
                   }
+                },
+                {
+                  "configMap": {
+                    "name": "resnet-training-config"
+                  },
+                  "name": "config"
                 }
               ]
             }
@@ -2309,6 +2645,14 @@ export const examples: Record<string, unknown> = {
             "engine": "pytorchjob",
             "name": "native"
           },
+          "configMaps": [
+            {
+              "data": {
+                "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+              },
+              "name": "resnet-training-config"
+            }
+          ],
           "roles": [
             {
               "name": "worker",
@@ -2331,6 +2675,13 @@ export const examples: Record<string, unknown> = {
                     "value": "INFO"
                   }
                 ],
+                "envFrom": [
+                  {
+                    "configMapRef": {
+                      "name": "resnet-training-config"
+                    }
+                  }
+                ],
                 "image": "registry.axisml.io/training/resnet:1.4.0",
                 "ports": [
                   {
@@ -2348,6 +2699,11 @@ export const examples: Record<string, unknown> = {
                   {
                     "mountPath": "/data",
                     "name": "data"
+                  },
+                  {
+                    "mountPath": "/etc/axisml",
+                    "name": "config",
+                    "readOnly": true
                   }
                 ],
                 "volumes": [
@@ -2356,6 +2712,12 @@ export const examples: Record<string, unknown> = {
                     "persistentVolumeClaim": {
                       "claimName": "resnet-imagenet"
                     }
+                  },
+                  {
+                    "configMap": {
+                      "name": "resnet-training-config"
+                    },
+                    "name": "config"
                   }
                 ]
               }
@@ -2922,6 +3284,12 @@ export const examples: Record<string, unknown> = {
   "UserTenantRole": {
     "roleName": "admin",
     "tenantName": "team-vision"
+  },
+  "WorkloadConfigMap": {
+    "data": {
+      "trainer.yaml": "epochs: 90\nbatchSize: 256\n"
+    },
+    "name": "resnet-training-config"
   },
   "Workspace": {
     "args": [

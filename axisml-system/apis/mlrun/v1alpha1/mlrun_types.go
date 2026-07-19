@@ -4,6 +4,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 )
 
 // MLRunPhase enumerates the four-state phase per design §4. Frozen.
@@ -114,6 +116,9 @@ type RunPolicySpec struct {
 type MLRunSpec struct {
 	Backend    BackendSpec    `json:"backend"`
 	Scheduling SchedulingSpec `json:"scheduling"`
+	// ConfigMaps are created in the MLRun namespace and owned by the MLRun.
+	// +optional
+	ConfigMaps []workloadconfig.ConfigMap `json:"configMaps,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	Roles     []RoleSpec    `json:"roles"`
 	RunPolicy RunPolicySpec `json:"runPolicy,omitempty"`

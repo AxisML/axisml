@@ -7,6 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	configapi "github.com/axisml/axisml/axisml-system/apis/pkg/workloadconfig"
 	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
@@ -26,6 +28,30 @@ func newScheme(t *testing.T) *runtime.Scheme {
 	utilruntime.Must(axisml.AddToScheme(s))
 	return s
 }
+
+type configMapTestHandler struct {
+	client          client.Client
+	reconcileCalled bool
+}
+
+func (h *configMapTestHandler) Key() hpkg.Key {
+	return hpkg.Key{Backend: "test", Engine: "engine"}
+}
+func (h *configMapTestHandler) Validate(*axisml.MLServiceSpec) hpkg.Validation {
+	return hpkg.Validation{}
+}
+func (h *configMapTestHandler) Reconcile(ctx context.Context, mls *axisml.MLService) (hpkg.Result, error) {
+	h.reconcileCalled = true
+	configMap := &corev1.ConfigMap{}
+	err := h.client.Get(ctx, client.ObjectKey{Namespace: mls.Namespace, Name: "service-config"}, configMap)
+	return hpkg.Result{}, err
+}
+func (h *configMapTestHandler) MapStatus(hpkg.Snapshot) hpkg.StatusUpdate {
+	return hpkg.StatusUpdate{Phase: axisml.PhasePending}
+}
+func (h *configMapTestHandler) Cleanup(context.Context, *axisml.MLService) error { return nil }
+func (h *configMapTestHandler) WatchTargets() []client.Object                    { return nil }
+func (h *configMapTestHandler) RequiredRBAC() []rbacv1.PolicyRule                { return nil }
 
 func TestMergeConditions_PreservesLastTransitionWhenStatusUnchanged(t *testing.T) {
 	old := time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Second)
@@ -198,6 +224,48 @@ func TestReconcile_ProtectedServiceRouteFailsClosed(t *testing.T) {
 	}
 	if !strings.Contains(got.Status.Message, "SecurityPolicy") {
 		t.Errorf("status.message = %q; want SecurityPolicy failure", got.Status.Message)
+	}
+}
+
+func TestReconcile_CreatesOwnedConfigMapBeforeHandler(t *testing.T) {
+	mls := &axisml.MLService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config-service",
+			Namespace: "tenant-demo",
+			UID:       types.UID("service-uid"),
+			Labels: map[string]string{
+				axisml.LabelServiceID: "service-id",
+				axisml.LabelTenant:    "tenant-demo",
+			},
+		},
+		Spec: axisml.MLServiceSpec{
+			Backend: axisml.Backend{Name: "test", Engine: "engine"},
+			ConfigMaps: []configapi.ConfigMap{{
+				Name: "service-config",
+				Data: map[string]string{"server.yaml": "port: 8080"},
+			}},
+			Roles: []axisml.RoleSpec{{Name: "default", Replicas: 1}},
+		},
+	}
+	h := &configMapTestHandler{}
+	r, cli := newReconcilerWithMLS(t, mls, map[hpkg.Key]hpkg.Handler{h.Key(): h})
+	h.client = cli
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(mls)}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if !h.reconcileCalled {
+		t.Fatal("handler was not called")
+	}
+	created := &corev1.ConfigMap{}
+	if err := cli.Get(context.Background(), client.ObjectKey{Namespace: mls.Namespace, Name: "service-config"}, created); err != nil {
+		t.Fatalf("get created ConfigMap: %v", err)
+	}
+	if got := created.Data["server.yaml"]; got != "port: 8080" {
+		t.Errorf("ConfigMap data = %q; want %q", got, "port: 8080")
+	}
+	if !metav1.IsControlledBy(created, mls) {
+		t.Fatal("ConfigMap is not controlled by the MLService")
 	}
 }
 

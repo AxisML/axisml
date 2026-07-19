@@ -23,6 +23,8 @@ type computeServiceStub struct {
 	lastCreateEnv       []any                       // env of the last created service
 	lastServiceTemplate map[string]any              // roles[0].template of the last created service
 	lastRunTemplate     map[string]any              // roles[0].template of the last created run
+	lastServiceConfigs  []any                       // top-level configMaps of the last created service
+	lastRunConfigs      []any                       // top-level configMaps of the last created run
 	engine              *gin.Engine
 }
 
@@ -47,6 +49,18 @@ func (s *computeServiceStub) lastRunTmpl() map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastRunTemplate
+}
+
+func (s *computeServiceStub) lastServiceConfigMaps() []any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastServiceConfigs
+}
+
+func (s *computeServiceStub) lastRunConfigMaps() []any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastRunConfigs
 }
 
 func newComputeServiceStub() *computeServiceStub {
@@ -107,6 +121,7 @@ func (s *computeServiceStub) createService(c *gin.Context) {
 	s.mu.Lock()
 	s.lastCreateEnv = env
 	s.lastServiceTemplate = tmpl
+	s.lastServiceConfigs, _ = body["configMaps"].([]any)
 	s.mu.Unlock()
 	c.JSON(http.StatusCreated, s.serviceBody(c.Param("namespace"), name, env))
 }
@@ -130,6 +145,7 @@ func (s *computeServiceStub) createRun(c *gin.Context) {
 	}
 	s.mu.Lock()
 	s.lastRunTemplate = tmpl
+	s.lastRunConfigs, _ = body["configMaps"].([]any)
 	s.mu.Unlock()
 	ns := c.Param("namespace")
 	c.JSON(http.StatusCreated, map[string]any{

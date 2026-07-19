@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..models.ml_service_route import MLServiceRoute
     from ..models.ml_service_run_policy import MLServiceRunPolicy
     from ..models.ml_service_scheduling import MLServiceScheduling
+    from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
 
 T = TypeVar("T", bound="MLServiceSpec")
@@ -26,6 +27,7 @@ class MLServiceSpec:
         backend (MLServiceBackend):
         roles (list[MLServiceRoleSpec]):
         scheduling (MLServiceScheduling):
+        config_maps (list[WorkloadconfigConfigMap] | Unset):
         route (MLServiceRoute | None | Unset):
         run_policy (MLServiceRunPolicy | Unset):
     """
@@ -33,6 +35,7 @@ class MLServiceSpec:
     backend: MLServiceBackend
     roles: list[MLServiceRoleSpec]
     scheduling: MLServiceScheduling
+    config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
     route: MLServiceRoute | None | Unset = UNSET
     run_policy: MLServiceRunPolicy | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -48,6 +51,13 @@ class MLServiceSpec:
             roles.append(roles_item)
 
         scheduling = self.scheduling.to_dict()
+
+        config_maps: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.config_maps, Unset):
+            config_maps = []
+            for config_maps_item_data in self.config_maps:
+                config_maps_item = config_maps_item_data.to_dict()
+                config_maps.append(config_maps_item)
 
         route: dict[str, Any] | None | Unset
         if isinstance(self.route, Unset):
@@ -70,6 +80,8 @@ class MLServiceSpec:
                 "scheduling": scheduling,
             }
         )
+        if config_maps is not UNSET:
+            field_dict["configMaps"] = config_maps
         if route is not UNSET:
             field_dict["route"] = route
         if run_policy is not UNSET:
@@ -84,6 +96,7 @@ class MLServiceSpec:
         from ..models.ml_service_route import MLServiceRoute
         from ..models.ml_service_run_policy import MLServiceRunPolicy
         from ..models.ml_service_scheduling import MLServiceScheduling
+        from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
         d = dict(src_dict)
         backend = MLServiceBackend.from_dict(d.pop("backend"))
@@ -96,6 +109,17 @@ class MLServiceSpec:
             roles.append(roles_item)
 
         scheduling = MLServiceScheduling.from_dict(d.pop("scheduling"))
+
+        _config_maps = d.pop("configMaps", UNSET)
+        config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
+        if _config_maps is not UNSET:
+            config_maps = []
+            for config_maps_item_data in _config_maps:
+                config_maps_item = WorkloadconfigConfigMap.from_dict(
+                    config_maps_item_data
+                )
+
+                config_maps.append(config_maps_item)
 
         def _parse_route(data: object) -> MLServiceRoute | None | Unset:
             if data is None:
@@ -125,6 +149,7 @@ class MLServiceSpec:
             backend=backend,
             roles=roles,
             scheduling=scheduling,
+            config_maps=config_maps,
             route=route,
             run_policy=run_policy,
         )

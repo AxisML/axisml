@@ -1024,6 +1024,10 @@ export type JobSpec = {
      */
     backend: Backend;
     /**
+     * ConfigMaps created and owned by each triggered MLRun.
+     */
+    configMaps?: Array<WorkloadConfigMap>;
+    /**
      * Default resource pool for runs.
      */
     poolName?: string;
@@ -1131,6 +1135,10 @@ export type MlRunSpec = {
      */
     backend?: Backend;
     /**
+     * ConfigMaps created and owned by the triggered MLRun.
+     */
+    configMaps?: Array<WorkloadConfigMap>;
+    /**
      * Run topology roles.
      */
     roles?: Array<MlRunRole>;
@@ -1166,6 +1174,10 @@ export type MlService = {
      */
     computeNamespace?: string;
     /**
+     * ConfigMaps created and owned by this MLService.
+     */
+    configMaps?: Array<WorkloadConfigMap>;
+    /**
      * Time the service was created.
      */
     createdAt: string;
@@ -1185,6 +1197,10 @@ export type MlService = {
      * Environment variables injected into the serving pods.
      */
     env?: Array<EnvVar>;
+    /**
+     * Environment sources injected into the serving pods (pass-through to the K8s EnvFromSource shape, including configMapRef).
+     */
+    envFrom?: Array<{}>;
     /**
      * Stable service identifier.
      */
@@ -1265,6 +1281,14 @@ export type MlService = {
      * Time the service was last updated.
      */
     updatedAt: string;
+    /**
+     * Container volume mounts (pass-through to the K8s VolumeMount shape).
+     */
+    volumeMounts?: Array<{}>;
+    /**
+     * Pod volumes (pass-through to the K8s PodSpec volumes shape, including configMap).
+     */
+    volumes?: Array<{}>;
 };
 
 export type MlServiceCreateRequest = {
@@ -1281,6 +1305,10 @@ export type MlServiceCreateRequest = {
      */
     command?: Array<string>;
     /**
+     * ConfigMaps created and owned by this MLService.
+     */
+    configMaps?: Array<WorkloadConfigMap>;
+    /**
      * Free-text service description.
      */
     description?: string;
@@ -1292,6 +1320,10 @@ export type MlServiceCreateRequest = {
      * Environment variables injected into the serving pods.
      */
     env?: Array<EnvVar>;
+    /**
+     * Environment sources injected into the serving pods (pass-through to the K8s EnvFromSource shape, including configMapRef).
+     */
+    envFrom?: Array<{}>;
     /**
      * Serving container image reference.
      */
@@ -1328,6 +1360,14 @@ export type MlServiceCreateRequest = {
      * Resource unit (shape) within the pool.
      */
     unitName: string;
+    /**
+     * Container volume mounts (pass-through to the K8s VolumeMount shape).
+     */
+    volumeMounts?: Array<{}>;
+    /**
+     * Pod volumes (pass-through to the K8s PodSpec volumes shape, including configMap).
+     */
+    volumes?: Array<{}>;
 };
 
 export type MlServiceDesiredState = 'Running' | 'Stopped';
@@ -2128,6 +2168,10 @@ export type RoleTemplate = {
      * Environment variables injected into the role's pods.
      */
     env?: Array<EnvVar>;
+    /**
+     * Environment sources injected into the role's pods (pass-through to the K8s EnvFromSource shape, including configMapRef).
+     */
+    envFrom?: Array<{}>;
     /**
      * Container image reference for this role's pods.
      */
@@ -3027,6 +3071,19 @@ export type UserTenantRole = {
      * Tenant the role applies within.
      */
     tenantName: string;
+};
+
+export type WorkloadConfigMap = {
+    /**
+     * UTF-8 configuration entries keyed by file or environment-variable name.
+     */
+    data?: {
+        [key: string]: string;
+    };
+    /**
+     * DNS-1123 ConfigMap name in the workload namespace.
+     */
+    name: string;
 };
 
 /**

@@ -9,6 +9,10 @@ func exMLService(g *openapigen.Generator) {
 
 	route := obj{"enabled": true, "path": "/v1/models/llama3-8b"}
 	g.SetExample("MLServiceRoute", route)
+	configMaps := []any{obj{
+		"name": "llama3-serving-config",
+		"data": obj{"server.yaml": "maxTokens: 4096\n"},
+	}}
 
 	service := obj{
 		"id":                "5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90",
@@ -28,6 +32,10 @@ func exMLService(g *openapigen.Generator) {
 		"command":           []any{"python", "-m", "vllm.entrypoints.openai.api_server"},
 		"args":              []any{"--model", "meta-llama/Llama-3-8b", "--max-model-len", "8192"},
 		"env":               []any{obj{"name": "MAX_TOKENS", "value": "4096"}},
+		"configMaps":        configMaps,
+		"envFrom":           []any{obj{"configMapRef": obj{"name": "llama3-serving-config"}}},
+		"volumes":           []any{obj{"name": "config", "configMap": obj{"name": "llama3-serving-config"}}},
+		"volumeMounts":      []any{obj{"name": "config", "mountPath": "/etc/axisml", "readOnly": true}},
 		"ports":             []any{port},
 		"poolName":          "gpu-a100",
 		"unitName":          "a100-1x",
@@ -59,6 +67,10 @@ func exMLService(g *openapigen.Generator) {
 		"modelVersion": "1.2.0",
 		"image":        "registry.axisml.io/serving/vllm:0.6.0",
 		"env":          []any{obj{"name": "MAX_TOKENS", "value": "4096"}},
+		"configMaps":   configMaps,
+		"envFrom":      []any{obj{"configMapRef": obj{"name": "llama3-serving-config"}}},
+		"volumes":      []any{obj{"name": "config", "configMap": obj{"name": "llama3-serving-config"}}},
+		"volumeMounts": []any{obj{"name": "config", "mountPath": "/etc/axisml", "readOnly": true}},
 		"ports":        []any{port},
 		"poolName":     "gpu-a100",
 		"unitName":     "a100-1x",

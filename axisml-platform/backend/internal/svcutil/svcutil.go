@@ -16,17 +16,18 @@ const LastReplicasAnnotation = "platform.axisml.io/last-replicas"
 
 // decodedSpec is the subset of the compute MLService spec we project from.
 type decodedSpec struct {
-	Roles []struct {
+	ConfigMaps []server.WorkloadConfigMap `json:"configMaps"`
+	Roles      []struct {
 		Name     string `json:"name"`
 		Replicas int    `json:"replicas"`
 		Template struct {
-			Image        string   `json:"image"`
-			Command      []string `json:"command"`
-			Args         []string `json:"args"`
-			VolumeMounts []struct {
-				Name      string `json:"name"`
-				MountPath string `json:"mountPath"`
-			} `json:"volumeMounts"`
+			Image        string           `json:"image"`
+			Command      []string         `json:"command"`
+			Args         []string         `json:"args"`
+			Env          []server.EnvVar  `json:"env"`
+			EnvFrom      []map[string]any `json:"envFrom"`
+			Volumes      []map[string]any `json:"volumes"`
+			VolumeMounts []map[string]any `json:"volumeMounts"`
 		} `json:"template"`
 	} `json:"roles"`
 	Route *struct {
@@ -46,11 +47,55 @@ func decode(s *computeservice.MLService) (decodedSpec, decodedStatus) {
 	if b, err := json.Marshal(s.Spec); err == nil {
 		_ = json.Unmarshal(b, &spec)
 	}
+	for i := range spec.Roles {
+		tmpl := &spec.Roles[i].Template
+		tmpl.EnvFrom = compactMaps(tmpl.EnvFrom)
+		tmpl.Volumes = compactMaps(tmpl.Volumes)
+		tmpl.VolumeMounts = compactMaps(tmpl.VolumeMounts)
+	}
 	var st decodedStatus
 	if b, err := json.Marshal(s.Status); err == nil {
 		_ = json.Unmarshal(b, &st)
 	}
 	return spec, st
+}
+
+// compactMaps removes nil fields introduced when the generated compute client
+// marshals Kubernetes structs whose pointer fields lack omitempty tags. The
+// Platform contract should return the same concise pass-through shape callers
+// submitted, rather than every unused Kubernetes union member as null.
+func compactMaps(in []map[string]any) []map[string]any {
+	for i := range in {
+		if compacted, ok := compactValue(in[i]); ok {
+			in[i] = compacted.(map[string]any)
+		}
+	}
+	return in
+}
+
+func compactValue(value any) (any, bool) {
+	switch v := value.(type) {
+	case nil:
+		return nil, false
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for key, item := range v {
+			if compacted, ok := compactValue(item); ok {
+				out[key] = compacted
+			}
+		}
+		return out, true
+	case []any:
+		out := make([]any, 0, len(v))
+		for _, item := range v {
+			if compacted, ok := compactValue(item); ok {
+				out = append(out, compacted)
+			}
+		}
+		return out, true
+	default:
+		return value, true
+	}
 }
 
 // BuildServiceInput assembles a kind=service MLService create request from the
@@ -69,6 +114,15 @@ func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServ
 	}
 	if len(req.Env) > 0 {
 		tmpl["env"] = req.Env
+	}
+	if len(req.EnvFrom) > 0 {
+		tmpl["envFrom"] = req.EnvFrom
+	}
+	if len(req.Volumes) > 0 {
+		tmpl["volumes"] = req.Volumes
+	}
+	if len(req.VolumeMounts) > 0 {
+		tmpl["volumeMounts"] = req.VolumeMounts
 	}
 	if len(ports) > 0 {
 		tmpl["ports"] = ports
@@ -97,6 +151,9 @@ func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServ
 	}
 	if req.Backend.Name != "" || req.Backend.Engine != "" {
 		input["backend"] = map[string]any{"name": req.Backend.Name, "engine": req.Backend.Engine, "config": req.Backend.Config}
+	}
+	if len(req.ConfigMaps) > 0 {
+		input["configMaps"] = req.ConfigMaps
 	}
 	return marshalInput(input)
 }
@@ -181,6 +238,7 @@ func ServiceToView(s *computeservice.MLService, tenant string) server.MLService 
 		AccessURL:     st.Endpoint,
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,
+		ConfigMaps:    spec.ConfigMaps,
 	}
 	annos := derefMap(s.Annotations)
 	v.ModelName = annos["platform.axisml.io/model-name"]
@@ -192,6 +250,10 @@ func ServiceToView(s *computeservice.MLService, tenant string) server.MLService 
 		v.Image = spec.Roles[0].Template.Image
 		v.Command = spec.Roles[0].Template.Command
 		v.Args = spec.Roles[0].Template.Args
+		v.Env = spec.Roles[0].Template.Env
+		v.EnvFrom = spec.Roles[0].Template.EnvFrom
+		v.Volumes = spec.Roles[0].Template.Volumes
+		v.VolumeMounts = spec.Roles[0].Template.VolumeMounts
 	}
 	if spec.Route != nil {
 		v.Route = server.MLServiceRoute{Enabled: spec.Route.Enabled, Path: spec.Route.Path}
@@ -227,7 +289,9 @@ func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspac
 		v.Command = spec.Roles[0].Template.Command
 		v.Args = spec.Roles[0].Template.Args
 		for _, m := range spec.Roles[0].Template.VolumeMounts {
-			v.Volumes = append(v.Volumes, server.WorkspaceVolume{Name: m.Name, MountPath: m.MountPath})
+			name, _ := m["name"].(string)
+			mountPath, _ := m["mountPath"].(string)
+			v.Volumes = append(v.Volumes, server.WorkspaceVolume{Name: name, MountPath: mountPath})
 		}
 	}
 	if v.Replicas > 0 {

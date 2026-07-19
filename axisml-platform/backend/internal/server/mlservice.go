@@ -35,6 +35,10 @@ type MLService struct {
 	Command           []string              `json:"command,omitempty" desc:"Container entrypoint override."`
 	Args              []string              `json:"args,omitempty" desc:"Container args override."`
 	Env               []EnvVar              `json:"env,omitempty" desc:"Environment variables injected into the serving pods."`
+	ConfigMaps        []WorkloadConfigMap   `json:"configMaps,omitempty" desc:"ConfigMaps created and owned by this MLService."`
+	EnvFrom           []map[string]any      `json:"envFrom,omitempty" desc:"Environment sources injected into the serving pods (pass-through to the K8s EnvFromSource shape, including configMapRef)."`
+	Volumes           []map[string]any      `json:"volumes,omitempty" desc:"Pod volumes (pass-through to the K8s PodSpec volumes shape, including configMap)."`
+	VolumeMounts      []map[string]any      `json:"volumeMounts,omitempty" desc:"Container volume mounts (pass-through to the K8s VolumeMount shape)."`
 	Ports             []ServicePort         `json:"ports,omitempty" desc:"Container ports exposed by the service."`
 	PoolName          string                `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the service is scheduled onto."`
 	UnitName          string                `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
@@ -61,21 +65,25 @@ type MLServiceList struct {
 // MLServiceCreateRequest is the body of POST /mlservices. Backend defaults
 // server-side from the chosen model/image when omitted.
 type MLServiceCreateRequest struct {
-	Name         string         `json:"name" binding:"required,dns1123,min=1,max=40" desc:"Service name (unique within the tenant)."`
-	DisplayName  string         `json:"displayName,omitempty" binding:"max=100" desc:"Human-readable service label."`
-	Description  string         `json:"description,omitempty" binding:"max=1000" desc:"Free-text service description."`
-	Backend      Backend        `json:"backend,omitempty" desc:"Compute backend/engine (defaults from the model/image when omitted)."`
-	ModelName    string         `json:"modelName" binding:"required" desc:"Model artifact definition name to serve."`
-	ModelVersion string         `json:"modelVersion" binding:"required" desc:"Model artifact version to serve."`
-	Image        string         `json:"image" binding:"required" desc:"Serving container image reference."`
-	Command      []string       `json:"command,omitempty" desc:"Container entrypoint override."`
-	Args         []string       `json:"args,omitempty" desc:"Container args override."`
-	Env          []EnvVar       `json:"env,omitempty" desc:"Environment variables injected into the serving pods."`
-	Ports        []ServicePort  `json:"ports" binding:"required,min=1" desc:"Container ports exposed by the service (at least one)."`
-	PoolName     string         `json:"poolName" binding:"required,dns1123,max=40" desc:"Resource pool to schedule the service onto."`
-	UnitName     string         `json:"unitName" binding:"required,dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Replicas     int            `json:"replicas" binding:"required,min=0" desc:"Desired replica count."`
-	Route        MLServiceRoute `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
+	Name         string              `json:"name" binding:"required,dns1123,min=1,max=40" desc:"Service name (unique within the tenant)."`
+	DisplayName  string              `json:"displayName,omitempty" binding:"max=100" desc:"Human-readable service label."`
+	Description  string              `json:"description,omitempty" binding:"max=1000" desc:"Free-text service description."`
+	Backend      Backend             `json:"backend,omitempty" desc:"Compute backend/engine (defaults from the model/image when omitted)."`
+	ModelName    string              `json:"modelName" binding:"required" desc:"Model artifact definition name to serve."`
+	ModelVersion string              `json:"modelVersion" binding:"required" desc:"Model artifact version to serve."`
+	Image        string              `json:"image" binding:"required" desc:"Serving container image reference."`
+	Command      []string            `json:"command,omitempty" desc:"Container entrypoint override."`
+	Args         []string            `json:"args,omitempty" desc:"Container args override."`
+	Env          []EnvVar            `json:"env,omitempty" desc:"Environment variables injected into the serving pods."`
+	ConfigMaps   []WorkloadConfigMap `json:"configMaps,omitempty" binding:"omitempty,dive" desc:"ConfigMaps created and owned by this MLService."`
+	EnvFrom      []map[string]any    `json:"envFrom,omitempty" desc:"Environment sources injected into the serving pods (pass-through to the K8s EnvFromSource shape, including configMapRef)."`
+	Volumes      []map[string]any    `json:"volumes,omitempty" desc:"Pod volumes (pass-through to the K8s PodSpec volumes shape, including configMap)."`
+	VolumeMounts []map[string]any    `json:"volumeMounts,omitempty" desc:"Container volume mounts (pass-through to the K8s VolumeMount shape)."`
+	Ports        []ServicePort       `json:"ports" binding:"required,min=1" desc:"Container ports exposed by the service (at least one)."`
+	PoolName     string              `json:"poolName" binding:"required,dns1123,max=40" desc:"Resource pool to schedule the service onto."`
+	UnitName     string              `json:"unitName" binding:"required,dns1123,max=40" desc:"Resource unit (shape) within the pool."`
+	Replicas     int                 `json:"replicas" binding:"required,min=0" desc:"Desired replica count."`
+	Route        MLServiceRoute      `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
 }
 
 // MLServicePatchRequest is the body of PATCH /mlservices/{name}.

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ..models.ml_run_role_spec import MLRunRoleSpec
     from ..models.ml_run_run_policy_spec import MLRunRunPolicySpec
     from ..models.ml_run_scheduling_spec import MLRunSchedulingSpec
+    from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
 
 T = TypeVar("T", bound="MLRunSpec")
@@ -25,12 +26,14 @@ class MLRunSpec:
         backend (MLRunBackendSpec):
         roles (list[MLRunRoleSpec]):
         scheduling (MLRunSchedulingSpec):
+        config_maps (list[WorkloadconfigConfigMap] | Unset):
         run_policy (MLRunRunPolicySpec | Unset):
     """
 
     backend: MLRunBackendSpec
     roles: list[MLRunRoleSpec]
     scheduling: MLRunSchedulingSpec
+    config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
     run_policy: MLRunRunPolicySpec | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -43,6 +46,13 @@ class MLRunSpec:
             roles.append(roles_item)
 
         scheduling = self.scheduling.to_dict()
+
+        config_maps: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.config_maps, Unset):
+            config_maps = []
+            for config_maps_item_data in self.config_maps:
+                config_maps_item = config_maps_item_data.to_dict()
+                config_maps.append(config_maps_item)
 
         run_policy: dict[str, Any] | Unset = UNSET
         if not isinstance(self.run_policy, Unset):
@@ -57,6 +67,8 @@ class MLRunSpec:
                 "scheduling": scheduling,
             }
         )
+        if config_maps is not UNSET:
+            field_dict["configMaps"] = config_maps
         if run_policy is not UNSET:
             field_dict["runPolicy"] = run_policy
 
@@ -68,6 +80,7 @@ class MLRunSpec:
         from ..models.ml_run_role_spec import MLRunRoleSpec
         from ..models.ml_run_run_policy_spec import MLRunRunPolicySpec
         from ..models.ml_run_scheduling_spec import MLRunSchedulingSpec
+        from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
         d = dict(src_dict)
         backend = MLRunBackendSpec.from_dict(d.pop("backend"))
@@ -81,6 +94,17 @@ class MLRunSpec:
 
         scheduling = MLRunSchedulingSpec.from_dict(d.pop("scheduling"))
 
+        _config_maps = d.pop("configMaps", UNSET)
+        config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
+        if _config_maps is not UNSET:
+            config_maps = []
+            for config_maps_item_data in _config_maps:
+                config_maps_item = WorkloadconfigConfigMap.from_dict(
+                    config_maps_item_data
+                )
+
+                config_maps.append(config_maps_item)
+
         _run_policy = d.pop("runPolicy", UNSET)
         run_policy: MLRunRunPolicySpec | Unset
         if isinstance(_run_policy, Unset):
@@ -92,6 +116,7 @@ class MLRunSpec:
             backend=backend,
             roles=roles,
             scheduling=scheduling,
+            config_maps=config_maps,
             run_policy=run_policy,
         )
 

@@ -17,7 +17,7 @@ T = TypeVar("T", bound="RunList")
 
 @_attrs_define
 class RunList:
-    """
+    r"""
     Example:
         {'continueToken': '', 'count': 1, 'items': [{'backend': {'engine': 'pytorchjob', 'name': 'native'},
             'computeNamespace': 'axisml-team-vision', 'createdAt': '2026-06-28T09:00:00Z', 'description': 'Distributed
@@ -28,19 +28,24 @@ class RunList:
             'nvidia.com/gpu': '8'}, 'roles': [{'activeReplicas': 4, 'failedReplicas': 0, 'name': 'worker', 'readyReplicas':
             4, 'replicas': 4, 'restartPolicy': 'OnFailure', 'succeededReplicas': 0, 'template': {'args': ['--epochs', '90',
             '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}],
-            'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http',
-            'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts':
-            [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName':
-            'resnet-imagenet'}}]}}], 'runNumber': 7, 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduledAt': '2026-06-28T09:00:00Z', 'spec':
-            {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'roles': [{'name': 'worker', 'replicas': 4,
-            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'envFrom': [{'configMapRef': {'name': 'resnet-training-config'}}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
             'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
+            '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config', 'readOnly': True}], 'volumes':
+            [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}, {'configMap': {'name': 'resnet-
+            training-config'}, 'name': 'config'}]}}], 'runNumber': 7, 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduledAt':
+            '2026-06-28T09:00:00Z', 'spec': {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'configMaps': [{'data':
+            {'trainer.yaml': 'epochs: 90\nbatchSize: 256\n'}, 'name': 'resnet-training-config'}], 'roles': [{'name':
+            'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
+            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom':
+            [{'configMapRef': {'name': 'resnet-training-config'}}], 'image': 'registry.axisml.io/training/resnet:1.4.0',
+            'ports': [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}, {'mountPath':
+            '/etc/axisml', 'name': 'config', 'readOnly': True}], 'volumes': [{'name': 'data', 'persistentVolumeClaim':
+            {'claimName': 'resnet-imagenet'}}, {'configMap': {'name': 'resnet-training-config'}, 'name': 'config'}]}}],
+            'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds': 600,
+            'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
             'axisml-team-vision-gpu-a100'}}, 'startedAt': '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision Team',
             'tenantName': 'team-vision', 'unitName': 'a100-2x', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
 

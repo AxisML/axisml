@@ -21,7 +21,7 @@ T = TypeVar("T", bound="Experiment")
 
 @_attrs_define
 class Experiment:
-    """
+    r"""
     Example:
         {'annotations': {'axisml.io/created-by': 'li.wei'}, 'createdAt': '2026-06-20T08:00:00Z', 'description':
             'Training experiment fine-tuning BERT on a Chinese corpus.', 'displayName': 'BERT fine-tuning experiment', 'id':
@@ -44,14 +44,17 @@ class Experiment:
         namespace (str): Platform tenant namespace the experiment belongs to.
         owner (str): Username of the experiment owner.
         spec (JobSpec):  Example: {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend':
-            {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            {'engine': 'pytorchjob', 'name': 'native'}, 'configMaps': [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize:
+            256\n'}, 'name': 'resnet-training-config'}], 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
             'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'envFrom': [{'configMapRef': {'name':
+            'resnet-training-config'}}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort':
+            8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'},
+            'volumeMounts': [{'mountPath': '/data', 'name': 'data'}, {'mountPath': '/etc/axisml', 'name': 'config',
+            'readOnly': True}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}},
+            {'configMap': {'name': 'resnet-training-config'}, 'name': 'config'}]}}], 'runPolicy': {'activeDeadlineSeconds':
+            86400, 'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName':
+            'a100-2x'}.
         tenant_name (str): Tenant identifier owning the experiment.
         updated_at (datetime.datetime): Time the experiment was last updated.
         annotations (StringMap | Unset):

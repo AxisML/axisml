@@ -186,6 +186,8 @@ from .traffic_policy_patch_request_labels import TrafficPolicyPatchRequestLabels
 from .traffic_policy_split_request import TrafficPolicySplitRequest
 from .traffic_policy_status import TrafficPolicyStatus
 from .traffic_policy_weight_update import TrafficPolicyWeightUpdate
+from .workloadconfig_config_map import WorkloadconfigConfigMap
+from .workloadconfig_config_map_data import WorkloadconfigConfigMapData
 
 __all__ = (
     "Capabilities",
@@ -346,4 +348,6 @@ __all__ = (
     "TrafficPolicySplitRequest",
     "TrafficPolicyStatus",
     "TrafficPolicyWeightUpdate",
+    "WorkloadconfigConfigMap",
+    "WorkloadconfigConfigMapData",
 )

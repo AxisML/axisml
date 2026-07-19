@@ -87,13 +87,21 @@ from .ml_run_spec import MLRunSpec
 from .ml_run_spec_scheduling import MLRunSpecScheduling
 from .ml_service import MLService
 from .ml_service_create_request import MLServiceCreateRequest
+from .ml_service_create_request_env_from_item import MLServiceCreateRequestEnvFromItem
+from .ml_service_create_request_volume_mounts_item import (
+    MLServiceCreateRequestVolumeMountsItem,
+)
+from .ml_service_create_request_volumes_item import MLServiceCreateRequestVolumesItem
 from .ml_service_desired_state import MLServiceDesiredState
+from .ml_service_env_from_item import MLServiceEnvFromItem
 from .ml_service_list import MLServiceList
 from .ml_service_metric_name import MLServiceMetricName
 from .ml_service_patch_request import MLServicePatchRequest
 from .ml_service_phase import MLServicePhase
 from .ml_service_route import MLServiceRoute
 from .ml_service_scale_request import MLServiceScaleRequest
+from .ml_service_volume_mounts_item import MLServiceVolumeMountsItem
+from .ml_service_volumes_item import MLServiceVolumesItem
 from .model import Model
 from .model_complete_request import ModelCompleteRequest
 from .model_initiate_request import ModelInitiateRequest
@@ -133,6 +141,7 @@ from .resource_unit_list import ResourceUnitList
 from .resource_unit_patch_request import ResourceUnitPatchRequest
 from .role_name import RoleName
 from .role_template import RoleTemplate
+from .role_template_env_from_item import RoleTemplateEnvFromItem
 from .role_template_ports_item import RoleTemplatePortsItem
 from .role_template_volume_mounts_item import RoleTemplateVolumeMountsItem
 from .role_template_volumes_item import RoleTemplateVolumesItem
@@ -180,6 +189,8 @@ from .user_patch_request import UserPatchRequest
 from .user_summary import UserSummary
 from .user_summary_list import UserSummaryList
 from .user_tenant_role import UserTenantRole
+from .workload_config_map import WorkloadConfigMap
+from .workload_config_map_data import WorkloadConfigMapData
 from .workload_metric_name import WorkloadMetricName
 from .workspace import Workspace
 from .workspace_create_request import WorkspaceCreateRequest
@@ -278,13 +289,19 @@ __all__ = (
     "MLRunSpecScheduling",
     "MLService",
     "MLServiceCreateRequest",
+    "MLServiceCreateRequestEnvFromItem",
+    "MLServiceCreateRequestVolumeMountsItem",
+    "MLServiceCreateRequestVolumesItem",
     "MLServiceDesiredState",
+    "MLServiceEnvFromItem",
     "MLServiceList",
     "MLServiceMetricName",
     "MLServicePatchRequest",
     "MLServicePhase",
     "MLServiceRoute",
     "MLServiceScaleRequest",
+    "MLServiceVolumeMountsItem",
+    "MLServiceVolumesItem",
     "Model",
     "ModelCompleteRequest",
     "ModelInitiateRequest",
@@ -322,6 +339,7 @@ __all__ = (
     "ResourceUnitPatchRequest",
     "RoleName",
     "RoleTemplate",
+    "RoleTemplateEnvFromItem",
     "RoleTemplatePortsItem",
     "RoleTemplateVolumeMountsItem",
     "RoleTemplateVolumesItem",
@@ -369,6 +387,8 @@ __all__ = (
     "UserSummary",
     "UserSummaryList",
     "UserTenantRole",
+    "WorkloadConfigMap",
+    "WorkloadConfigMapData",
     "WorkloadMetricName",
     "Workspace",
     "WorkspaceCreateRequest",

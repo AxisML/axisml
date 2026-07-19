@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..models.ml_run_create_request_labels import MLRunCreateRequestLabels
     from ..models.ml_run_role_spec import MLRunRoleSpec
     from ..models.ml_run_run_policy_spec import MLRunRunPolicySpec
+    from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
 
 T = TypeVar("T", bound="MLRunCreateRequest")
@@ -21,10 +22,11 @@ T = TypeVar("T", bound="MLRunCreateRequest")
 
 @_attrs_define
 class MLRunCreateRequest:
-    """
+    r"""
     Example:
-        {'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'description': 'Distributed ResNet-50 training
-            on ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-train-7',
+        {'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'configMaps': [{'data': {'trainer.yaml':
+            'epochs: 90\nbatchSize: 256\n'}, 'name': 'trainer-config'}], 'description': 'Distributed ResNet-50 training on
+            ImageNet.', 'displayName': 'ResNet-50 Training #7', 'labels': {'team': 'vision'}, 'name': 'resnet-train-7',
             'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
             {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
             'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'resources': {'limits':
@@ -41,6 +43,8 @@ class MLRunCreateRequest:
             the CR.
         backend (MLRunBackendSpec | None | Unset): Compute backend/engine that runs the workload; defaults to (native,
             job) when omitted.
+        config_maps (list[WorkloadconfigConfigMap] | Unset): ConfigMaps created and owned by this MLRun before its pods
+            are reconciled.
         description (str | Unset): Free-text run description.
         display_name (str | Unset): Human-readable run label.
         labels (MLRunCreateRequestLabels | Unset): User-defined labels stored on the row and stamped onto the CR.
@@ -54,6 +58,7 @@ class MLRunCreateRequest:
     unit_name: str
     annotations: MLRunCreateRequestAnnotations | Unset = UNSET
     backend: MLRunBackendSpec | None | Unset = UNSET
+    config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
     description: str | Unset = UNSET
     display_name: str | Unset = UNSET
     labels: MLRunCreateRequestLabels | Unset = UNSET
@@ -88,6 +93,13 @@ class MLRunCreateRequest:
         else:
             backend = self.backend
 
+        config_maps: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.config_maps, Unset):
+            config_maps = []
+            for config_maps_item_data in self.config_maps:
+                config_maps_item = config_maps_item_data.to_dict()
+                config_maps.append(config_maps_item)
+
         description = self.description
 
         display_name = self.display_name
@@ -120,6 +132,8 @@ class MLRunCreateRequest:
             field_dict["annotations"] = annotations
         if backend is not UNSET:
             field_dict["backend"] = backend
+        if config_maps is not UNSET:
+            field_dict["configMaps"] = config_maps
         if description is not UNSET:
             field_dict["description"] = description
         if display_name is not UNSET:
@@ -142,6 +156,7 @@ class MLRunCreateRequest:
         from ..models.ml_run_create_request_labels import MLRunCreateRequestLabels
         from ..models.ml_run_role_spec import MLRunRoleSpec
         from ..models.ml_run_run_policy_spec import MLRunRunPolicySpec
+        from ..models.workloadconfig_config_map import WorkloadconfigConfigMap
 
         d = dict(src_dict)
         name = d.pop("name")
@@ -181,6 +196,17 @@ class MLRunCreateRequest:
 
         backend = _parse_backend(d.pop("backend", UNSET))
 
+        _config_maps = d.pop("configMaps", UNSET)
+        config_maps: list[WorkloadconfigConfigMap] | Unset = UNSET
+        if _config_maps is not UNSET:
+            config_maps = []
+            for config_maps_item_data in _config_maps:
+                config_maps_item = WorkloadconfigConfigMap.from_dict(
+                    config_maps_item_data
+                )
+
+                config_maps.append(config_maps_item)
+
         description = d.pop("description", UNSET)
 
         display_name = d.pop("displayName", UNSET)
@@ -218,6 +244,7 @@ class MLRunCreateRequest:
             unit_name=unit_name,
             annotations=annotations,
             backend=backend,
+            config_maps=config_maps,
             description=description,
             display_name=display_name,
             labels=labels,

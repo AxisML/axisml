@@ -9,13 +9,15 @@ type Backend struct {
 	Config map[string]any `json:"config,omitempty" desc:"Backend-specific free-form config (e.g. the target GVK for the custom backend)."`
 }
 
-// RoleTemplate is the pod template for one run role. ports/volumes/volumeMounts
-// are pass-through from compute (shape matches the K8s PodSpec equivalents).
+// RoleTemplate is the pod template for one run role. envFrom/ports/volumes/
+// volumeMounts are pass-through from compute (shape matches the K8s PodSpec
+// equivalents).
 type RoleTemplate struct {
 	Image        string           `json:"image,omitempty" desc:"Container image reference for this role's pods."`
 	Command      []string         `json:"command,omitempty" desc:"Container entrypoint override."`
 	Args         []string         `json:"args,omitempty" desc:"Container args override."`
 	Env          []EnvVar         `json:"env,omitempty" desc:"Environment variables injected into the role's pods."`
+	EnvFrom      []map[string]any `json:"envFrom,omitempty" desc:"Environment sources injected into the role's pods (pass-through to the K8s EnvFromSource shape, including configMapRef)."`
 	Ports        []map[string]any `json:"ports,omitempty" desc:"Container ports (pass-through to the K8s container ports shape)."`
 	Resources    ResourceMap      `json:"resources,omitempty" desc:"Per-replica resource requests/limits."`
 	Volumes      []map[string]any `json:"volumes,omitempty" desc:"Pod volumes (pass-through to the K8s PodSpec volumes shape)."`
@@ -85,10 +87,11 @@ type Run struct {
 // Run so the UI can render a full YAML view. The authoritative shape lives
 // in compute.
 type MLRunSpec struct {
-	Backend    Backend        `json:"backend,omitempty" desc:"Compute backend/engine."`
-	Scheduling map[string]any `json:"scheduling,omitempty" desc:"Scheduling directives (gang, priority, tolerations)."`
-	Roles      []MLRunRole    `json:"roles,omitempty" desc:"Run topology roles."`
-	RunPolicy  RunPolicy      `json:"runPolicy,omitempty" desc:"Run-level execution limits."`
+	Backend    Backend             `json:"backend,omitempty" desc:"Compute backend/engine."`
+	Scheduling map[string]any      `json:"scheduling,omitempty" desc:"Scheduling directives (gang, priority, tolerations)."`
+	ConfigMaps []WorkloadConfigMap `json:"configMaps,omitempty" desc:"ConfigMaps created and owned by the triggered MLRun."`
+	Roles      []MLRunRole         `json:"roles,omitempty" desc:"Run topology roles."`
+	RunPolicy  RunPolicy           `json:"runPolicy,omitempty" desc:"Run-level execution limits."`
 }
 
 // RunList is a page of Run.
@@ -119,12 +122,13 @@ type ArtifactRef struct {
 
 // JobSpec is a reusable Job template (snapshotted into an MLRun per run).
 type JobSpec struct {
-	Backend   Backend       `json:"backend" desc:"Compute backend/engine the runs use."`
-	PoolName  string        `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Default resource pool for runs."`
-	UnitName  string        `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Default resource unit (shape) within the pool."`
-	Roles     []MLRunRole   `json:"roles" binding:"min=1" desc:"Run topology roles (at least one)."`
-	RunPolicy RunPolicy     `json:"runPolicy,omitempty" desc:"Default run-level execution limits."`
-	Artifacts []ArtifactRef `json:"artifacts,omitempty" desc:"Model/image artifact versions the runs consume."`
+	Backend    Backend             `json:"backend" desc:"Compute backend/engine the runs use."`
+	PoolName   string              `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Default resource pool for runs."`
+	UnitName   string              `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Default resource unit (shape) within the pool."`
+	ConfigMaps []WorkloadConfigMap `json:"configMaps,omitempty" binding:"omitempty,dive" desc:"ConfigMaps created and owned by each triggered MLRun."`
+	Roles      []MLRunRole         `json:"roles" binding:"min=1" desc:"Run topology roles (at least one)."`
+	RunPolicy  RunPolicy           `json:"runPolicy,omitempty" desc:"Default run-level execution limits."`
+	Artifacts  []ArtifactRef       `json:"artifacts,omitempty" desc:"Model/image artifact versions the runs consume."`
 }
 
 // Job is a Platform-owned reusable Job template.
