@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/axisml/axisml/axisml-system/apis v0.0.1 // indirect
+	github.com/axisml/axisml/axisml-system/apis v0.0.2 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect

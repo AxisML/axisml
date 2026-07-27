@@ -118,10 +118,12 @@ func TestProblemEnumIsSourced(t *testing.T) {
 	prob, ok := doc.Components.Schemas["ComputeServiceError"]
 	if !ok {
 		t.Fatal("ComputeServiceError schema missing")
+		return
 	}
 	codeProp := prob.Properties["code"]
 	if codeProp == nil {
 		t.Fatal("ComputeServiceError.code missing")
+		return
 	}
 	if len(codeProp.Enum) != len(apperrors.AllCodes()) {
 		t.Errorf("ComputeServiceError.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
