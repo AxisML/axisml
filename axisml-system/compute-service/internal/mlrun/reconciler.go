@@ -96,10 +96,24 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 	if err := r.runtime.ApplyMLRun(ctx, cr); err != nil {
 		// The message surfaces via status.message (a jsonb field); there is no
 		// top-level `message` column.
+		terminal := extensions.IsTerminalApplyError(err)
+		now := time.Now().UTC()
 		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.Message = err.Error()
+			if terminal {
+				s.FinishedAt = &now
+			}
 		})
-		_ = r.repo.Update(ctx, j.ID, map[string]any{"status": next})
+		updates := map[string]any{"status": next}
+		if terminal {
+			updates["phase"] = string(StatusFailed)
+		}
+		_ = r.repo.Update(ctx, j.ID, updates)
+		if terminal {
+			r.log.Error(err, "apply MLRun terminal failure", "name", j.Name)
+			metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "failed").Inc()
+			return
+		}
 		if extensions.IsResourceUnavailable(err) {
 			// Insufficient resources (e.g. no free GPU): expected, stay Pending and
 			// retry quietly on the next tick.

@@ -65,7 +65,9 @@ var ErrInstanceNotOwned = errors.New("instance does not belong to this workload"
 // apierrors.IsNotFound; any other error indicates the observation itself
 // failed. All Apply and Delete operations must be idempotent so that a process
 // crash between a successful runtime call and the PG status commit is safe to
-// retry.
+// retry. ApplyMLRun may return TerminalApplyError when retrying the unchanged
+// desired Run is not useful; Compute Service records the message and transitions
+// that Run to Failed. ResourceUnavailableError instead keeps the Run Pending.
 //
 // An instance is the runtime's unified term for a single running unit: a Pod in
 // the Kubernetes implementation, a Docker container in the Standalone one.

@@ -4,6 +4,8 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 	"github.com/axisml/axisml/test/testutil"
@@ -42,6 +45,7 @@ type fakeResourceRuntime struct {
 	mu          sync.Mutex
 	unavailable bool
 	placed      bool
+	applyError  error
 }
 
 func (f *fakeResourceRuntime) setPlaced() {
@@ -54,6 +58,9 @@ func (f *fakeResourceRuntime) setPlaced() {
 func (f *fakeResourceRuntime) applyErr() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.applyError != nil {
+		return f.applyError
+	}
 	if f.unavailable {
 		return extensions.NewResourceUnavailable("等待可用 GPU（需 1，空闲 0）")
 	}
@@ -200,6 +207,49 @@ func TestMLRun_WaitsForGPUThenRuns(t *testing.T) {
 	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
 		if p := runPhase(t, ctx, id); p != string(mlrun.StatusRunning) {
 			return fmt.Errorf("phase=%s, want Running", p)
+		}
+		return nil
+	})
+}
+
+func TestMLRun_TerminalApplyErrorFails(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	applyErr := errors.New(`pull image "registry.example.com/missing:v1": manifest unknown`)
+	fake := &fakeResourceRuntime{applyError: extensions.NewTerminalApplyError(applyErr)}
+	recon := mlrun.NewReconciler(gormDB, fake, logr.Discard(), 50*time.Millisecond, false)
+	go func() { _ = recon.Start(ctx) }()
+
+	id := uuid.New()
+	require.NoError(t, gormDB.WithContext(ctx).Create(&store.MLRun{
+		ID:          id,
+		Namespace:   "terminal-apply-it-run",
+		Name:        "failed-" + id.String()[:8],
+		Spec:        datatypes.JSON(`{}`),
+		Phase:       string(mlrun.StatusCreating),
+		Labels:      datatypes.JSON(`{}`),
+		Annotations: datatypes.JSON(`{}`),
+		StatusJSON:  datatypes.JSON(`{}`),
+	}).Error)
+
+	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
+		var row store.MLRun
+		if err := gormDB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if row.Phase != string(mlrun.StatusFailed) {
+			return fmt.Errorf("phase=%s, want Failed", row.Phase)
+		}
+		var status server.MLRunStatus
+		if err := json.Unmarshal(row.StatusJSON, &status); err != nil {
+			return err
+		}
+		if status.Message != applyErr.Error() {
+			return fmt.Errorf("message=%q, want %q", status.Message, applyErr.Error())
+		}
+		if status.FinishedAt == nil {
+			return errors.New("finishedAt is nil")
 		}
 		return nil
 	})
