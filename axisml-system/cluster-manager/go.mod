@@ -16,7 +16,7 @@ require (
 replace github.com/axisml/axisml/axisml-system/apis => ../apis
 
 require (
-	github.com/axisml/axisml/axisml-system/apis v0.0.2
+	github.com/axisml/axisml/axisml-system/apis v0.0.0-20260727165316-d8acf113ec36
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
