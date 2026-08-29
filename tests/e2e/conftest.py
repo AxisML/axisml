@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 from lib import config, seeding
-from lib.harness import Capability, form_supports
 from lib.naming import unique_name
 from lib.portforward import PortForward
 
@@ -69,12 +68,10 @@ def admin_token(base_url: str, cfg: config.Config) -> str:
 
 
 @pytest.fixture
-def seeded_tenant(mode: str, base_url: str, admin_token: str, cfg: config.Config):
+def seeded_tenant(base_url: str, admin_token: str, cfg: config.Config):
     """A tenant (admin is its initial member) + quota, removed after the test.
 
-    Provisioning requires the multi-tenant Kubernetes control plane."""
-    if not form_supports(mode, Capability.MULTI_TENANT):
-        pytest.skip("deployment does not support multiTenant")
+    Tenant storage is writable in both deployment forms."""
     client = seeding.admin_client(base_url, admin_token)
     identifier = unique_name("ui-t")
     seeding.create_tenant_with_quota(client, identifier, cfg.admin_username, cfg)

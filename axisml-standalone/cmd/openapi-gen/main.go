@@ -18,12 +18,9 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 var assemblyPaths = map[string]bool{
-	"/healthz":             true,
-	"/readyz":              true,
-	"/api/v1/capabilities": true,
+	"/healthz": true,
+	"/readyz":  true,
 }
-
-var assemblySchemas = map[string]bool{"Capabilities": true}
 
 func main() {
 	out := flag.String("o", "docs/apis/standalone.yaml", "canonical spec output path")
@@ -76,7 +73,6 @@ func standaloneDocument(version string) map[string]any {
 		},
 		"servers": []any{map[string]any{"url": "/", "description": "Same-origin (axisml-standalone)"}},
 		"tags": []any{
-			map[string]any{"name": "Capabilities", "description": "Aggregate deployment capability document."},
 			map[string]any{"name": "Health", "description": "Liveness and readiness probes."},
 		},
 		"paths": map[string]any{
@@ -84,28 +80,8 @@ func standaloneDocument(version string) map[string]any {
 			"/readyz": probePath("Readiness probe", "readyz", map[string]any{
 				"200": stringResponse("ok"), "503": stringResponse("dependency not yet ready"),
 			}),
-			"/api/v1/capabilities": map[string]any{"get": map[string]any{
-				"tags": []any{"Capabilities"}, "summary": "Get the aggregate capability document", "operationId": "getCapabilities",
-				"responses": map[string]any{"200": map[string]any{
-					"description": "Aggregate capability document.",
-					"content":     map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/Capabilities"}}},
-				}},
-			}},
 		},
-		"components": map[string]any{"schemas": map[string]any{
-			"Capabilities": map[string]any{
-				"type": "object", "required": []any{"components"},
-				"properties": map[string]any{"components": map[string]any{
-					"type": "object", "additionalProperties": map[string]any{},
-					"description": "Per-component capability documents keyed by component name.",
-				}},
-				"example": map[string]any{"components": map[string]any{
-					"cluster-manager": map[string]any{"multiTenant": false, "resourcePoolsWritable": false},
-					"compute-service": map[string]any{"mlrun": true, "mlservice": true, "mltrafficpolicy": true},
-					"artifact-hub":    map[string]any{"models": true, "images": true},
-				}},
-			},
-		}},
+		"components": map[string]any{"schemas": map[string]any{}},
 	}
 }
 
@@ -124,9 +100,6 @@ func stringResponse(description string) map[string]any {
 func foldOne(dst, src map[string]any) error {
 	dstSchemas := nestedMap(dst, "components", "schemas")
 	for name, schema := range nestedMap(src, "components", "schemas") {
-		if assemblySchemas[name] {
-			continue
-		}
 		if existing, found := dstSchemas[name]; found {
 			if !reflect.DeepEqual(existing, schema) {
 				return fmt.Errorf("schema %q has divergent definitions", name)

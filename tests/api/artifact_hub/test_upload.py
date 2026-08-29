@@ -2,8 +2,8 @@
 
 initiate -> push a config-only manifest to zot -> complete -> resolve, asserting
 the resolved digest equals what was pushed. Metadata-only lifecycle is covered by
-the hermetic integration suite, so it isn't duplicated here. Runs under both forms
-(``ARTIFACT_UPLOAD``): the harness resolves a host-visible zot endpoint per form.
+the hermetic integration suite, so it isn't duplicated here. It runs under both
+forms; the harness resolves a host-visible zot endpoint per form.
 
 The API exposes a single /artifacts resource for every kind; kind travels in the
 initiate body.
@@ -24,13 +24,11 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
-from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
 
 def test_model_two_phase_upload_resolve(harness, cfg, tenant):
-    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     ns = tenant
     name = unique_name("e2e-2phase")
     version = "1.0.0"

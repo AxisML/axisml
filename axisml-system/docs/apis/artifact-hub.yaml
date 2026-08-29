@@ -388,28 +388,6 @@ components:
       - storageKind
       - uri
       type: object
-    Capabilities:
-      example:
-        kinds:
-        - model
-        - dataset
-        - image
-        upload: true
-      properties:
-        kinds:
-          description: Artifact kinds served in this deployment form (model, dataset,
-            image).
-          items:
-            type: string
-          type: array
-        upload:
-          description: Whether two-phase artifact upload is available in this deployment
-            form.
-          type: boolean
-      required:
-      - kinds
-      - upload
-      type: object
     OciCredentials:
       properties:
         expires_at:
@@ -453,19 +431,6 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/capabilities:
-    get:
-      operationId: getCapabilities
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Capabilities'
-          description: Capability document.
-      summary: Get deployment-form capabilities
-      tags:
-      - Capabilities
   /api/v1/namespaces/{namespace}/artifacts:
     get:
       operationId: listArtifacts
@@ -1236,7 +1201,5 @@ tags:
 - description: Artifact registry addressed by (namespace, name, version); kind is
     an attribute.
   name: Artifacts
-- description: Deployment-form capability document (artifact kinds / upload).
-  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

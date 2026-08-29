@@ -17,15 +17,6 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Capabilities defines model for Capabilities.
-type Capabilities struct {
-	// MultiTenant Whether Tenant CRUD is available (false = single static default tenant).
-	MultiTenant bool `json:"multiTenant"`
-
-	// ResourcePoolsWritable Whether ResourcePool CRUD is available (false = single read-only default pool).
-	ResourcePoolsWritable bool `json:"resourcePoolsWritable"`
-}
-
 // ClusterManagerError defines model for ClusterManagerError.
 type ClusterManagerError struct {
 	// Code Stable machine-readable error code for programmatic handling.
@@ -952,9 +943,6 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetCapabilities request
-	GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListResourcePools request
 	ListResourcePools(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1061,18 +1049,6 @@ type ClientInterface interface {
 
 	// Readyz request
 	Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
-
-func (c *Client) GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetCapabilitiesRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
 }
 
 func (c *Client) ListResourcePools(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1541,33 +1517,6 @@ func (c *Client) Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 		return nil, err
 	}
 	return c.Client.Do(req)
-}
-
-// NewGetCapabilitiesRequest generates requests for GetCapabilities
-func NewGetCapabilitiesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/capabilities")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
 }
 
 // NewListResourcePoolsRequest generates requests for ListResourcePools
@@ -2924,9 +2873,6 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetCapabilitiesWithResponse request
-	GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error)
-
 	// ListResourcePoolsWithResponse request
 	ListResourcePoolsWithResponse(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*ListResourcePoolsResponse, error)
 
@@ -3033,28 +2979,6 @@ type ClientWithResponsesInterface interface {
 
 	// ReadyzWithResponse request
 	ReadyzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyzResponse, error)
-}
-
-type GetCapabilitiesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Capabilities
-}
-
-// Status returns HTTPResponse.Status
-func (r GetCapabilitiesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetCapabilitiesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
 }
 
 type ListResourcePoolsResponse struct {
@@ -3877,15 +3801,6 @@ func (r ReadyzResponse) StatusCode() int {
 	return 0
 }
 
-// GetCapabilitiesWithResponse request returning *GetCapabilitiesResponse
-func (c *ClientWithResponses) GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error) {
-	rsp, err := c.GetCapabilities(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetCapabilitiesResponse(rsp)
-}
-
 // ListResourcePoolsWithResponse request returning *ListResourcePoolsResponse
 func (c *ClientWithResponses) ListResourcePoolsWithResponse(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*ListResourcePoolsResponse, error) {
 	rsp, err := c.ListResourcePools(ctx, params, reqEditors...)
@@ -4225,32 +4140,6 @@ func (c *ClientWithResponses) ReadyzWithResponse(ctx context.Context, reqEditors
 		return nil, err
 	}
 	return ParseReadyzResponse(rsp)
-}
-
-// ParseGetCapabilitiesResponse parses an HTTP response from a GetCapabilitiesWithResponse call
-func ParseGetCapabilitiesResponse(rsp *http.Response) (*GetCapabilitiesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetCapabilitiesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Capabilities
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
 }
 
 // ParseListResourcePoolsResponse parses an HTTP response from a ListResourcePoolsWithResponse call

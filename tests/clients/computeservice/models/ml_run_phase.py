@@ -17,10 +17,12 @@ class MLRunPhase:
     """
     Attributes:
         name (str): MLRun name, unique within the namespace.
-        phase (str): Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled,
-            Deleting, Deleted.
+        phase (str): Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling,
+            Cancelled, Deleting, Deleted.
         finished_at (datetime.datetime | None | Unset): Time the run reached a terminal phase.
         message (str | Unset): Human-readable status detail for the current phase.
+        queue_reason (str | Unset): Stable reason while Queued.
+        scheduled_at (datetime.datetime | None | Unset): Time the runtime accepted the run and it entered Pending.
         started_at (datetime.datetime | None | Unset): Time the run started executing.
     """
 
@@ -28,6 +30,8 @@ class MLRunPhase:
     phase: str
     finished_at: datetime.datetime | None | Unset = UNSET
     message: str | Unset = UNSET
+    queue_reason: str | Unset = UNSET
+    scheduled_at: datetime.datetime | None | Unset = UNSET
     started_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -45,6 +49,16 @@ class MLRunPhase:
             finished_at = self.finished_at
 
         message = self.message
+
+        queue_reason = self.queue_reason
+
+        scheduled_at: None | str | Unset
+        if isinstance(self.scheduled_at, Unset):
+            scheduled_at = UNSET
+        elif isinstance(self.scheduled_at, datetime.datetime):
+            scheduled_at = self.scheduled_at.isoformat()
+        else:
+            scheduled_at = self.scheduled_at
 
         started_at: None | str | Unset
         if isinstance(self.started_at, Unset):
@@ -66,6 +80,10 @@ class MLRunPhase:
             field_dict["finishedAt"] = finished_at
         if message is not UNSET:
             field_dict["message"] = message
+        if queue_reason is not UNSET:
+            field_dict["queueReason"] = queue_reason
+        if scheduled_at is not UNSET:
+            field_dict["scheduledAt"] = scheduled_at
         if started_at is not UNSET:
             field_dict["startedAt"] = started_at
 
@@ -97,6 +115,25 @@ class MLRunPhase:
 
         message = d.pop("message", UNSET)
 
+        queue_reason = d.pop("queueReason", UNSET)
+
+        def _parse_scheduled_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                scheduled_at_type_0 = datetime.datetime.fromisoformat(data)
+
+                return scheduled_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        scheduled_at = _parse_scheduled_at(d.pop("scheduledAt", UNSET))
+
         def _parse_started_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -119,6 +156,8 @@ class MLRunPhase:
             phase=phase,
             finished_at=finished_at,
             message=message,
+            queue_reason=queue_reason,
+            scheduled_at=scheduled_at,
             started_at=started_at,
         )
 

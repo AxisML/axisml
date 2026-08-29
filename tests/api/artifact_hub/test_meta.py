@@ -1,8 +1,6 @@
-"""artifact-hub: list projection, capability document, and liveness."""
+"""artifact-hub: list projection and liveness."""
 
 from __future__ import annotations
-
-import pytest
 
 from clients.artifacthub.api.artifacts import (
     complete_artifact,
@@ -10,7 +8,6 @@ from clients.artifacthub.api.artifacts import (
     initiate_artifact,
     list_artifacts,
 )
-from clients.artifacthub.api.capabilities import get_capabilities
 from clients.artifacthub.api.health import healthz
 from clients.artifacthub.models import (
     ArtifactCompleteRequest,
@@ -18,17 +15,8 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
-from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
-
-
-@pytest.mark.kubernetes_only
-def test_capabilities(harness):
-    caps = get_capabilities.sync_detailed(client=harness.artifact_hub)
-    assert caps.status_code == 200, caps.content
-    assert "model" in caps.parsed.kinds
-    assert caps.parsed.upload == harness.supports(Capability.ARTIFACT_UPLOAD)
 
 
 def test_health(harness):
@@ -38,7 +26,6 @@ def test_health(harness):
 
 def test_list_artifacts_projects_uploaded(harness, cfg, tenant):
     """A completed model must surface in the namespace's artifact listing."""
-    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     ns = tenant
     name = unique_name("e2e-list")
     version = "1.0.0"

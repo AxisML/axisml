@@ -7,6 +7,18 @@ projection / logs, so the same test validates the operator-backed deployment
 
 from __future__ import annotations
 
+import pytest
+
+from clients.clustermanager.api.resource_pools import (
+    create_resource_pool,
+    delete_resource_pool,
+)
+from clients.clustermanager.models import (
+    CreateResourcePoolRequest,
+    ServerCreateResourceUnitRequest,
+    ServerCreateResourceUnitRequestLimits,
+    ServerCreateResourceUnitRequestRequests,
+)
 from clients.computeservice.api.ml_runs import (
     cancel_ml_run,
     create_ml_run,
@@ -56,6 +68,67 @@ def test_mlrun_lifecycle(harness, cfg, tenant):
         assert "hello" in logs.content.decode(), logs.content
     finally:
         delete_ml_run.sync_detailed(ns, name, client=harness.compute_service)
+
+
+@pytest.mark.standalone_only
+def test_mlrun_uses_dynamically_created_resource_pool(harness, cfg):
+    """A pool written through Cluster Manager is immediately visible to Compute."""
+    pool = unique_name("e2e-dynamic-pool")
+    tenant = unique_name("e2e-dynamic-tenant")
+    run = unique_name("e2e-dynamic-run")
+    unit = cfg.default_unit
+
+    created_pool = create_resource_pool.sync_detailed(
+        client=harness.cluster_manager,
+        body=CreateResourcePoolRequest(
+            name=pool,
+            units=[
+                ServerCreateResourceUnitRequest(
+                    name=unit,
+                    requests=ServerCreateResourceUnitRequestRequests.from_dict(
+                        {"cpu": "1", "memory": "1Gi"}
+                    ),
+                    limits=ServerCreateResourceUnitRequestLimits.from_dict(
+                        {"cpu": "1", "memory": "1Gi"}
+                    ),
+                )
+            ],
+        ),
+    )
+    assert created_pool.status_code in (200, 201), created_pool.content
+    try:
+        harness.create_tenant(tenant, pool=pool, quantity=1)
+        try:
+            body = builders.busybox_mlrun(cfg, run)
+            body.pool_name = pool
+            body.unit_name = unit
+            created_run = create_ml_run.sync_detailed(
+                tenant, client=harness.compute_service, body=body
+            )
+            assert created_run.status_code in (200, 201), created_run.content
+            try:
+                def succeeded():
+                    current = get_ml_run.sync_detailed(
+                        tenant, run, client=harness.compute_service
+                    )
+                    assert current.status_code == 200, current.content
+                    assert current.parsed.phase == "Succeeded", (
+                        f"phase={current.parsed.phase!r}"
+                    )
+
+                eventually(
+                    succeeded,
+                    timeout=cfg.mlrun_complete_timeout,
+                    interval=cfg.poll_interval,
+                )
+            finally:
+                delete_ml_run.sync_detailed(
+                    tenant, run, client=harness.compute_service
+                )
+        finally:
+            harness.delete_tenant(tenant)
+    finally:
+        delete_resource_pool.sync_detailed(pool, client=harness.cluster_manager)
 
 
 def test_mlrun_cancel(harness, cfg, tenant):

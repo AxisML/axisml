@@ -18,7 +18,6 @@ const (
 	tagResourceUnits = "ResourceUnits"
 	tagTenants       = "Tenants"
 	tagVolumes       = "Volumes"
-	tagCapabilities  = "Capabilities"
 	tagHealth        = "Health"
 )
 
@@ -63,7 +62,6 @@ func Document(version string) *openapigen.Document {
 	g.Register("TenantList", server.TenantList{}, openapigen.ResponseMode)
 	g.Register("Quota", server.Quota{}, openapigen.ResponseMode)
 	g.Register("QuotaList", server.QuotaList{}, openapigen.ResponseMode)
-	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 	g.Register("CreateVolumeRequest", server.CreateVolumeRequest{}, openapigen.InputMode)
 	g.Register("PatchVolumeRequest", server.PatchVolumeRequest{}, openapigen.InputMode)
 	g.Register("Volume", server.Volume{}, openapigen.ResponseMode)
@@ -78,7 +76,6 @@ func Document(version string) *openapigen.Document {
 		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},
 		{Name: tagTenants, Description: "Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded to ElasticQuota); cluster-manager is the REST writer."},
 		{Name: tagVolumes, Description: "Durable data-volume lifecycle (PersistentVolumeClaim create/list/get/expand/delete) with mount-occupancy reporting; idempotent create/delete."},
-		{Name: tagCapabilities, Description: "Deployment-form capability document (multi-tenant / writable resource pools)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
@@ -108,11 +105,6 @@ func Document(version string) *openapigen.Document {
 	paths["/readyz"] = openapigen.PathItem{Get: &openapigen.Operation{
 		Tags: []string{tagHealth}, Summary: "Readiness probe", OperationID: "readyz",
 		Responses: map[string]openapigen.Response{"200": {Description: "ok"}},
-	}}
-
-	paths["/api/v1/capabilities"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagCapabilities}, Summary: "Get deployment-form capabilities", OperationID: "getCapabilities",
-		Responses: map[string]openapigen.Response{"200": openapigen.JSONResp("Capability document.", "Capabilities")},
 	}}
 
 	paths["/api/v1/resourcepools"] = openapigen.PathItem{

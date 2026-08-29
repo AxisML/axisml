@@ -39,8 +39,8 @@ class MLRunCreateRequest:
         pool_name (str): Resource pool name resolved against the ResourcePool CRD via the Informer cache.
         roles (list[MLRunRoleSpec]): Run topology roles (at least one).
         unit_name (str): Resource unit (shape) name within the selected pool.
-        annotations (MLRunCreateRequestAnnotations | Unset): User-defined annotations stored on the row and stamped onto
-            the CR.
+        annotations (MLRunCreateRequestAnnotations | Unset): User-defined annotations stored on the row;
+            scheduling.axisml.io/priority is also stamped onto the runtime object.
         backend (MLRunBackendSpec | None | Unset): Compute backend/engine that runs the workload; defaults to (native,
             job) when omitted.
         config_maps (list[WorkloadconfigConfigMap] | Unset): ConfigMaps created and owned by this MLRun before its pods

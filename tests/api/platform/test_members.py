@@ -1,4 +1,4 @@
-"""platform: tenant member add + role update (requires MULTI_TENANT).
+"""platform: tenant member add + role update.
 
 The existing quota test covers listing/removing members; this closes the write
 paths — adding a member and promoting their role.
@@ -22,14 +22,12 @@ from clients.platform.models import (
     UserCreateRequest,
 )
 from lib import platform_helpers
-from lib.harness import Capability
 from lib.naming import unique_name
 
 PASSWORD = "password123"
 
 
 def test_add_and_update_member(harness):
-    harness.skip_unless(Capability.MULTI_TENANT)
     admin = harness.platform(harness.admin_token())
     owner = unique_name("mem-owner")
     extra = unique_name("mem-extra")

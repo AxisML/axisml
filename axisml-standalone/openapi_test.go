@@ -61,7 +61,6 @@ func TestOpenAPISpecFull(t *testing.T) {
 	for _, p := range []string{
 		"/healthz",
 		"/readyz",
-		"/api/v1/capabilities",
 		"/api/v1/resourcepools",
 		"/api/v1/namespaces/{namespace}/mlruns",
 		"/api/v1/namespaces/{namespace}/mlservices",
@@ -95,7 +94,6 @@ func TestOpenAPISpecScopedPrunesPathsAndSchemas(t *testing.T) {
 	// the sibling resources under the shared /namespaces/{namespace} prefix.
 	for _, p := range []string{
 		"/healthz",
-		"/api/v1/capabilities",
 		"/api/v1/namespaces/{namespace}/mlservices",
 		"/api/v1/namespaces/{namespace}/traffic-policies",
 		"/api/v1/namespaces/{namespace}/artifacts",

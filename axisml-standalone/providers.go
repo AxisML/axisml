@@ -19,12 +19,9 @@ import (
 
 const apiGroup = "axisml.io"
 
-// ConfigResourceCatalog serves the read-only ResourcePools parsed from the
-// static CR-YAML config. It satisfies BOTH the cluster-manager
-// ResourcePoolProvider (read-only REST surface) and the compute-service
-// ResourceResolver (look up a pool / unit by name). Writes return
-// ErrCapabilityUnavailable (design §5.1); the handlers map that to 409
-// CapabilityUnavailable.
+// ConfigResourceCatalog is an immutable in-memory ResourcePool snapshot for
+// embedding and focused tests. The standalone App imports startup YAML into its
+// PostgreSQL store instead; this provider intentionally remains read-only.
 type ConfigResourceCatalog struct {
 	// order preserves the config load order for List; byName indexes it for Get.
 	order  []*cmv1alpha1.ResourcePool
@@ -74,7 +71,7 @@ func (c *ConfigResourceCatalog) List(_ context.Context, _ metav1.ListOptions) (*
 	return &cmv1alpha1.ResourcePoolList{Items: items}, nil
 }
 
-// Create is unavailable in standalone (pools are read-only config).
+// Create is unavailable on this immutable snapshot provider.
 func (c *ConfigResourceCatalog) Create(context.Context, *cmv1alpha1.ResourcePool) error {
 	return cmext.ErrCapabilityUnavailable
 }
@@ -88,9 +85,6 @@ func (c *ConfigResourceCatalog) Patch(context.Context, *cmv1alpha1.ResourcePool,
 func (c *ConfigResourceCatalog) Delete(context.Context, string) error {
 	return cmext.ErrCapabilityUnavailable
 }
-
-// Writable reports the standalone config-backed pool store is read-only.
-func (c *ConfigResourceCatalog) Writable() bool { return false }
 
 // ResolveResourcePool returns the named pool, or a validation error for an
 // unknown name (the business layer maps it to 400).
@@ -124,9 +118,8 @@ func (c *ConfigResourceCatalog) ResolveResourceUnit(ctx context.Context, poolNam
 	return nil, apperrors.Newf(apperrors.CodeValidation, "resource unit %q not found in pool %q", unitName, poolName)
 }
 
-// StaticTenantStore serves the read-only Tenants parsed from the static CR-YAML
-// config. Get/List are available; Create is idempotent for a configured tenant
-// only; all other writes return ErrCapabilityUnavailable (design §5.1).
+// StaticTenantStore is an immutable in-memory Tenant snapshot for embedding and
+// focused tests. The standalone App imports startup YAML into PostgreSQL instead.
 type StaticTenantStore struct {
 	// order preserves the config load order for List; byName indexes it for Get.
 	order  []*tenantv1alpha1.Tenant
@@ -175,7 +168,7 @@ func (s *StaticTenantStore) List(_ context.Context, _ metav1.ListOptions) (*tena
 }
 
 // Create is idempotent for a configured tenant and unavailable for any other
-// name (standalone tenants are read-only config; the handler maps the error to 409).
+// name; unknown names are unavailable on this immutable snapshot.
 func (s *StaticTenantStore) Create(_ context.Context, t *tenantv1alpha1.Tenant) error {
 	if t != nil {
 		if _, ok := s.byName[t.Name]; ok {
@@ -194,10 +187,6 @@ func (s *StaticTenantStore) Patch(context.Context, *tenantv1alpha1.Tenant, *tena
 func (s *StaticTenantStore) Delete(context.Context, string) error {
 	return cmext.ErrCapabilityUnavailable
 }
-
-// Writable reports the standalone config-backed tenant store is read-only (tenants are
-// config-defined presets, not created through the API).
-func (s *StaticTenantStore) Writable() bool { return false }
 
 // ResolveQuota returns the same static Tenant.spec.quotas[].max contract used
 // by the Kubernetes-backed queue.

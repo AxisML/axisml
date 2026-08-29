@@ -13,6 +13,7 @@ def _get_kwargs(
     namespace: str,
     mlrun: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/api/v1/namespaces/{namespace}/mlruns/{mlrun}".format(

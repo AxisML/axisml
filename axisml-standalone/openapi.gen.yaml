@@ -388,27 +388,6 @@ components:
       - storageKind
       - uri
       type: object
-    Capabilities:
-      example:
-        components:
-          artifact-hub:
-            images: true
-            models: true
-          cluster-manager:
-            multiTenant: false
-            resourcePoolsWritable: false
-          compute-service:
-            mlrun: true
-            mlservice: true
-            mltrafficpolicy: true
-      properties:
-        components:
-          additionalProperties: {}
-          description: Per-component capability documents keyed by component name.
-          type: object
-      required:
-      - components
-      type: object
     ClusterManagerError:
       example:
         code: NotFound
@@ -5036,19 +5015,6 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/capabilities:
-    get:
-      operationId: getCapabilities
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Capabilities'
-          description: Aggregate capability document.
-      summary: Get the aggregate capability document
-      tags:
-      - Capabilities
   /api/v1/namespaces/{namespace}/artifacts:
     get:
       operationId: listArtifacts
@@ -10595,8 +10561,6 @@ servers:
 - description: Same-origin (axisml-standalone)
   url: /
 tags:
-- description: Aggregate deployment capability document.
-  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health
 - description: ResourcePool CRD CRUD.

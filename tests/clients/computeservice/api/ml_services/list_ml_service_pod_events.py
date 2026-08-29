@@ -15,6 +15,7 @@ def _get_kwargs(
     mlservice: str,
     pod: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events".format(

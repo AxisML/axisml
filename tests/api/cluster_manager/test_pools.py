@@ -1,8 +1,4 @@
-"""cluster-manager: the ResourcePool + ResourceUnit REST shell over the CRD.
-
-The default pool is read-only on both forms; pool/unit writes only exist on the
-The Kubernetes deployment provides ``RESOURCE_POOL_WRITE``.
-"""
+"""Cluster Manager ResourcePool and ResourceUnit CRUD across deployment forms."""
 
 from __future__ import annotations
 
@@ -29,7 +25,6 @@ from clients.clustermanager.models import (
     ServerCreateResourceUnitRequestLimits,
     ServerCreateResourceUnitRequestRequests,
 )
-from lib.harness import Capability
 from lib.naming import unique_name
 
 
@@ -48,7 +43,6 @@ def test_get_unknown_pool_returns_404(harness):
 
 
 def test_resource_pool_and_unit_crud(harness):
-    harness.skip_unless(Capability.RESOURCE_POOL_WRITE)
     pool = unique_name("e2e-pool")
 
     r = create_resource_pool.sync_detailed(

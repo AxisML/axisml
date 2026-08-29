@@ -23,8 +23,8 @@ Standalone 代码属于 `github.com/axisml/axisml/axisml-standalone`，并依赖
 `pkg/module` 暴露构造、路由、migration 和后台任务；repository 与 handler 仍
 留在 System 组件内部。根 `standalone` package 是 composition root：
 
-- `New(ctx, Config, ...Option)` 装配数据库、静态资源目录、Docker runtime 和模块；
-- `App.Migrate()` 执行 Compute Service 与 Artifact Hub migration；
+- `New(ctx, Config, ...Option)` 装配数据库、资源目录、Docker runtime 和模块；
+- `App.Migrate()` 执行 standalone、Compute Service 与 Artifact Hub migration，并导入 ResourcePool/Tenant 初始种子；
 - `App.Handler()` 返回完整 `http.Handler`；`RegisterRoutes` 支持 Gin 宿主；
 - `App.Serve(ctx)` 或 `App.Runnables()` 负责后台 reconcile / status / GC 生命周期；
 - `App.Close()` 释放由 `New` 创建的数据库和 Docker client。
@@ -37,13 +37,29 @@ Cluster Manager、Compute Service 与 Artifact Hub 解析到相邻源码。公�
 `Serve` 与 `Runnables` 只能认领后台任务一次。宿主必须在关闭数据库和 Docker
 client 前取消任务上下文并等待任务退出。
 
-## 4. 资源目录与能力
+## 4. 资源目录与公共合同
 
-ResourcePool 和 Tenant 从 `/etc/axisml/pools/resourcepools/*.yaml` 与
-`/etc/axisml/pools/tenants/*.yaml` 加载，启动时完整校验并形成只读 provider。
-Standalone 不提供租户和资源池写入，不执行 ElasticQuota，也不提供 Prometheus
-指标查询。`/api/v1/capabilities` 返回三个模块的聚合能力文档，Platform 和测试
-据此隐藏或跳过不可用操作。
+`/etc/axisml/pools/resourcepools/*.yaml` 和 `/etc/axisml/pools/tenants/*.yaml`
+只作为首次启动种子导入 PostgreSQL。之后 ResourcePool、内嵌 ResourceUnit 和 Tenant
+分别通过与 Kubernetes 形态相同的 `/api/v1/resourcepools`、`/api/v1/tenants` CRUD 和
+`/api/v1/tenants/{tenant}/quotas` 配额接口维护，API 删除不会因种子文件仍在而在重启
+后复活。Compute 创建负载时直接读取持久化 ResourcePool/unit，队列读取持久化
+Tenant 的 pool quota，对 MLRun 执行跨运行时的算力准入。Tenant、quota、
+ResourcePool、ResourceUnit、Artifact 和 MLRun 队列/优先级使用与 Kubernetes 形态
+相同的公共 API，不再通过静态 capability 文档区分。
+
+Standalone 的部署形态差异限定在运行时语义：
+
+- MLRun 只支持 `(native, job)`；MLService 只支持
+  `(native, deployment|statefulset)`；
+- MLService route 的 auth 与 rate limit 不受支持；
+- volume 支持创建、查询与删除，但不支持扩容；
+- 不提供 Prometheus workload / ResourcePool 指标查询；
+- 不执行 Kubernetes scheduler 的 ElasticQuota 准入。Tenant pool quota 仍由 MLRun
+  队列执行，MLService 不经过该队列。
+
+请求触发不受支持的运行时语义时，API 返回稳定的 `CapabilityUnavailable`（HTTP
+409），由具体操作给出原因；客户端无需预先读取全局能力矩阵。
 
 预定义 volume 在启动时创建。普通 volume 映射为受管 Docker volume；带
 `hostPath` 的 volume 映射为宿主绝对路径，只允许在 standalone 使用。
@@ -69,8 +85,8 @@ container plan 与 Traefik 配置不进入服务接口或数据库。
 
 Standalone 只读取 `AXISML_` 环境变量；秘密字段同时支持 `_FILE`。端口、目录、
 Docker network 与后台周期是 `DefaultSettings`，嵌入宿主可通过 `WithSettings`
-覆盖。PostgreSQL、zot 数据、Traefik 配置与 workload ConfigMap 投影分别使用
-Compose volume 持久化。
+覆盖。Tenant desired state 与 workload/artifact 元数据一并持久化到 PostgreSQL；
+zot 数据、Traefik 配置与 workload ConfigMap 投影分别使用 Compose volume 持久化。
 
 队列容量从 Docker host 总量扣除 `workload.system_reserved_cpu`（默认 `0`）和
 `workload.system_reserved_memory`（默认 `0`），用于保留 OS 与控制面开销。生产部署应按宿主机
@@ -82,5 +98,5 @@ Compose volume 持久化。
 聚合 OpenAPI 由 `axisml-standalone/cmd/openapi-gen` 从三个组件生成规格折叠而成，并
 同时写入 `axisml-standalone/docs/apis/standalone.yaml` 与运行时 embed 文件。
 `make docs-test` 检查两份产物无漂移。黑盒套件通过
-`pytest --mode kubernetes|standalone` 运行同一批测试，形态差异只由 capability
-matrix 和显式 `<mode>_only` marker 表达。
+`pytest --mode kubernetes|standalone` 运行同一批公共合同测试；只有上述真实运行时
+边界使用显式 `<mode>_only` marker 表达。

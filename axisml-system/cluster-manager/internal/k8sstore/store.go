@@ -1,7 +1,7 @@
 // Package k8sstore is the Kubernetes implementation of the cluster-manager
 // provider stores: full CRUD over the cluster-scoped ResourcePool and Tenant
 // CRs via a controller-runtime client.Client. The standalone deployment supplies read-only
-// config-backed stores instead.
+// PostgreSQL-backed stores instead.
 package k8sstore
 
 import (
@@ -64,9 +64,6 @@ func (s *ResourcePoolStore) Delete(ctx context.Context, name string) error {
 	return s.c.Delete(ctx, pool)
 }
 
-// Writable reports the Kubernetes store accepts full CRUD.
-func (s *ResourcePoolStore) Writable() bool { return true }
-
 // TenantStore backs extensions.TenantProvider with a client.Client.
 type TenantStore struct {
 	c client.Client
@@ -112,9 +109,6 @@ func (s *TenantStore) Delete(ctx context.Context, name string) error {
 	cr.Name = name
 	return s.c.Delete(ctx, cr)
 }
-
-// Writable reports the Kubernetes store supports multi-tenant CRUD.
-func (s *TenantStore) Writable() bool { return true }
 
 // listOptions translates the standard metav1.ListOptions into controller-runtime
 // options. The selector is re-parsed here (handlers pre-validate it for the 400

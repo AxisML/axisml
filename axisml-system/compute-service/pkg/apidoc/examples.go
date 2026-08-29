@@ -267,12 +267,6 @@ func registerExamples(g *openapigen.Generator) {
 	}
 	g.SetExample("Event", event)
 
-	// ---- Capabilities ------------------------------------------------------
-	g.SetExample("Capabilities", obj{
-		"runtime":          "kubernetes",
-		"quotaEnforcement": true,
-	})
-
 	// ---- List envelopes ({items, total}) — registered in Document() after
 	// this call, so each reuses its item example above. ----------------------
 	g.SetExample("MLRunList", obj{"items": []any{mlRun}, "total": 1})

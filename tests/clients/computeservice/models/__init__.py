@@ -1,6 +1,5 @@
 """Contains all the data models used in inputs/outputs"""
 
-from .capabilities import Capabilities
 from .compute_service_error import ComputeServiceError
 from .compute_service_error_code import ComputeServiceErrorCode
 from .compute_service_error_details import ComputeServiceErrorDetails
@@ -190,7 +189,6 @@ from .workloadconfig_config_map import WorkloadconfigConfigMap
 from .workloadconfig_config_map_data import WorkloadconfigConfigMapData
 
 __all__ = (
-    "Capabilities",
     "ComputeServiceError",
     "ComputeServiceErrorCode",
     "ComputeServiceErrorDetails",

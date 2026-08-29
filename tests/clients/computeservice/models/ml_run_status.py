@@ -18,11 +18,14 @@ class MLRunStatus:
     Attributes:
         finished_at (datetime.datetime | None | Unset): Time the run reached a terminal phase.
         message (str | Unset): Human-readable status detail for the current phase.
+        queue_reason (str | Unset): Stable reason while Queued: InventoryUnavailable, QuotaUnavailable, QuotaExceeded,
+            NoMatchingNode, or InsufficientResources.
         started_at (datetime.datetime | None | Unset): Time the run started executing.
     """
 
     finished_at: datetime.datetime | None | Unset = UNSET
     message: str | Unset = UNSET
+    queue_reason: str | Unset = UNSET
     started_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -36,6 +39,8 @@ class MLRunStatus:
             finished_at = self.finished_at
 
         message = self.message
+
+        queue_reason = self.queue_reason
 
         started_at: None | str | Unset
         if isinstance(self.started_at, Unset):
@@ -52,6 +57,8 @@ class MLRunStatus:
             field_dict["finishedAt"] = finished_at
         if message is not UNSET:
             field_dict["message"] = message
+        if queue_reason is not UNSET:
+            field_dict["queueReason"] = queue_reason
         if started_at is not UNSET:
             field_dict["startedAt"] = started_at
 
@@ -80,6 +87,8 @@ class MLRunStatus:
 
         message = d.pop("message", UNSET)
 
+        queue_reason = d.pop("queueReason", UNSET)
+
         def _parse_started_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -100,6 +109,7 @@ class MLRunStatus:
         ml_run_status = cls(
             finished_at=finished_at,
             message=message,
+            queue_reason=queue_reason,
             started_at=started_at,
         )
 

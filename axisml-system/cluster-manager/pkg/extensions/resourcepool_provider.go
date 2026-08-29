@@ -7,11 +7,10 @@
 //   - Kubernetes injects providers backed by the cluster-scoped ResourcePool /
 //     Tenant CRs (full CRUD with optimistic locking) and a VolumeManager that
 //     materialises PersistentVolumeClaims.
-//   - A standalone deployment can inject read-only providers backed by static config; write
-//     operations return ErrCapabilityUnavailable, which the handlers surface as
-//     409 CapabilityUnavailable (design §5.1). Its VolumeManager is writable,
-//     backed by managed Docker volumes — workspace volumes are created on demand
-//     in every deployment form.
+//   - A standalone deployment injects PostgreSQL-backed writable ResourcePool
+//     and Tenant providers. Startup CR YAML is bootstrap input for those stores.
+//     Its VolumeManager is writable, backed by managed Docker volumes — workspace
+//     volumes are created on demand in every deployment form.
 //
 // The pool / tenant providers traffic in the shared CR API types; the
 // VolumeManager trafficks in a neutral Volume value. The handlers own all
@@ -41,8 +40,4 @@ type ResourcePoolProvider interface {
 	// Patch applies an optimistic merge of obj against its pre-mutation base.
 	Patch(ctx context.Context, obj, base *cmv1alpha1.ResourcePool) error
 	Delete(ctx context.Context, name string) error
-	// Writable reports whether the provider accepts writes (Create/Patch/Delete).
-	// The Kubernetes provider returns true; a read-only config provider
-	// returns false. It backs the cluster-manager capability document.
-	Writable() bool
 }

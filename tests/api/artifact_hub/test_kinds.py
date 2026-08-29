@@ -3,8 +3,8 @@
 The model kind is covered in test_upload.py. dataset and image route through the
 same unified /artifacts handler but a different kind branch (spec storage /
 provenance), which was never exercised black-box. initiate -> push manifest ->
-complete -> resolve, asserting the resolved digest matches. Runs under both forms
-(``ARTIFACT_UPLOAD``). kind travels in the initiate body.
+complete -> resolve, asserting the resolved digest matches. Runs under both forms;
+kind travels in the initiate body.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
-from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
@@ -37,7 +36,6 @@ _KINDS = {
 
 @pytest.mark.parametrize("kind", list(_KINDS))
 def test_two_phase_upload_resolve(harness, cfg, tenant, kind):
-    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     spec_fields = _KINDS[kind]
     ns = tenant
     name = unique_name(f"e2e-{kind}")

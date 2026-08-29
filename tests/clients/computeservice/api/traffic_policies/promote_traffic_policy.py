@@ -14,6 +14,7 @@ def _get_kwargs(
     namespace: str,
     policy: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/api/v1/namespaces/{namespace}/traffic-policies/{policy}/promote".format(

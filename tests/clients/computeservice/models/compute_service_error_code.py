@@ -4,6 +4,7 @@ from enum import Enum
 class ComputeServiceErrorCode(str, Enum):
     CONFLICT = "conflict"
     FORBIDDEN = "forbidden"
+    IMMUTABLE_FIELD = "immutable-field"
     INTERNAL_ERROR = "internal_error"
     NOT_FOUND = "not_found"
     PRECONDITION_FAILED = "precondition_failed"

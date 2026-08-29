@@ -113,10 +113,6 @@ func NewRouter(c client.Client, metrics resourcepool.MetricsQuerier) *gin.Engine
 		Volumes: k8sstore.NewVolumeStore(c),
 		Metrics: metrics,
 	})
-	// The capability document is unauthenticated so Platform can read it
-	// pre-login; the resource routes stay behind RequireUser.
-	caps := mod.Capabilities()
-	r.GET("/api/v1/capabilities", func(ctx *gin.Context) { ctx.JSON(http.StatusOK, caps) })
 	api := r.Group("/api/v1", srv.RequireUser)
 	mod.RegisterRoutes(api)
 

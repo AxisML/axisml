@@ -32,10 +32,10 @@ func BuildModules(
 	log logr.Logger,
 	metrics extensions.MetricsProvider,
 	workloadTenantPrefix bool,
-) ([]server.Module, []manager.Runnable, server.Capabilities, error) {
+) ([]server.Module, []manager.Runnable, error) {
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
-		return nil, nil, server.Capabilities{}, fmt.Errorf("build clientset: %w", err)
+		return nil, nil, fmt.Errorf("build clientset: %w", err)
 	}
 
 	tenantReader := tenantresolver.New(mgr.GetAPIReader())
@@ -45,20 +45,16 @@ func BuildModules(
 			NamespaceResolver:    tenantReader,
 			WorkloadTenantPrefix: workloadTenantPrefix,
 		}),
-		Resolver:          poolcache.New(mgr.GetClient()),
-		Inventory:         kubeinventory.New(mgr.GetClient()),
-		Quotas:            tenantReader,
-		Metrics:           metrics,
-		Log:               log,
-		ReconcileInterval: config.ReconcileInterval,
-		// Kubernetes composition root: axisml-scheduler admits pods against the
-		// tenant ElasticQuota, so quota enforcement is real.
-		RuntimeName:          "kubernetes",
-		QuotaEnforcement:     true,
+		Resolver:             poolcache.New(mgr.GetClient()),
+		Inventory:            kubeinventory.New(mgr.GetClient()),
+		Quotas:               tenantReader,
+		Metrics:              metrics,
+		Log:                  log,
+		ReconcileInterval:    config.ReconcileInterval,
 		WorkloadTenantPrefix: workloadTenantPrefix,
 	})
 	if err != nil {
-		return nil, nil, server.Capabilities{}, err
+		return nil, nil, err
 	}
 
 	modules := make([]server.Module, 0, len(mod.Routes()))
@@ -78,5 +74,5 @@ func BuildModules(
 		trafficpolicymod.NewInformer(gormDB, mgr, log.WithName("traffic-policy-informer")),
 	)
 
-	return modules, runnables, mod.Capabilities(), nil
+	return modules, runnables, nil
 }

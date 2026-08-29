@@ -57,8 +57,8 @@ type Settings struct {
 	// DatasetBucket is the object-store bucket for datasets.
 	DatasetBucket string
 
-	// PoolConfigDir holds the Cluster Manager ResourcePool + Tenant YAML read at
-	// startup. Ignored when the static config is supplied in-memory via
+	// PoolConfigDir holds ResourcePool + Tenant bootstrap YAML read at startup.
+	// Ignored when the static config is supplied in-memory via
 	// WithStaticConfig.
 	PoolConfigDir string
 

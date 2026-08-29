@@ -24,7 +24,6 @@ const (
 	tagMLRuns          = "MLRuns"
 	tagMLServices      = "MLServices"
 	tagTrafficPolicies = "TrafficPolicies"
-	tagCapabilities    = "Capabilities"
 	tagHealth          = "Health"
 )
 
@@ -100,7 +99,6 @@ func Document(version string) *openapigen.Document {
 	g.Register("TrafficPolicy", server.TrafficPolicy{}, openapigen.ResponseMode)
 	g.Register("Pod", server.Pod{}, openapigen.ResponseMode)
 	g.Register("Event", server.Event{}, openapigen.ResponseMode)
-	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 	g.Register("MetricPoint", server.MetricPoint{}, openapigen.ResponseMode)
 	g.Register("MetricSeries", server.MetricSeries{}, openapigen.ResponseMode)
 
@@ -119,7 +117,6 @@ func Document(version string) *openapigen.Document {
 		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
 		{Name: tagMLServices, Description: "MLService CRUD per namespace."},
 		{Name: tagTrafficPolicies, Description: "MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green traffic split over member online services."},
-		{Name: tagCapabilities, Description: "Deployment-form capability document (runtime engine / quota enforcement)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
@@ -161,11 +158,6 @@ func Document(version string) *openapigen.Document {
 			"200": openapigen.StringResp("ok"),
 			"503": openapigen.StringResp("dependency not yet ready"),
 		},
-	}}
-
-	paths["/api/v1/capabilities"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagCapabilities}, Summary: "Get deployment-form capabilities", OperationID: "getCapabilities",
-		Responses: map[string]openapigen.Response{"200": openapigen.JSONResp("Capability document.", "Capabilities")},
 	}}
 
 	// mlruns (per namespace)

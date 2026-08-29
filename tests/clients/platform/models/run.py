@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ..models.ml_run_spec import MLRunSpec
     from ..models.resource_map import ResourceMap
     from ..models.run_policy import RunPolicy
+    from ..models.string_map import StringMap
 
 
 T = TypeVar("T", bound="Run")
@@ -63,6 +64,7 @@ class Run:
         owner (str): Username of the run owner.
         tenant_name (str): Tenant identifier owning the run.
         updated_at (datetime.datetime): Time the run was last updated.
+        annotations (StringMap | Unset):
         compute_namespace (str | Unset): Underlying compute (Kubernetes) namespace executing the run.
         description (str | Unset): Free-text run description.
         display_name (str | Unset): Human-readable run label.
@@ -74,13 +76,14 @@ class Run:
         phase (RunPhase | Unset): Run (compute MLRun) phase. The active (non-terminal) phases — Creating / Pending /
             Running / Canceling — block Job-definition deletion.
         pool_name (str | Unset): Resource pool the run is scheduled onto.
+        queue_reason (str | Unset): Stable reason explaining why a Run remains Queued.
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
             "nvidia.com/gpu": "8"}).
         roles (list[MLRunRoleStatus] | Unset): Live per-role status.
         run_number (int | Unset): Monotonic per-job run sequence number.
         run_policy (RunPolicy | Unset):  Example: {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}.
-        scheduled_at (datetime.datetime | None | Unset): Time the run was admitted by the scheduler (left Pending).
+        scheduled_at (datetime.datetime | None | Unset): Time the runtime accepted the run and it entered Pending.
         spec (MLRunSpec | Unset):  Example: {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'configMaps':
             [{'data': {'trainer.yaml': 'epochs: 90\nbatchSize: 256\n'}, 'name': 'resnet-training-config'}], 'roles':
             [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--
@@ -105,6 +108,7 @@ class Run:
     owner: str
     tenant_name: str
     updated_at: datetime.datetime
+    annotations: StringMap | Unset = UNSET
     compute_namespace: str | Unset = UNSET
     description: str | Unset = UNSET
     display_name: str | Unset = UNSET
@@ -115,6 +119,7 @@ class Run:
     owner_id: UUID | Unset = UNSET
     phase: RunPhase | Unset = UNSET
     pool_name: str | Unset = UNSET
+    queue_reason: str | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
     roles: list[MLRunRoleStatus] | Unset = UNSET
     run_number: int | Unset = UNSET
@@ -140,6 +145,10 @@ class Run:
         tenant_name = self.tenant_name
 
         updated_at = self.updated_at.isoformat()
+
+        annotations: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.annotations, Unset):
+            annotations = self.annotations.to_dict()
 
         compute_namespace = self.compute_namespace
 
@@ -172,6 +181,8 @@ class Run:
             phase = self.phase.value
 
         pool_name = self.pool_name
+
+        queue_reason = self.queue_reason
 
         resources: dict[str, Any] | Unset = UNSET
         if not isinstance(self.resources, Unset):
@@ -227,6 +238,8 @@ class Run:
                 "updatedAt": updated_at,
             }
         )
+        if annotations is not UNSET:
+            field_dict["annotations"] = annotations
         if compute_namespace is not UNSET:
             field_dict["computeNamespace"] = compute_namespace
         if description is not UNSET:
@@ -247,6 +260,8 @@ class Run:
             field_dict["phase"] = phase
         if pool_name is not UNSET:
             field_dict["poolName"] = pool_name
+        if queue_reason is not UNSET:
+            field_dict["queueReason"] = queue_reason
         if resources is not UNSET:
             field_dict["resources"] = resources
         if roles is not UNSET:
@@ -275,6 +290,7 @@ class Run:
         from ..models.ml_run_spec import MLRunSpec
         from ..models.resource_map import ResourceMap
         from ..models.run_policy import RunPolicy
+        from ..models.string_map import StringMap
 
         d = dict(src_dict)
         backend = Backend.from_dict(d.pop("backend"))
@@ -290,6 +306,13 @@ class Run:
         tenant_name = d.pop("tenantName")
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
+
+        _annotations = d.pop("annotations", UNSET)
+        annotations: StringMap | Unset
+        if isinstance(_annotations, Unset):
+            annotations = UNSET
+        else:
+            annotations = StringMap.from_dict(_annotations)
 
         compute_namespace = d.pop("computeNamespace", UNSET)
 
@@ -340,6 +363,8 @@ class Run:
             phase = RunPhase(_phase)
 
         pool_name = d.pop("poolName", UNSET)
+
+        queue_reason = d.pop("queueReason", UNSET)
 
         _resources = d.pop("resources", UNSET)
         resources: ResourceMap | Unset
@@ -419,6 +444,7 @@ class Run:
             owner=owner,
             tenant_name=tenant_name,
             updated_at=updated_at,
+            annotations=annotations,
             compute_namespace=compute_namespace,
             description=description,
             display_name=display_name,
@@ -429,6 +455,7 @@ class Run:
             owner_id=owner_id,
             phase=phase,
             pool_name=pool_name,
+            queue_reason=queue_reason,
             resources=resources,
             roles=roles,
             run_number=run_number,

@@ -21,6 +21,7 @@ def _get_kwargs(
     step: str | Unset = UNSET,
     percentile: GetMLServiceMetricsPercentile | Unset = UNSET,
 ) -> dict[str, Any]:
+
     params: dict[str, Any] = {}
 
     json_metric = metric.value

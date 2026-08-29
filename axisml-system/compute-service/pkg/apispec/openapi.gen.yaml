@@ -2,37 +2,6 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
-    Capabilities:
-      example:
-        quotaEnforcement: true
-        runtime: kubernetes
-      properties:
-        quotaEnforcement:
-          description: True when Kubernetes scheduler-side ElasticQuota enforcement
-            is enabled; false in standalone.
-          type: boolean
-        runPriority:
-          description: True when queued Runs are considered by priority then FIFO.
-          type: boolean
-        runQueueAdmission:
-          description: True when Compute keeps Runs queued until capacity and quota
-            are available.
-          type: boolean
-        runQueueQuotaEnforcement:
-          description: True when Run queue admission enforces Tenant pool quotas in
-            this deployment form.
-          type: boolean
-        runtime:
-          description: Workload execution engine for this deployment form (kubernetes
-            or standalone).
-          type: string
-      required:
-      - quotaEnforcement
-      - runPriority
-      - runQueueAdmission
-      - runQueueQuotaEnforcement
-      - runtime
-      type: object
     ComputeServiceError:
       example:
         code: quota_exceeded
@@ -3053,19 +3022,6 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/capabilities:
-    get:
-      operationId: getCapabilities
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Capabilities'
-          description: Capability document.
-      summary: Get deployment-form capabilities
-      tags:
-      - Capabilities
   /api/v1/namespaces/{namespace}/mlruns:
     get:
       operationId: listMLRuns
@@ -6126,7 +6082,5 @@ tags:
 - description: 'MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green
     traffic split over member online services.'
   name: TrafficPolicies
-- description: Deployment-form capability document (runtime engine / quota enforcement).
-  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

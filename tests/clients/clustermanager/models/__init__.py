@@ -1,6 +1,5 @@
 """Contains all the data models used in inputs/outputs"""
 
-from .capabilities import Capabilities
 from .cluster_manager_error import ClusterManagerError
 from .corev_1_toleration import Corev1Toleration
 from .create_resource_pool_request import CreateResourcePoolRequest
@@ -133,7 +132,6 @@ from .volume_labels import VolumeLabels
 from .volume_list import VolumeList
 
 __all__ = (
-    "Capabilities",
     "ClusterManagerError",
     "Corev1Toleration",
     "CreateResourcePoolRequest",

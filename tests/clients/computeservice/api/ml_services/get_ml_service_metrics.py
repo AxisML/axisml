@@ -18,6 +18,7 @@ def _get_kwargs(
     range_: str,
     step: str | Unset = UNSET,
 ) -> dict[str, Any]:
+
     params: dict[str, Any] = {}
 
     params["metric"] = metric

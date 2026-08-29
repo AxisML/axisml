@@ -18,7 +18,6 @@ from .artifact_patch_request_annotations import ArtifactPatchRequestAnnotations
 from .artifact_patch_request_labels import ArtifactPatchRequestLabels
 from .artifact_resolve_response import ArtifactResolveResponse
 from .artifact_spec import ArtifactSpec
-from .capabilities import Capabilities
 from .oci_credentials import OciCredentials
 from .upload_credentials import UploadCredentials
 
@@ -41,7 +40,6 @@ __all__ = (
     "ArtifactPatchRequestLabels",
     "ArtifactResolveResponse",
     "ArtifactSpec",
-    "Capabilities",
     "OciCredentials",
     "UploadCredentials",
 )

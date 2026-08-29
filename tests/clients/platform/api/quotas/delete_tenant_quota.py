@@ -14,6 +14,7 @@ def _get_kwargs(
     name: str,
     pool: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/api/v1/tenants/{name}/quotas/{pool}".format(

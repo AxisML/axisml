@@ -15,6 +15,7 @@ def _get_kwargs(
     name: str,
     pod: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/v1/workspaces/{name}/pods/{pod}/events".format(

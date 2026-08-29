@@ -24,7 +24,6 @@ import (
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact/handler"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/gc"
-	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/s3"
 )
@@ -83,16 +82,6 @@ type Deps struct {
 type Module struct {
 	routes    []Route
 	runnables []Runnable
-}
-
-// artifactKinds are the artifact kinds served in every deployment form.
-var artifactKinds = []string{"model", "image", "dataset"}
-
-// Capabilities returns the deployment-form capability document. A composition
-// root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
-// into an aggregate. Artifact Hub's surface is identical across deployment forms.
-func (m *Module) Capabilities() server.Capabilities {
-	return server.Capabilities{Kinds: artifactKinds, Upload: true}
 }
 
 // New assembles Artifact Hub from the injected config. It registers the model /

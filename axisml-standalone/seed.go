@@ -2,11 +2,14 @@ package standalone
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
@@ -31,15 +34,49 @@ type volumeEnsurer interface {
 // volumes are skipped: they bind-mount a host directory (there is no Docker
 // volume to create — the registry in tenantHostPathVolumes drives the mount).
 func seedTenantVolumes(ctx context.Context, rt volumeEnsurer, t *tenantv1alpha1.Tenant, log logr.Logger) {
-	ns := t.Spec.Namespace.Name
 	for _, v := range t.Spec.InitResources.Volumes {
 		if v.HostPath != "" {
 			continue
 		}
-		if err := rt.Ensure(ctx, buildSeedPVC(ns, v)); err != nil {
+		if err := rt.Ensure(ctx, buildSeedPVC(t.Name, v)); err != nil {
 			log.Error(err, "ensure predefined tenant volume (continuing)", "volume", v.Name)
 		}
 	}
+}
+
+// materializeTenantVolumes is the synchronous standalone equivalent of the
+// tenant-operator volume subreconciler for API-created/updated tenants. Only
+// managed data volumes are accepted through the REST API. Host bind mounts and
+// credential-copy resources remain trusted startup configuration because the
+// standalone process cannot safely materialize arbitrary Kubernetes sources.
+func materializeTenantVolumes(ctx context.Context, rt volumeEnsurer, t *tenantv1alpha1.Tenant) error {
+	if !credentialInitResourcesEmpty(t.Spec.InitResources) {
+		return apierrors.NewInvalid(
+			tenantv1alpha1.GroupVersion.WithKind("Tenant").GroupKind(),
+			t.Name,
+			field.ErrorList{field.Forbidden(field.NewPath("spec", "initResources"), "secrets, configMaps and serviceAccounts are unavailable in standalone")},
+		)
+	}
+	if err := validateTenantVolumes(t.Name, t.Spec.InitResources.Volumes, map[string]string{}); err != nil {
+		return apierrors.NewInvalid(
+			tenantv1alpha1.GroupVersion.WithKind("Tenant").GroupKind(),
+			t.Name,
+			field.ErrorList{field.Invalid(field.NewPath("spec", "initResources", "volumes"), t.Spec.InitResources.Volumes, err.Error())},
+		)
+	}
+	for _, v := range t.Spec.InitResources.Volumes {
+		if v.HostPath != "" {
+			return apierrors.NewInvalid(
+				tenantv1alpha1.GroupVersion.WithKind("Tenant").GroupKind(),
+				t.Name,
+				field.ErrorList{field.Forbidden(field.NewPath("spec", "initResources", "volumes"), "hostPath volumes may only be declared in trusted startup config")},
+			)
+		}
+		if err := rt.Ensure(ctx, buildSeedPVC(t.Name, v)); err != nil {
+			return fmt.Errorf("ensure predefined tenant volume %q: %w", v.Name, err)
+		}
+	}
+	return nil
 }
 
 // tenantsHostPathVolumes builds the name→host-path registry the runtime consults

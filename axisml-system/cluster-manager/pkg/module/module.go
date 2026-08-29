@@ -4,16 +4,16 @@
 // routes on a shared /api/v1 router group.
 //
 // Cluster Manager is stateless (no PG, no migration): the source of truth is
-// either the cluster-scoped CRs (Kubernetes) or the static CR-YAML config
-// (for example, a standalone deployment). The handlers, conversions and validation stay in internal packages;
-// only this constructor and route registration are exported.
+// either the cluster-scoped CRs (Kubernetes) or deployment-form providers (for
+// example, PostgreSQL-backed pools and tenants in standalone). The
+// handlers, conversions and validation stay in internal packages; only this
+// constructor and route registration are exported.
 package module
 
 import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/resourcepool"
-	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/tenant"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/volume"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
@@ -35,8 +35,7 @@ type Deps struct {
 
 // Module is the assembled Cluster Manager REST surface.
 type Module struct {
-	routes       []Route
-	capabilities server.Capabilities
+	routes []Route
 }
 
 // New assembles the Cluster Manager handlers over the injected stores.
@@ -47,17 +46,8 @@ func New(d Deps) *Module {
 			tenant.NewHandler(d.Tenants, d.Pools),
 			volume.NewHandler(d.Volumes),
 		},
-		capabilities: server.Capabilities{
-			MultiTenant:           d.Tenants.Writable(),
-			ResourcePoolsWritable: d.Pools.Writable(),
-		},
 	}
 }
-
-// Capabilities returns the deployment-form capability document derived from the
-// injected stores. A composition root serves it at GET /api/v1/capabilities
-// per-service or folds it into an aggregate.
-func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Cluster Manager route on the supplied group.
 func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {

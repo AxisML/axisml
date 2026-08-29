@@ -23,9 +23,9 @@ const (
 )
 
 // StaticConfig is the immutable snapshot parsed from the CR-YAML config at
-// startup: one or more read-only ResourcePools and Tenants (design §5.1.1). All
-// config-backed providers read from this snapshot; changing it requires an
-// axisml-standalone restart.
+// startup: ResourcePool and Tenant bootstrap seeds. API mutations are persisted
+// separately in PostgreSQL; changing these files does not overwrite an object
+// that has already been imported.
 type StaticConfig struct {
 	Pools   []*cmv1alpha1.ResourcePool
 	Tenants []*tenantv1alpha1.Tenant

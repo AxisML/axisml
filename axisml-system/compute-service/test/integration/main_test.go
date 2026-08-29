@@ -270,16 +270,15 @@ var testManager ctrl.Manager
 func bootstrapHandlers() error {
 	log := logr.Discard()
 
-	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log, testMetrics, false)
+	modules, runnables, err := computeapp.BuildModules(gormDB, testManager, log, testMetrics, false)
 	if err != nil {
 		return fmt.Errorf("build modules: %w", err)
 	}
 
 	srv, err := computeserver.New(computeserver.Options{
-		Addr:         ":0", // never started; engine is invoked via httptest
-		Log:          log,
-		Modules:      modules,
-		Capabilities: caps,
+		Addr:    ":0", // never started; engine is invoked via httptest
+		Log:     log,
+		Modules: modules,
 		Ready: func(ctx context.Context) error {
 			sqlDB, err := gormDB.DB()
 			if err != nil {

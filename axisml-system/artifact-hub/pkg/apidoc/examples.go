@@ -125,8 +125,4 @@ func registerExamples(g *openapigen.Generator) {
 	// so it can reuse the Artifact item example above.
 	g.SetExample("ArtifactList", obj{"items": []any{artifact}, "total": 1})
 
-	g.SetExample("Capabilities", obj{
-		"kinds":  []any{"model", "dataset", "image"},
-		"upload": true,
-	})
 }

@@ -408,16 +408,16 @@ WHERE phase = 'Queued' AND deleted_at IS NULL;
 不增加独立 queue 表。`priority` 是 annotation 的校验后派生值，用于稳定排序；annotation
 仍是公共声明源。
 
-### 9.2 API / capability
+### 9.2 API
 
 - Compute 与 Platform Run phase enum 增加 `Queued`；
 - Compute MLRun / Platform Run 增加 `scheduledAt`；
 - Compute MLRun status / Platform Run 增加 `queueReason`；
-- Platform Run 投影 annotations；
-- capability 增加 `runQueueAdmission: true`、`runPriority: true` 和
-  `runQueueQuotaEnforcement: true`；
-- 现有 `quotaEnforcement` 继续只描述 downstream scheduler 是否执行 ElasticQuota，避免改变
-  既有字段语义：Kubernetes 为 `true`，standalone 为 `false`。
+- Platform Run 投影 annotations。
+
+队列、优先级和 Tenant pool quota 准入是两种部署形态的公共 MLRun 合同，不通过
+部署 capability 字段区分。Kubernetes scheduler 的 ElasticQuota 是下游运行时语义，
+不改变 MLRun API。
 
 所有 OpenAPI、生成客户端、前端 phase 映射、i18n 和示例需要同步更新。
 

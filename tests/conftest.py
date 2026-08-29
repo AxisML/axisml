@@ -84,7 +84,7 @@ def _gate_ready(h: Harness, mode: str, cfg: config.Config) -> None:
 
 @pytest.fixture(scope="module")
 def tenant(harness: Harness):
-    """A fresh tenant on Kubernetes or the static tenant on standalone.
+    """A fresh tenant on either supported deployment form.
 
     Yields the tenant scope used as the compute namespace path parameter.
     """

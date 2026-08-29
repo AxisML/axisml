@@ -17,7 +17,7 @@ type options struct {
 
 // Option customizes how New assembles the App. The standalone binary passes none and
 // gets the fixed-constant behaviour; an embedding host uses these to inject its
-// own database, in-memory static config, logger or operational Settings.
+// own database, in-memory ResourcePool/Tenant seeds, logger or operational Settings.
 type Option func(*options)
 
 // WithSettings overrides the operational parameters (bind address, filesystem
@@ -33,9 +33,9 @@ func WithDB(db *gorm.DB) Option {
 	return func(o *options) { o.db = db }
 }
 
-// WithStaticConfig supplies the ResourcePools + Tenants in memory instead of
-// reading them from Settings.PoolConfigDir. The supplied config is validated by
-// New the same way the on-disk form is.
+// WithStaticConfig supplies ResourcePool + Tenant bootstrap seeds in memory
+// instead of reading them from Settings.PoolConfigDir. The supplied config is
+// validated by New the same way the on-disk form is.
 func WithStaticConfig(sc *StaticConfig) Option {
 	return func(o *options) { o.static = sc }
 }

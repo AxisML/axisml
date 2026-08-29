@@ -14,6 +14,7 @@ from ...types import Response
 def _get_kwargs(
     name: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/api/v1/mlservices/{name}/stop".format(

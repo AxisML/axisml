@@ -1,8 +1,8 @@
-// Package standalone holds the single-host System composition root: configuration, the
-// config-backed Cluster Manager providers (single default ResourcePool +
-// Tenant), the GORM/DB coordination and the assembly that mounts the three
-// System modules (Cluster Manager, Compute Service, Artifact Hub) plus the
-// in-process Standalone Runtime on one router.
+// Package standalone holds the single-host System composition root:
+// configuration, PostgreSQL-backed Cluster Manager providers, GORM/DB
+// coordination, and the assembly that mounts the three System modules (Cluster
+// Manager, Compute Service, Artifact Hub) plus the in-process Standalone Runtime
+// on one router.
 package standalone
 
 import (

@@ -16,6 +16,7 @@ def _get_kwargs(
     name: str,
     version: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/v1/images/{tenant}/{name}/versions/{version}".format(

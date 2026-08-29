@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import enum
 from abc import ABC, abstractmethod
 
 import httpx
-import pytest
 
 from clients.artifacthub import Client as ArtifactHubClient
 from clients.clustermanager import Client as ClusterManagerClient
@@ -17,22 +15,6 @@ from lib.naming import unique_name
 from lib.portforward import PortForward
 
 USER_HEADER = "X-Axisml-User"
-
-
-class Capability(str, enum.Enum):
-    """A capability whose availability differs by deployment form."""
-
-    MULTI_TENANT = "multiTenant"
-    RESOURCE_POOL_WRITE = "resourcePoolsWritable"
-    QUOTA_ENFORCEMENT = "quotaEnforcement"
-    ARTIFACT_UPLOAD = "artifactUpload"
-
-
-def form_supports(mode: str, cap: Capability) -> bool:
-    """Single source of truth for black-box capability gating."""
-    if mode == "kubernetes":
-        return True
-    return cap == Capability.ARTIFACT_UPLOAD
 
 
 class Harness(ABC):
@@ -55,13 +37,6 @@ class Harness(ABC):
     @property
     @abstractmethod
     def artifact_hub(self) -> ArtifactHubClient: ...
-
-    @abstractmethod
-    def supports(self, cap: Capability) -> bool: ...
-
-    def skip_unless(self, cap: Capability) -> None:
-        if not self.supports(cap):
-            pytest.skip(f"deployment does not support {cap.value}")
 
     # --- platform ---
     @property
@@ -174,9 +149,6 @@ class KubernetesHarness(Harness):
             self._forwards.append(self._zot_pf)
         return self._zot_pf.local_url
 
-    def supports(self, cap: Capability) -> bool:
-        return form_supports("kubernetes", cap)
-
     def create_tenant(
         self, name: str, *, pool: str | None = None, quantity: int = 4
     ) -> None:
@@ -222,8 +194,6 @@ class KubernetesHarness(Harness):
 class StandaloneHarness(Harness):
     """Single Docker-host distribution with one System endpoint."""
 
-    TENANT = "default"
-
     def __init__(self, cfg: config.Config):
         super().__init__(cfg)
         base = cfg.standalone_system_url
@@ -250,17 +220,39 @@ class StandaloneHarness(Harness):
     def oci_endpoint(self) -> str:
         return self.cfg.standalone_oci_url
 
-    def supports(self, cap: Capability) -> bool:
-        return form_supports("standalone", cap)
-
     def create_tenant(
         self, name: str, *, pool: str | None = None, quantity: int = 4
     ) -> None:
-        if name != self.TENANT:
-            raise AssertionError("standalone exposes only the static default tenant")
+        from clients.clustermanager.api.tenants import create_tenant
+        from clients.clustermanager.models import (
+            CreateTenantRequest,
+            ServerQuota,
+            ServerQuotaUnit,
+            Tenantv1Alpha1NamespaceSpec,
+        )
+
+        pool = pool or self.cfg.default_pool
+        body = CreateTenantRequest(
+            name=name,
+            namespace=Tenantv1Alpha1NamespaceSpec(name=name),
+            quotas=[
+                ServerQuota(
+                    pool=pool,
+                    units=[
+                        ServerQuotaUnit(
+                            unit_name=self.cfg.default_unit, quantity=quantity
+                        )
+                    ],
+                )
+            ],
+        )
+        resp = create_tenant.sync_detailed(client=self._cm, body=body)
+        if resp.status_code not in (200, 201):
+            raise AssertionError(
+                f"create tenant {name}: {resp.status_code}: {resp.content!r}"
+            )
 
     def delete_tenant(self, name: str) -> None:
-        pass
+        from clients.clustermanager.api.tenants import delete_tenant
 
-    def new_tenant_name(self) -> str:
-        return self.TENANT
+        delete_tenant.sync_detailed(name, client=self._cm)

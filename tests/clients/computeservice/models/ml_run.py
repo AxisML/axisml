@@ -43,8 +43,8 @@ class MLRun:
         id (UUID): Stable run identifier (PG row UUID).
         name (str): MLRun name, unique within the namespace.
         namespace (str): Namespace (= tenant identifier) the run belongs to.
-        phase (str): Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled,
-            Deleting, Deleted.
+        phase (str): Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling,
+            Cancelled, Deleting, Deleted.
         spec (MLRunSpec):
         status (MLRunStatus):
         updated_at (datetime.datetime): Time the run was last updated.
@@ -54,6 +54,7 @@ class MLRun:
         display_name (str | Unset): Human-readable run label.
         labels (MLRunLabels | Unset): User-defined labels.
         owner (str | Unset): Username of the run owner.
+        scheduled_at (datetime.datetime | None | Unset): Time the runtime accepted the run and it entered Pending.
     """
 
     created_at: datetime.datetime
@@ -70,6 +71,7 @@ class MLRun:
     display_name: str | Unset = UNSET
     labels: MLRunLabels | Unset = UNSET
     owner: str | Unset = UNSET
+    scheduled_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -111,6 +113,14 @@ class MLRun:
 
         owner = self.owner
 
+        scheduled_at: None | str | Unset
+        if isinstance(self.scheduled_at, Unset):
+            scheduled_at = UNSET
+        elif isinstance(self.scheduled_at, datetime.datetime):
+            scheduled_at = self.scheduled_at.isoformat()
+        else:
+            scheduled_at = self.scheduled_at
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -137,6 +147,8 @@ class MLRun:
             field_dict["labels"] = labels
         if owner is not UNSET:
             field_dict["owner"] = owner
+        if scheduled_at is not UNSET:
+            field_dict["scheduledAt"] = scheduled_at
 
         return field_dict
 
@@ -201,6 +213,23 @@ class MLRun:
 
         owner = d.pop("owner", UNSET)
 
+        def _parse_scheduled_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                scheduled_at_type_0 = datetime.datetime.fromisoformat(data)
+
+                return scheduled_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        scheduled_at = _parse_scheduled_at(d.pop("scheduledAt", UNSET))
+
         ml_run = cls(
             created_at=created_at,
             id=id,
@@ -216,6 +245,7 @@ class MLRun:
             display_name=display_name,
             labels=labels,
             owner=owner,
+            scheduled_at=scheduled_at,
         )
 
         ml_run.additional_properties = d

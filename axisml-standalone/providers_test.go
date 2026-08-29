@@ -39,7 +39,6 @@ func TestConfigResourceCatalog_WritesUnavailable(t *testing.T) {
 	ctx := context.Background()
 	cat := standalone.NewConfigResourceCatalog(validPool())
 
-	assert.False(t, cat.Writable())
 	assert.ErrorIs(t, cat.Create(ctx, &cmv1alpha1.ResourcePool{}), cmext.ErrCapabilityUnavailable)
 	assert.ErrorIs(t, cat.Patch(ctx, &cmv1alpha1.ResourcePool{}, &cmv1alpha1.ResourcePool{}), cmext.ErrCapabilityUnavailable)
 	assert.ErrorIs(t, cat.Delete(ctx, "default"), cmext.ErrCapabilityUnavailable)
@@ -108,7 +107,6 @@ func TestStaticTenantStore_Writes(t *testing.T) {
 
 	assert.ErrorIs(t, store.Patch(ctx, &tenantv1alpha1.Tenant{}, &tenantv1alpha1.Tenant{}), cmext.ErrCapabilityUnavailable)
 	assert.ErrorIs(t, store.Delete(ctx, "default"), cmext.ErrCapabilityUnavailable)
-	assert.False(t, store.Writable())
 }
 
 func TestStaticTenantStore_ResolveQuota(t *testing.T) {

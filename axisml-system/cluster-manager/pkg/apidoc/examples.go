@@ -248,13 +248,6 @@ func registerExamples(g *openapigen.Generator) {
 		"allowVolumeExpansion": true,
 	})
 
-	// --- Capabilities ---
-
-	g.SetExample("Capabilities", obj{
-		"multiTenant":           true,
-		"resourcePoolsWritable": true,
-	})
-
 	// --- Errors ---
 
 	g.SetExample("ClusterManagerError", obj{

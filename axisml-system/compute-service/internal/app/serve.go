@@ -44,16 +44,15 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("prometheus client: %w", err)
 	}
 
-	modules, runnables, caps, err := BuildModules(gormDB, mgr, log, promProvider, cfg.Workload.TenantPrefix)
+	modules, runnables, err := BuildModules(gormDB, mgr, log, promProvider, cfg.Workload.TenantPrefix)
 	if err != nil {
 		return err
 	}
 
 	srv, err := server.New(server.Options{
-		Addr:         config.APIBindAddress,
-		Log:          log,
-		Modules:      modules,
-		Capabilities: caps,
+		Addr:    config.APIBindAddress,
+		Log:     log,
+		Modules: modules,
 		Ready: func(ctx context.Context) error {
 			sqlDB, err := gormDB.DB()
 			if err != nil {

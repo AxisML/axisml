@@ -16,7 +16,4 @@ type TenantProvider interface {
 	Create(ctx context.Context, tenant *tenantv1alpha1.Tenant) error
 	Patch(ctx context.Context, obj, base *tenantv1alpha1.Tenant) error
 	Delete(ctx context.Context, name string) error
-	// Writable reports whether multi-tenant writes are available (true for the
-	// Kubernetes provider, false for a single-tenant config provider).
-	Writable() bool
 }

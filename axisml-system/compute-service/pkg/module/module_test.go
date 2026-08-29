@@ -27,22 +27,6 @@ func TestNew_DefaultsAndAssembly(t *testing.T) {
 	assert.Len(t, m.Runnables(), 3)
 	assert.Len(t, m.StatusReflowRunnables(), 3)
 
-	// RuntimeName defaults to "kubernetes"; QuotaEnforcement defaults to false.
-	caps := m.Capabilities()
-	assert.Equal(t, "kubernetes", caps.Runtime)
-	assert.False(t, caps.QuotaEnforcement)
-}
-
-func TestNew_RuntimeOverride(t *testing.T) {
-	m, err := module.New(module.Deps{
-		Log:              logr.Discard(),
-		RuntimeName:      "standalone",
-		QuotaEnforcement: true,
-	})
-	require.NoError(t, err)
-	caps := m.Capabilities()
-	assert.Equal(t, "standalone", caps.Runtime)
-	assert.True(t, caps.QuotaEnforcement)
 }
 
 type inventoryStub struct{}
@@ -63,9 +47,6 @@ func TestNew_AssemblesRunQueueWhenAdmissionDependenciesExist(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Len(t, m.Runnables(), 4)
-	assert.True(t, m.Capabilities().RunQueueAdmission)
-	assert.True(t, m.Capabilities().RunPriority)
-	assert.True(t, m.Capabilities().RunQueueQuotaEnforcement)
 }
 
 func TestRegisterRoutes(t *testing.T) {

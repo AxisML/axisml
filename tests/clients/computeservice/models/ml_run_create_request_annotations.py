@@ -11,11 +11,12 @@ T = TypeVar("T", bound="MLRunCreateRequestAnnotations")
 
 @_attrs_define
 class MLRunCreateRequestAnnotations:
-    """User-defined annotations stored on the row and stamped onto the CR."""
+    """User-defined annotations stored on the row; scheduling.axisml.io/priority is also stamped onto the runtime object."""
 
     additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
 

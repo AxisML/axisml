@@ -118,7 +118,7 @@ Standalone 保持相同的上游调用关系，只替换 System 以下的落地�
 
 ```text
 External Users → Platform(API + UI) → axisml-standalone(:8080)
-                                      ├─ Cluster Manager module → static pool/tenant config
+                                      ├─ Cluster Manager module → PostgreSQL pool/tenant stores
                                       ├─ Compute module → PostgreSQL → Docker runtime
                                       └─ Artifact Hub module → PostgreSQL + zot/RustFS
 ```
@@ -142,7 +142,7 @@ External Users → Platform(API + UI) → axisml-standalone(:8080)
 | [artifact-hub.md](../axisml-system/docs/system_design/artifact-hub.md) | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` |
 | [tenant-operator.md](../axisml-system/docs/system_design/tenant-operator.md) | Tenant CR → Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） |
 | [compute-operator.md](../axisml-system/docs/system_design/compute-operator.md) | 三类 CR → backend handler → K8s 与网关 CR | 三类 CR + backend handler registry |
-| [axisml-standalone](../axisml-standalone/README.md) | 顶层单机发行模块，装配三个 REST 服务并通过 Docker 执行 workload contract | Docker runtime + 静态 pool/tenant provider |
+| [axisml-standalone](../axisml-standalone/README.md) | 顶层单机发行模块，装配三个 REST 服务并通过 Docker 执行 workload contract | Docker runtime + PostgreSQL pool/tenant providers |
 
 **Infra 层**（第三方基础设施）— [infra/overview.md](../axisml-infra/docs/system_design/overview.md)：[服务网关](../axisml-infra/docs/system_design/overview.md#3-服务网关) · [存储](../axisml-infra/docs/system_design/overview.md#4-存储) · [加速器管理](../axisml-infra/docs/system_design/overview.md#5-加速器管理) · [调度与配额](../axisml-infra/docs/system_design/overview.md#6-调度与配额) · [监控](../axisml-infra/docs/system_design/overview.md#7-监控)。
 

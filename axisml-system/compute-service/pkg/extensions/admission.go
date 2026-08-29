@@ -43,8 +43,8 @@ type ResourceInventory interface {
 }
 
 // QuotaResolver returns the tenant's hard maximum for one ResourcePool.
-// The same contract is backed by Tenant CRs on Kubernetes and static Tenant
-// configuration in standalone.
+// The same contract is backed by Tenant CRs on Kubernetes and the persistent
+// standalone Tenant provider.
 type QuotaResolver interface {
 	ResolveQuota(ctx context.Context, tenant, pool string) (corev1.ResourceList, error)
 }

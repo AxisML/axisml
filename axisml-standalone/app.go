@@ -18,11 +18,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	arthubmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
 	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/logging"
 	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 
+	standalonedb "github.com/axisml/axisml/axisml-standalone/internal/db"
 	dockerruntime "github.com/axisml/axisml/axisml-standalone/internal/runtime/docker"
 )
 
@@ -48,9 +51,13 @@ type App struct {
 
 	// The three System modules, retained so RegisterRoutes can mount them onto
 	// any gin router (a host's own engine, or the internal engine Handler builds).
-	clusterMod *clustermodule.Module
-	computeMod *computemodule.Module
-	arthubMod  *arthubmodule.Module
+	clusterMod  *clustermodule.Module
+	computeMod  *computemodule.Module
+	arthubMod   *arthubmodule.Module
+	poolStore   *persistentResourcePoolStore
+	poolSeeds   []*cmv1alpha1.ResourcePool
+	tenantStore *persistentTenantStore
+	tenantSeeds []*tenantv1alpha1.Tenant
 
 	engine     *gin.Engine // built once by Handler via engineOnce
 	engineOnce sync.Once
@@ -125,9 +132,6 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	} else if err = static.validate(); err != nil {
 		return nil, fmt.Errorf("validate static config: %w", err)
 	}
-	catalog := NewConfigResourceCatalog(static.Pools...)
-	tenants := NewStaticTenantStore(static.Tenants...)
-
 	// DOCKER_HOST is read by the Docker SDK (client.FromEnv); no config key.
 	dcli, err := dockerruntime.NewClient("")
 	if err != nil {
@@ -163,19 +167,21 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	for _, t := range static.Tenants {
 		seedTenantVolumes(ctx, rt, t, log)
 	}
+	pools := newPersistentResourcePoolStore(db)
+	tenants := newPersistentTenantStore(db)
+	tenants.materialize = func(ctx context.Context, tenant *tenantv1alpha1.Tenant) error {
+		return materializeTenantVolumes(ctx, rt, tenant)
+	}
 
-	clusterMod := clustermodule.New(clustermodule.Deps{Pools: catalog, Tenants: tenants, Volumes: rt})
+	clusterMod := clustermodule.New(clustermodule.Deps{Pools: pools, Tenants: tenants, Volumes: rt})
 	computeMod, err := computemodule.New(computemodule.Deps{
-		DB:                db,
-		Runtime:           rt,
-		Resolver:          catalog,
-		Inventory:         rt,
-		Quotas:            tenants,
-		Log:               log,
-		ReconcileInterval: o.settings.ReconcileInterval,
-		// Docker runtime: no scheduler, so no ElasticQuota admission.
-		RuntimeName:          "standalone",
-		QuotaEnforcement:     false,
+		DB:                   db,
+		Runtime:              rt,
+		Resolver:             pools,
+		Inventory:            rt,
+		Quotas:               tenants,
+		Log:                  log,
+		ReconcileInterval:    o.settings.ReconcileInterval,
 		WorkloadTenantPrefix: cfg.Workload.TenantPrefix,
 	})
 	if err != nil {
@@ -222,15 +228,19 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	}
 
 	return &App{
-		settings:   o.settings,
-		log:        log,
-		db:         db,
-		ownDB:      ownDB,
-		dcli:       dcli,
-		clusterMod: clusterMod,
-		computeMod: computeMod,
-		arthubMod:  arthubMod,
-		runnables:  runnables,
+		settings:    o.settings,
+		log:         log,
+		db:          db,
+		ownDB:       ownDB,
+		dcli:        dcli,
+		clusterMod:  clusterMod,
+		computeMod:  computeMod,
+		arthubMod:   arthubMod,
+		poolStore:   pools,
+		poolSeeds:   static.Pools,
+		tenantStore: tenants,
+		tenantSeeds: static.Tenants,
+		runnables:   runnables,
 	}, nil
 }
 
@@ -242,7 +252,7 @@ func reservedQuantity(raw string) resource.Quantity {
 }
 
 // RegisterRoutes mounts the full axisml-standalone HTTP surface — the liveness /
-// readiness probes, the unauthenticated capability document and OpenAPI spec, and
+// readiness probes, the unauthenticated OpenAPI spec, and
 // the three System modules under the X-Axisml-User gate — onto the supplied gin
 // router. The host owns the *gin.Engine and passes either it or a prefix group
 // (r.Group("/axisml")); it may register its own routes on the same router
@@ -276,8 +286,6 @@ func (a *App) RegisterRoutes(r gin.IRouter) {
 		}
 		c.String(http.StatusOK, "ok")
 	})
-	// Capability document is unauthenticated so Platform can read it pre-login.
-	grp.GET("/api/v1/capabilities", capabilitiesHandler(aggregateCapabilities(a.clusterMod, a.computeMod, a.arthubMod)))
 	// The OpenAPI document (same builder as OpenAPISpec) is unauthenticated so
 	// clients and gateways can fetch the contract without an identity.
 	grp.GET("/openapi.yaml", a.openapiHandler(SpecYAML, "application/yaml"))
@@ -320,7 +328,7 @@ func (a *App) openAPISpec(format SpecFormat) ([]byte, error) {
 }
 
 // Handler returns axisml-standalone's own gin engine, built once: the middleware
-// chain, the probes + capabilities routes and the three System modules under the
+// chain, the probes + OpenAPI routes and the three System modules under the
 // X-Axisml-User gate (i.e. RegisterRoutes on a fresh engine). A host that runs a
 // stdlib net/http server — or any non-gin host — mounts this as an opaque
 // http.Handler; a host that runs its OWN gin engine uses RegisterRoutes instead
@@ -352,8 +360,26 @@ func (a *App) Runnables() []Runnable {
 	return a.runnables
 }
 
-// Migrate runs the module migrations against the App's database.
-func (a *App) Migrate() error { return migrate(a.db) }
+// Migrate runs the module migrations and imports startup ResourcePool/Tenant
+// YAML as first-boot seeds. Seed inserts are idempotent and never revive
+// API-deleted objects, so mounted config is bootstrap input rather than live state.
+func (a *App) Migrate() error {
+	if err := migrate(a.db); err != nil {
+		return err
+	}
+	if a.poolStore != nil {
+		if err := a.poolStore.Seed(context.Background(), a.poolSeeds...); err != nil {
+			return fmt.Errorf("seed standalone resource pools: %w", err)
+		}
+	}
+	if a.tenantStore == nil {
+		return nil
+	}
+	if err := a.tenantStore.Seed(context.Background(), a.tenantSeeds...); err != nil {
+		return fmt.Errorf("seed standalone tenants: %w", err)
+	}
+	return nil
+}
 
 // Close releases the resources New acquired: the Docker client always, and the
 // database only when New opened it (an injected DB is the caller's to close).
@@ -483,10 +509,14 @@ func Migrate(cfg Config) error {
 	return migrate(db)
 }
 
-// migrate runs the module migrations in dependency order: Compute Service then
-// Artifact Hub (design §8). Cluster Manager is stateless. Each module owns its
-// own migration table, so they coexist in the shared database.
+// migrate runs migrations in dependency order. Standalone owns PostgreSQL
+// ResourcePool and Tenant persistence that substitutes for the Kubernetes CR
+// stores in this deployment form. Each owner has an independent migration table
+// in the shared database.
 func migrate(db *gorm.DB) error {
+	if err := standalonedb.Migrate(db); err != nil {
+		return fmt.Errorf("standalone migrate: %w", err)
+	}
 	if err := computemodule.Migrate(db); err != nil {
 		return fmt.Errorf("compute migrate: %w", err)
 	}

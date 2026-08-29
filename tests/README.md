@@ -43,9 +43,9 @@ uv run pytest --mode standalone api
 uv run pytest --mode standalone e2e
 ```
 
-Unmarked tests are shared. `kubernetes_only` and `standalone_only` express a
-hard runtime boundary; finer differences use the capability matrix in
-`lib/harness.py`.
+Unmarked tests are shared. `kubernetes_only` and `standalone_only` are reserved
+for hard runtime boundaries such as scheduler-backed metrics or Docker-only
+execution semantics.
 
 ## Generated clients
 
@@ -55,6 +55,5 @@ Clients are committed and generated from the canonical specs in this repository:
 make -C .. client-gen
 ```
 
-Regenerate after changing a component or Platform HTTP contract. The aggregate
-standalone capability contract is tested directly because it intentionally
-wraps the three component capability documents.
+Regenerate after changing a component or Platform HTTP contract. Standalone
+folds the three component contracts into its aggregate OpenAPI document.

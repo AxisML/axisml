@@ -17,7 +17,7 @@ func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
 	log logr.Logger,
-) ([]server.Module, artifactmodule.Runnable, server.Capabilities, error) {
+) ([]server.Module, artifactmodule.Runnable, error) {
 	mod, err := artifactmodule.New(artifactmodule.Deps{
 		DB:  gormDB,
 		Log: log,
@@ -37,7 +37,7 @@ func BuildModules(
 		},
 	})
 	if err != nil {
-		return nil, nil, server.Capabilities{}, err
+		return nil, nil, err
 	}
 
 	modules := make([]server.Module, 0, len(mod.Routes()))
@@ -49,5 +49,5 @@ func BuildModules(
 	if rs := mod.Runnables(); len(rs) > 0 {
 		worker = rs[0]
 	}
-	return modules, worker, mod.Capabilities(), nil
+	return modules, worker, nil
 }

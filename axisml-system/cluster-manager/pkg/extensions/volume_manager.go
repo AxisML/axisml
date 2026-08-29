@@ -16,9 +16,9 @@ import (
 // materialises / reads / reclaims by the claim's key and reports occupancy.
 //
 // Idempotency: Ensure treats an already-existing volume as success; Delete
-// treats a missing volume as success. Unlike the pool / tenant providers there
-// is no Writable() variance — volumes are writable in every deployment form,
-// though Patch (expand / relabel) may be unavailable in a single-host deployment.
+// treats a missing volume as success. Volumes are writable in every deployment
+// form, though Patch (expand / relabel) may be unavailable in a single-host
+// deployment.
 type VolumeManager interface {
 	// Ensure materialises the backing volume from the supplied PVC spec.
 	Ensure(ctx context.Context, pvc *corev1.PersistentVolumeClaim) error

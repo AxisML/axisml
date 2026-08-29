@@ -9,6 +9,7 @@ class RunPhase(str, Enum):
     DELETING = "Deleting"
     FAILED = "Failed"
     PENDING = "Pending"
+    QUEUED = "Queued"
     RUNNING = "Running"
     SUCCEEDED = "Succeeded"
 

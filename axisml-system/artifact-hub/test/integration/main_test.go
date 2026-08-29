@@ -159,11 +159,11 @@ func bootstrap() (*suite, error) {
 
 	// 4. BuildModules + assemble the Gin engine.
 	log := logr.Discard()
-	modules, _, caps, err := app.BuildModules(cfg, gormDB, log)
+	modules, _, err := app.BuildModules(cfg, gormDB, log)
 	if err != nil {
 		return nil, fmt.Errorf("build modules: %w", err)
 	}
-	srv, err := server.New(server.Options{Addr: ":0", Log: log, Modules: modules, Capabilities: caps})
+	srv, err := server.New(server.Options{Addr: ":0", Log: log, Modules: modules})
 	if err != nil {
 		return nil, fmt.Errorf("server.New: %w", err)
 	}

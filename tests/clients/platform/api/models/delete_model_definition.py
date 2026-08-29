@@ -14,6 +14,7 @@ def _get_kwargs(
     tenant: str,
     name: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/api/v1/models/{tenant}/{name}".format(

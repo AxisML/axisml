@@ -148,7 +148,7 @@ Standalone 验证：
 
 ```sh
 docker compose -f axisml-standalone/compose.yaml ps
-curl -fsS http://localhost:8090/api/v1/capabilities
+curl -fsS http://localhost:8090/readyz
 cd tests
 uv run pytest --mode standalone api
 uv run pytest --mode standalone e2e

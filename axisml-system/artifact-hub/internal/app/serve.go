@@ -42,7 +42,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 
 	metrics.Register()
 
-	modules, worker, caps, err := BuildModules(cfg, gormDB, log)
+	modules, worker, err := BuildModules(cfg, gormDB, log)
 	if err != nil {
 		return err
 	}
@@ -54,11 +54,10 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	ready := func(ctx context.Context) error { return db.Ping(ctx, gormDB) }
 
 	srv, err := server.New(server.Options{
-		Addr:         config.APIBindAddress,
-		Log:          log,
-		Modules:      modules,
-		Capabilities: caps,
-		Ready:        ready,
+		Addr:    config.APIBindAddress,
+		Log:     log,
+		Modules: modules,
+		Ready:   ready,
 	})
 	if err != nil {
 		return err

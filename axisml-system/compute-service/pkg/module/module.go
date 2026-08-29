@@ -25,7 +25,6 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/metricsquery"
 	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
-	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 	trafficmod "github.com/axisml/axisml/axisml-system/compute-service/internal/trafficpolicy"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
@@ -56,13 +55,6 @@ type Deps struct {
 	Metrics           extensions.MetricsProvider
 	Log               logr.Logger
 	ReconcileInterval time.Duration
-	// RuntimeName labels the workload execution engine in the capability
-	// document ("kubernetes" or "standalone"). Defaults to "kubernetes".
-	RuntimeName string
-	// QuotaEnforcement reports whether the scheduler admits pods against an
-	// ElasticQuota (true on Kubernetes, false on a standalone runtime). Both
-	// forms still enforce Tenant pool max through queue admission.
-	QuotaEnforcement bool
 	// WorkloadTenantPrefix prefixes physical workload names with the tenant
 	// identifier. Logical API/DB names remain unchanged.
 	WorkloadTenantPrefix bool
@@ -70,10 +62,9 @@ type Deps struct {
 
 // Module is the assembled Compute Service: its HTTP routes and reconcilers.
 type Module struct {
-	routes       []Route
-	runnables    []Runnable
-	reflow       []Runnable
-	capabilities server.Capabilities
+	routes    []Route
+	runnables []Runnable
+	reflow    []Runnable
 }
 
 // New assembles the Compute Service business modules from injected providers.
@@ -92,11 +83,6 @@ func New(d Deps) (*Module, error) {
 		queueAdmission = admission.NewController(d.DB, d.Inventory, d.Quotas, d.Log.WithName("mlrun-admission"), d.ReconcileInterval)
 	}
 
-	runtimeName := d.RuntimeName
-	if runtimeName == "" {
-		runtimeName = "kubernetes"
-	}
-
 	metrics := metricsquery.NewQuerier(d.Metrics)
 
 	return &Module{
@@ -111,13 +97,6 @@ func New(d Deps) (*Module, error) {
 			servicemod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("mlservice-status-poller"), d.ReconcileInterval),
 			trafficmod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("traffic-policy-status-poller"), d.ReconcileInterval),
 		},
-		capabilities: server.Capabilities{
-			Runtime:                  runtimeName,
-			QuotaEnforcement:         d.QuotaEnforcement,
-			RunQueueAdmission:        queueAdmission != nil,
-			RunPriority:              queueAdmission != nil,
-			RunQueueQuotaEnforcement: queueAdmission != nil,
-		},
 	}, nil
 }
 
@@ -129,11 +108,6 @@ func appendRunnable(dst []Runnable, values ...Runnable) []Runnable {
 	}
 	return dst
 }
-
-// Capabilities returns the deployment-form capability document. A composition
-// root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
-// into an aggregate.
-func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Compute route on the supplied /api/v1 group.
 func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
