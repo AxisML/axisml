@@ -53,6 +53,9 @@ Standalone 不提供租户和资源池写入，不执行 ElasticQuota，也不�
 Compute Service 仍以 PostgreSQL 为 workload desired-state 权威。reconciler 把
 `MLRun`、`MLService` 和 `MLTrafficPolicy` 交给进程内 Docker adapter：
 
+- MLRun 先停留在 `Queued`；Compute 读取 Docker Engine CPU/内存、受管 GPU、
+  活跃 container 预留和静态 Tenant pool quota，admission 成功后才调用 adapter，
+  因此排队期不创建 container；
 - `(native, job)` 映射为一次性 container；
 - `(native, deployment|statefulset)` 映射为受管 container 集合；
 - 流量策略写入 Traefik 动态配置；
@@ -68,6 +71,11 @@ Standalone 只读取 `AXISML_` 环境变量；秘密字段同时支持 `_FILE`�
 Docker network 与后台周期是 `DefaultSettings`，嵌入宿主可通过 `WithSettings`
 覆盖。PostgreSQL、zot 数据、Traefik 配置与 workload ConfigMap 投影分别使用
 Compose volume 持久化。
+
+队列容量从 Docker host 总量扣除 `workload.system_reserved_cpu`（默认 `0`）和
+`workload.system_reserved_memory`（默认 `0`），用于保留 OS 与控制面开销。生产部署应按宿主机
+实际开销显式设置这两个值。GPU 只有在
+`gpu.devices` 显式列出受管设备时才进入可调度容量；未配置时 GPU Run 保持排队。
 
 ## 7. 合同与验收
 

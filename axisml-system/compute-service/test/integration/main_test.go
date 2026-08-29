@@ -17,12 +17,16 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -178,6 +182,9 @@ func bootstrapPG() error {
 }
 
 func bootstrapManager() error {
+	if err := seedCapacityNode(); err != nil {
+		return err
+	}
 	mgr, err := ctrl.NewManager(testCfg, ctrl.Options{
 		Scheme:                 testScheme,
 		Metrics:                metricsserver.Options{BindAddress: "0"},
@@ -203,6 +210,44 @@ func bootstrapManager() error {
 	// Stash the manager so individual tests can build reconcilers/informers
 	// against it.
 	testManager = mgr
+	return nil
+}
+
+func seedCapacityNode() error {
+	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
+	if err != nil {
+		return fmt.Errorf("new capacity seed client: %w", err)
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:   "axisml-integration-node",
+		Labels: map[string]string{corev1.LabelHostname: "axisml-integration-node"},
+	}}
+	if err := c.Create(context.Background(), node); err != nil {
+		return fmt.Errorf("create capacity node: %w", err)
+	}
+	node.Status.Capacity = corev1.ResourceList{
+		corev1.ResourceCPU:                    resource.MustParse("100"),
+		corev1.ResourceMemory:                 resource.MustParse("1Ti"),
+		corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("100"),
+	}
+	node.Status.Allocatable = node.Status.Capacity.DeepCopy()
+	node.Status.Conditions = []corev1.NodeCondition{{
+		Type: corev1.NodeReady, Status: corev1.ConditionTrue,
+		LastHeartbeatTime: metav1.Now(), LastTransitionTime: metav1.Now(),
+	}}
+	if err := c.Status().Update(context.Background(), node); err != nil {
+		return fmt.Errorf("mark capacity node ready: %w", err)
+	}
+	// The envtest control plane adds the standard not-ready NoSchedule taint at
+	// Node creation. Remove it only after publishing Ready=true so the fixture
+	// models a genuinely schedulable worker.
+	if err := c.Get(context.Background(), client.ObjectKey{Name: node.Name}, node); err != nil {
+		return fmt.Errorf("read ready capacity node: %w", err)
+	}
+	node.Spec.Taints = nil
+	if err := c.Update(context.Background(), node); err != nil {
+		return fmt.Errorf("make capacity node schedulable: %w", err)
+	}
 	return nil
 }
 

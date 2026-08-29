@@ -20,7 +20,7 @@ import (
 )
 
 var activePhases = map[string]bool{
-	"Creating": true, "Pending": true, "Running": true, "Canceling": true,
+	"Queued": true, "Creating": true, "Pending": true, "Running": true, "Canceling": true,
 }
 
 // Runner orchestrates Runs (compute MLRuns) for one definition kind.
@@ -39,7 +39,7 @@ func (r *Runner) selector(defName string) string { return r.labelKey + "=" + def
 
 // Trigger snapshots spec ⊕ overrides into a new MLRun named <def>-<n> with the
 // grouping label. The tenant must be active (suspension gate).
-func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName string, spec server.JobSpec, ov *server.RunTriggerRequest) (*server.Run, error) {
+func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName string, spec server.JobSpec, definitionAnnotations map[string]string, ov *server.RunTriggerRequest) (*server.Run, error) {
 	if err := guard.TenantActive(ctx, r.tenants, tenant); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,11 @@ func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName strin
 		for k, v := range ovLabels(ov) {
 			labels[k] = v
 		}
-		input, err := runutil.BuildRunInput(spec, ov, runName, displayName, labels, ovAnnotations(ov))
+		annotations := effectiveAnnotations(definitionAnnotations, ov)
+		if err := ValidatePriorityAnnotations(annotations); err != nil {
+			return nil, err
+		}
+		input, err := runutil.BuildRunInput(spec, ov, runName, displayName, labels, annotations)
 		if err != nil {
 			return nil, apperrors.Wrap(apperrors.ClassInternal, "build run", err)
 		}
@@ -186,4 +190,20 @@ func ovAnnotations(ov *server.RunTriggerRequest) map[string]string {
 		return nil
 	}
 	return ov.Annotations
+}
+
+func effectiveAnnotations(definition map[string]string, ov *server.RunTriggerRequest) map[string]string {
+	out := map[string]string{}
+	for key, value := range ovAnnotations(ov) {
+		out[key] = value
+	}
+	if _, overridden := out[server.MLRunPriorityAnnotation]; !overridden {
+		if priority, ok := definition[server.MLRunPriorityAnnotation]; ok {
+			out[server.MLRunPriorityAnnotation] = priority
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

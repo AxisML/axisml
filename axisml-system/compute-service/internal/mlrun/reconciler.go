@@ -15,6 +15,8 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
+const dispatchTimeout = 2 * time.Minute
+
 // Reconciler implements the job Outbox loop. Reads namespace directly off
 // the row and drives the workload through the ComputeRuntime contract rather
 // than a raw apiserver client, so the same loop serves any runtime form.
@@ -63,6 +65,15 @@ func (r *Reconciler) Start(ctx context.Context) error {
 }
 
 func (r *Reconciler) runOnce(ctx context.Context) {
+	recovery, err := r.repo.FindDispatchRecoverySet(ctx, time.Now().UTC().Add(-dispatchTimeout))
+	if err != nil {
+		r.log.Error(err, "find MLRun dispatch recovery set")
+		return
+	}
+	for i := range recovery {
+		r.handleDispatchRecovery(ctx, &recovery[i])
+	}
+
 	ws, err := r.repo.FindWorkSet(ctx)
 	if err != nil {
 		r.log.Error(err, "find work set")
@@ -79,19 +90,73 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
+func (r *Reconciler) handleDispatchRecovery(ctx context.Context, j *store.MLRun) {
+	key := types.NamespacedName{Namespace: j.Namespace, Name: j.Name}
+	observed, err := r.runtime.ObserveMLRun(ctx, key)
+	if apierrors.IsNotFound(err) {
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
+			s.QueueReason = ""
+			s.Message = "runtime object absent after dispatch timeout; waiting for readmission"
+		})
+		changed, updateErr := r.repo.UpdatePhase(ctx, j.ID, Status(j.Phase), map[string]any{
+			"phase":        string(StatusQueued),
+			"status":       next,
+			"scheduled_at": nil,
+		})
+		if updateErr != nil {
+			r.log.Error(updateErr, "requeue stale MLRun dispatch", "name", j.Name)
+			return
+		}
+		if changed {
+			metrics.ReconcilerActions.WithLabelValues("mlrun", "dispatch-recovery", "requeued").Inc()
+		}
+		return
+	}
+	if err != nil {
+		r.log.Error(err, "observe stale MLRun dispatch", "name", j.Name)
+		metrics.ReconcilerActions.WithLabelValues("mlrun", "dispatch-recovery", "error").Inc()
+		return
+	}
+
+	if Status(j.Phase) == StatusCreating {
+		now := time.Now().UTC()
+		changed, updateErr := r.repo.UpdatePhase(ctx, j.ID, StatusCreating, map[string]any{
+			"phase":        string(StatusPending),
+			"scheduled_at": now,
+		})
+		if updateErr != nil {
+			r.log.Error(updateErr, "repair stale MLRun dispatch", "name", j.Name)
+			return
+		}
+		if changed {
+			j.Phase = string(StatusPending)
+			j.ScheduledAt = &now
+			reflectObserved(ctx, r.repo, j, observed, now)
+			metrics.ReconcilerActions.WithLabelValues("mlrun", "dispatch-recovery", "repaired").Inc()
+		}
+		return
+	}
+	now := time.Now().UTC()
+	updates := map[string]any{"updated_at": now}
+	if j.ScheduledAt == nil {
+		updates["scheduled_at"] = now
+	}
+	changed, updateErr := r.repo.UpdatePhase(ctx, j.ID, StatusPending, updates)
+	if updateErr != nil {
+		r.log.Error(updateErr, "repair stale MLRun scheduled state", "name", j.Name)
+		return
+	}
+	if changed && j.ScheduledAt == nil {
+		j.ScheduledAt = &now
+	}
+	reflectObserved(ctx, r.repo, j, observed, now)
+}
+
 func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 	cr, err := ToCR(j, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render job CR")
 		return
-	}
-	// Pickup: a Creating row has left the queue and is now being placed → Pending
-	// (pulling the image / creating containers / waiting for resources all happen
-	// in Pending, never in Creating).
-	if Status(j.Phase) == StatusCreating {
-		if err := r.repo.Update(ctx, j.ID, map[string]any{"phase": string(StatusPending)}); err == nil {
-			j.Phase = string(StatusPending)
-		}
 	}
 	if err := r.runtime.ApplyMLRun(ctx, cr); err != nil {
 		// The message surfaces via status.message (a jsonb field); there is no
@@ -115,12 +180,35 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 			return
 		}
 		if extensions.IsResourceUnavailable(err) {
-			// Insufficient resources (e.g. no free GPU): expected, stay Pending and
-			// retry quietly on the next tick.
+			// The runtime remains the final atomic guard (notably for Docker GPU
+			// assignment). Requeue only if Apply did not create any instance; a
+			// partial apply stays Creating and converges idempotently.
+			instances, listErr := r.runtime.ListMLRunInstances(ctx, types.NamespacedName{Namespace: j.Namespace, Name: j.Name})
+			if listErr == nil && len(instances.Items) == 0 {
+				next = mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
+					s.QueueReason = "InsufficientResources"
+					s.Message = err.Error()
+				})
+				_ = r.repo.Update(ctx, j.ID, map[string]any{
+					"phase":        string(StatusQueued),
+					"status":       next,
+					"scheduled_at": nil,
+				})
+				metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "requeued").Inc()
+				return
+			}
 			metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "pending").Inc()
 			return
 		}
 		r.log.Error(err, "apply MLRun", "name", j.Name)
+		metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "error").Inc()
+		return
+	}
+	if err := r.repo.Update(ctx, j.ID, map[string]any{
+		"phase":        string(StatusPending),
+		"scheduled_at": time.Now().UTC(),
+	}); err != nil {
+		r.log.Error(err, "mark MLRun pending after apply", "name", j.Name)
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "error").Inc()
 		return
 	}

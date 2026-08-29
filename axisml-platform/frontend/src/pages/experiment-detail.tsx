@@ -38,7 +38,7 @@ import {
 // Experiments are specialized training Jobs (Job→Run model); this detail page
 // mirrors JobDetail — an "experiment info" pane plus a runs table. Both the
 // definition and its Runs come from the live API, scoped to the active tenant.
-const ACTIVE_RUN_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
+const ACTIVE_RUN_PHASES: sdk.RunPhase[] = ["Queued", "Creating", "Pending", "Running", "Canceling"];
 
 export default function ExperimentDetail() {
   const { name = "" } = useParams<{ name: string }>();

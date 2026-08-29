@@ -56,11 +56,23 @@ func reflectGone(ctx context.Context, repo *Repository, j *store.MLRun) {
 			"phase":      string(StatusDeleted),
 			"deleted_at": now,
 		})
+	case StatusPending:
+		// Pending means Apply succeeded, so a missing runtime object is no
+		// longer a legitimate resource-wait state. Return it to durable
+		// admission and clear the previous dispatch timestamp.
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
+			s.QueueReason = ""
+			s.Message = "runtime object is absent; waiting for readmission"
+		})
+		_ = repo.Update(ctx, j.ID, map[string]any{
+			"phase":        string(StatusQueued),
+			"status":       next,
+			"scheduled_at": nil,
+		})
 	case StatusRunning:
 		// A Run that was placed and running has vanished from under us (external
-		// delete). A Pending Run is deliberately NOT handled here: it is still
-		// being placed (no containers yet — e.g. waiting for a GPU), so Observe
-		// returning NotFound is expected and the reconciler keeps retrying.
+		// delete). Once Running, disappearance is terminal rather than a request
+		// to execute the workload again.
 		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.Message = "external delete"
 			s.FinishedAt = &now

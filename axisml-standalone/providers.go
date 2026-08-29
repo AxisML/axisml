@@ -1,6 +1,9 @@
 package standalone
 
 import (
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -131,6 +134,7 @@ type StaticTenantStore struct {
 }
 
 var _ cmext.TenantProvider = (*StaticTenantStore)(nil)
+var _ csext.QuotaResolver = (*StaticTenantStore)(nil)
 
 // NewStaticTenantStore builds the store over the parsed tenants (one or more).
 // Tenant names are unique — validated at config load; a duplicate name here is
@@ -194,3 +198,18 @@ func (s *StaticTenantStore) Delete(context.Context, string) error {
 // Writable reports the standalone config-backed tenant store is read-only (tenants are
 // config-defined presets, not created through the API).
 func (s *StaticTenantStore) Writable() bool { return false }
+
+// ResolveQuota returns the same static Tenant.spec.quotas[].max contract used
+// by the Kubernetes-backed queue.
+func (s *StaticTenantStore) ResolveQuota(_ context.Context, tenant, pool string) (corev1.ResourceList, error) {
+	t, ok := s.byName[tenant]
+	if !ok {
+		return nil, fmt.Errorf("tenant %q not found", tenant)
+	}
+	for _, quota := range t.Spec.Quotas {
+		if quota.Pool == pool {
+			return quota.Max.DeepCopy(), nil
+		}
+	}
+	return nil, fmt.Errorf("tenant %q has no quota for resource pool %q", tenant, pool)
+}

@@ -30,7 +30,7 @@ func statusFor(code apperrors.Code) int {
 		return http.StatusBadRequest
 	case apperrors.CodeNotFound:
 		return http.StatusNotFound
-	case apperrors.CodeConflict:
+	case apperrors.CodeConflict, apperrors.CodeImmutableField:
 		return http.StatusConflict
 	case apperrors.CodePrecondition:
 		return http.StatusPreconditionFailed

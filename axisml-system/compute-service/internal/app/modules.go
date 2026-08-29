@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/kubeinventory"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/kuberuntime"
 	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
@@ -37,13 +38,16 @@ func BuildModules(
 		return nil, nil, server.Capabilities{}, fmt.Errorf("build clientset: %w", err)
 	}
 
+	tenantReader := tenantresolver.New(mgr.GetAPIReader())
 	mod, err := computemodule.New(computemodule.Deps{
 		DB: gormDB,
 		Runtime: kuberuntime.New(mgr.GetClient(), clientset, kuberuntime.Options{
-			NamespaceResolver:    tenantresolver.New(mgr.GetAPIReader()),
+			NamespaceResolver:    tenantReader,
 			WorkloadTenantPrefix: workloadTenantPrefix,
 		}),
 		Resolver:          poolcache.New(mgr.GetClient()),
+		Inventory:         kubeinventory.New(mgr.GetClient()),
+		Quotas:            tenantReader,
 		Metrics:           metrics,
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,

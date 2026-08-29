@@ -269,7 +269,7 @@ function RunsPane({ name }: { name: string }) {
     success: t("jobDetail.runDeleted"),
   });
 
-  const active = (p?: string) => p === "Creating" || p === "Pending" || p === "Running" || p === "Canceling";
+  const active = (p?: string) => p === "Queued" || p === "Creating" || p === "Pending" || p === "Running" || p === "Canceling";
 
   const columns: Column<sdk.Run>[] = [
     {

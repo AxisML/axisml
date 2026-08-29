@@ -40,6 +40,7 @@ func TestWriteError_BusinessCodes(t *testing.T) {
 		{apperrors.CodeValidation, http.StatusBadRequest},
 		{apperrors.CodeNotFound, http.StatusNotFound},
 		{apperrors.CodeConflict, http.StatusConflict},
+		{apperrors.CodeImmutableField, http.StatusConflict},
 		{apperrors.CodePrecondition, http.StatusPreconditionFailed},
 		{apperrors.CodeUnauthorized, http.StatusUnauthorized},
 		{apperrors.CodeForbidden, http.StatusForbidden},

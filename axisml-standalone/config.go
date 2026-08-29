@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/axisml/axisml/axisml-standalone/internal/configutil"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Config is the axisml-standalone process configuration. The Compose
@@ -36,15 +37,18 @@ type Docker struct {
 
 // Workload controls physical workload resource naming.
 type Workload struct {
-	TenantPrefix bool `mapstructure:"tenant_prefix" default:"false" doc:"Prefix physical workload names with a readable, collision-resistant tenant token"`
+	TenantPrefix         bool   `mapstructure:"tenant_prefix" default:"false" doc:"Prefix physical workload names with a readable, collision-resistant tenant token"`
+	SystemReservedCPU    string `mapstructure:"system_reserved_cpu" default:"0" doc:"Host CPU capacity reserved from workload queue admission"`
+	SystemReservedMemory string `mapstructure:"system_reserved_memory" default:"0" doc:"Host memory capacity reserved from workload queue admission"`
 }
 
 // GPU configures single-host GPU scheduling. Devices names the physical GPU
 // indices AxisML may schedule onto as a comma list ("0,1,2"), which turns on
 // managed scheduling (pin to a free card, wait when none is free). Empty leaves
-// managed scheduling off: GPU workloads use Docker's default count-based request.
+// managed scheduling off: services retain Docker's count-based request, while
+// MLRun admission has no trustworthy GPU capacity and keeps GPU Runs queued.
 type GPU struct {
-	Devices string `mapstructure:"devices" doc:"Physical GPU indices to schedule onto (comma list, e.g. 0,1,2); empty falls back to Docker's default count-based GPU request"`
+	Devices string `mapstructure:"devices" doc:"Physical GPU indices available to AxisML (comma list, e.g. 0,1,2); empty keeps GPU Runs queued because capacity is unknown"`
 }
 
 // OCI is the artifact registry (zot) connection. The scheme is derived from the
@@ -91,6 +95,18 @@ func LoadWithOptions(opts LoadOptions) (Config, error) {
 func (c Config) Validate() error {
 	if c.Database.Host == "" {
 		return fmt.Errorf("database.host is required")
+	}
+	for key, value := range map[string]string{
+		"workload.system_reserved_cpu":    c.Workload.SystemReservedCPU,
+		"workload.system_reserved_memory": c.Workload.SystemReservedMemory,
+	} {
+		if value == "" {
+			continue
+		}
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil || quantity.Sign() < 0 {
+			return fmt.Errorf("%s must be a non-negative Kubernetes quantity", key)
+		}
 	}
 	return nil
 }

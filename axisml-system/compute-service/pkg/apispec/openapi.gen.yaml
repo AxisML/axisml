@@ -8,8 +8,19 @@ components:
         runtime: kubernetes
       properties:
         quotaEnforcement:
-          description: True when the scheduler admits pods against an ElasticQuota;
-            false when the runtime has no quota admission.
+          description: True when Kubernetes scheduler-side ElasticQuota enforcement
+            is enabled; false in standalone.
+          type: boolean
+        runPriority:
+          description: True when queued Runs are considered by priority then FIFO.
+          type: boolean
+        runQueueAdmission:
+          description: True when Compute keeps Runs queued until capacity and quota
+            are available.
+          type: boolean
+        runQueueQuotaEnforcement:
+          description: True when Run queue admission enforces Tenant pool quotas in
+            this deployment form.
           type: boolean
         runtime:
           description: Workload execution engine for this deployment form (kubernetes
@@ -17,6 +28,9 @@ components:
           type: string
       required:
       - quotaEnforcement
+      - runPriority
+      - runQueueAdmission
+      - runQueueQuotaEnforcement
       - runtime
       type: object
     ComputeServiceError:
@@ -38,6 +52,7 @@ components:
           - validation_failed
           - not_found
           - conflict
+          - immutable-field
           - precondition_failed
           - unauthorized
           - forbidden
@@ -1235,8 +1250,13 @@ components:
           description: Username of the run owner.
           type: string
         phase:
-          description: 'Current run lifecycle phase: Creating, Pending, Running, Succeeded,
-            Failed, Canceling, Cancelled, Deleting, Deleted.'
+          description: 'Current run lifecycle phase: Queued, Creating, Pending, Running,
+            Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.'
+          type: string
+        scheduledAt:
+          description: Time the runtime accepted the run and it entered Pending.
+          format: date-time
+          nullable: true
           type: string
         spec:
           allOf:
@@ -1327,8 +1347,8 @@ components:
         annotations:
           additionalProperties:
             type: string
-          description: User-defined annotations stored on the row and stamped onto
-            the CR.
+          description: User-defined annotations stored on the row; scheduling.axisml.io/priority
+            is also stamped onto the runtime object.
           type: object
         backend:
           allOf:
@@ -1511,8 +1531,16 @@ components:
           description: MLRun name, unique within the namespace.
           type: string
         phase:
-          description: 'Current run lifecycle phase: Creating, Pending, Running, Succeeded,
-            Failed, Canceling, Cancelled, Deleting, Deleted.'
+          description: 'Current run lifecycle phase: Queued, Creating, Pending, Running,
+            Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.'
+          type: string
+        queueReason:
+          description: Stable reason while Queued.
+          type: string
+        scheduledAt:
+          description: Time the runtime accepted the run and it entered Pending.
+          format: date-time
+          nullable: true
           type: string
         startedAt:
           description: Time the run started executing.
@@ -1663,6 +1691,10 @@ components:
           type: string
         message:
           description: Human-readable status detail for the current phase.
+          type: string
+        queueReason:
+          description: 'Stable reason while Queued: InventoryUnavailable, QuotaUnavailable,
+            QuotaExceeded, NoMatchingNode, or InsufficientResources.'
           type: string
         startedAt:
           description: Time the run started executing.

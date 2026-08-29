@@ -20,6 +20,7 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/admission"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/metricsquery"
 	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
@@ -45,6 +46,11 @@ type Deps struct {
 	DB       *gorm.DB
 	Runtime  extensions.ComputeRuntime
 	Resolver extensions.ResourceResolver
+	// Inventory and Quotas back the cross-runtime MLRun admission queue. When
+	// either is nil the queue controller is not assembled (primarily useful to
+	// keep lightweight module-construction tests independent of a runtime).
+	Inventory extensions.ResourceInventory
+	Quotas    extensions.QuotaResolver
 	// Metrics backs the per-workload /metrics routes. Optional: when nil, or when
 	// its Enabled reports false, those routes report metrics-unavailable.
 	Metrics           extensions.MetricsProvider
@@ -54,7 +60,8 @@ type Deps struct {
 	// document ("kubernetes" or "standalone"). Defaults to "kubernetes".
 	RuntimeName string
 	// QuotaEnforcement reports whether the scheduler admits pods against an
-	// ElasticQuota (true on Kubernetes, false on a standalone runtime).
+	// ElasticQuota (true on Kubernetes, false on a standalone runtime). Both
+	// forms still enforce Tenant pool max through queue admission.
 	QuotaEnforcement bool
 	// WorkloadTenantPrefix prefixes physical workload names with the tenant
 	// identifier. Logical API/DB names remain unchanged.
@@ -80,6 +87,10 @@ func New(d Deps) (*Module, error) {
 	jobRecon := jobmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlrun-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
 	serviceRecon := servicemod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlservice-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
 	trafficRecon := trafficmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("traffic-policy-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
+	var queueAdmission Runnable
+	if d.DB != nil && d.Inventory != nil && d.Quotas != nil {
+		queueAdmission = admission.NewController(d.DB, d.Inventory, d.Quotas, d.Log.WithName("mlrun-admission"), d.ReconcileInterval)
+	}
 
 	runtimeName := d.RuntimeName
 	if runtimeName == "" {
@@ -94,17 +105,29 @@ func New(d Deps) (*Module, error) {
 			servicemod.NewHandler(services, d.Runtime, metrics),
 			trafficmod.NewHandler(traffic, d.Runtime, metrics),
 		},
-		runnables: []Runnable{jobRecon, serviceRecon, trafficRecon},
+		runnables: appendRunnable(nil, queueAdmission, jobRecon, serviceRecon, trafficRecon),
 		reflow: []Runnable{
 			jobmod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("mlrun-status-poller"), d.ReconcileInterval),
 			servicemod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("mlservice-status-poller"), d.ReconcileInterval),
 			trafficmod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("traffic-policy-status-poller"), d.ReconcileInterval),
 		},
 		capabilities: server.Capabilities{
-			Runtime:          runtimeName,
-			QuotaEnforcement: d.QuotaEnforcement,
+			Runtime:                  runtimeName,
+			QuotaEnforcement:         d.QuotaEnforcement,
+			RunQueueAdmission:        queueAdmission != nil,
+			RunPriority:              queueAdmission != nil,
+			RunQueueQuotaEnforcement: queueAdmission != nil,
 		},
 	}, nil
+}
+
+func appendRunnable(dst []Runnable, values ...Runnable) []Runnable {
+	for _, value := range values {
+		if value != nil {
+			dst = append(dst, value)
+		}
+	}
+	return dst
 }
 
 // Capabilities returns the deployment-form capability document. A composition

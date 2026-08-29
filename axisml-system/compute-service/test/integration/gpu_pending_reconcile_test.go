@@ -107,7 +107,7 @@ func (f *fakeResourceRuntime) DeleteMLService(context.Context, types.NamespacedN
 }
 
 func (f *fakeResourceRuntime) ListMLRunInstances(context.Context, types.NamespacedName) (*corev1.PodList, error) {
-	panic("unused")
+	return &corev1.PodList{}, nil
 }
 func (f *fakeResourceRuntime) GetMLRunInstanceLogs(context.Context, types.NamespacedName, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
 	panic("unused")
@@ -159,10 +159,10 @@ func servicePhase(t *testing.T, ctx context.Context, id uuid.UUID) string {
 	return row.Phase
 }
 
-// TestMLRun_WaitsForGPUThenRuns drives the "no free GPU → Pending → retry →
-// Running" state machine through the real mlrun Reconciler + StatusPoller with a
-// fake runtime: the Run must reach Pending, STAY Pending (the poller must not
-// cancel a container-less Pending Run), then advance to Running once a card frees.
+// TestMLRun_WaitsForGPUThenRuns drives the Apply-time race fallback through the
+// real MLRun Reconciler + StatusPoller. ResourceUnavailable with no instance
+// returns the durable reservation to Queued; a later admission retries Creating
+// and the Run advances to Running once capacity is available.
 func TestMLRun_WaitsForGPUThenRuns(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -185,25 +185,29 @@ func TestMLRun_WaitsForGPUThenRuns(t *testing.T) {
 		StatusJSON:  datatypes.JSON(`{}`),
 	}).Error)
 
-	// Reaches Pending (pickup + no free GPU).
+	// Apply finds no free GPU and confirms that no partial instance exists, so
+	// the Run returns to Queued instead of being submitted repeatedly.
 	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
-		if p := runPhase(t, ctx, id); p != string(mlrun.StatusPending) {
-			return fmt.Errorf("phase=%s, want Pending", p)
+		if p := runPhase(t, ctx, id); p != string(mlrun.StatusQueued) {
+			return fmt.Errorf("phase=%s, want Queued", p)
 		}
 		return nil
 	})
 
-	// STAYS Pending: the poller Observes NotFound (no containers) but must not
-	// converge a waiting Run to Cancelled.
+	// Queued is not observable by the runtime status poller.
 	deadline := time.Now().Add(600 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		require.Equal(t, string(mlrun.StatusPending), runPhase(t, ctx, id),
-			"a Run waiting for a GPU must stay Pending, never be cancelled")
+		require.Equal(t, string(mlrun.StatusQueued), runPhase(t, ctx, id),
+			"a Run waiting for a GPU must stay Queued")
 		time.Sleep(60 * time.Millisecond)
 	}
 
-	// A card frees → Apply succeeds and the runtime reports Running.
+	// A card frees. Simulate the queue controller's next durable admission; Apply
+	// succeeds and the runtime reports Running.
 	fake.setPlaced()
+	require.NoError(t, gormDB.WithContext(ctx).Model(&store.MLRun{}).
+		Where("id = ? AND phase = ?", id, string(mlrun.StatusQueued)).
+		Update("phase", string(mlrun.StatusCreating)).Error)
 	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
 		if p := runPhase(t, ctx, id); p != string(mlrun.StatusRunning) {
 			return fmt.Errorf("phase=%s, want Running", p)

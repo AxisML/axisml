@@ -23,6 +23,7 @@ func ToCR(j *store.MLRun, tenantPrefix bool) (*mlrunv1alpha1.MLRun, error) {
 		}
 	}
 	rowLabels := decodeStringMap(j.Labels)
+	rowAnnotations := decodeStringMap(j.Annotations)
 	labels := map[string]string{
 		mlrunv1alpha1.LabelRunID:  j.ID.String(),
 		mlrunv1alpha1.LabelTenant: j.Namespace,
@@ -38,14 +39,22 @@ func ToCR(j *store.MLRun, tenantPrefix bool) (*mlrunv1alpha1.MLRun, error) {
 	}
 	cr := &mlrunv1alpha1.MLRun{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      j.Name,
-			Namespace: j.Namespace,
-			Labels:    labels,
+			Name:        j.Name,
+			Namespace:   j.Namespace,
+			Labels:      labels,
+			Annotations: reservedAnnotations(rowAnnotations),
 		},
 		Spec: spec,
 	}
 	workloadname.Annotate(cr, j.Namespace, j.Name, tenantPrefix)
 	return cr, nil
+}
+
+func reservedAnnotations(row map[string]string) map[string]string {
+	if value, ok := row[mlrunv1alpha1.AnnotationPriority]; ok {
+		return map[string]string{mlrunv1alpha1.AnnotationPriority: value}
+	}
+	return nil
 }
 
 func decodeStringMap(raw []byte) map[string]string {

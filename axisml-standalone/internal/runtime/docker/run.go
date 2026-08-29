@@ -47,6 +47,7 @@ func (r *Runtime) renderRunPlans(run *mlrunv1alpha1.MLRun) ([]ContainerPlan, err
 		}
 		for i := 0; i < int(role.Replicas); i++ {
 			labels := r.baseLabels(KindRun, ns, name)
+			labels[mlrunv1alpha1.LabelRunID] = run.Labels[mlrunv1alpha1.LabelRunID]
 			labels[LabelRole] = role.Name
 			labels[LabelReplicaIndex] = formatLabelInt(i)
 			p := ContainerPlan{
@@ -160,8 +161,8 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 		return nil
 	}
 	// GPU admission is atomic across the whole workload: createPlans reserves a
-	// free card for every GPU plan or returns ResourceUnavailable (which keeps
-	// the Run Pending) without creating anything.
+	// free card for every GPU plan or returns ResourceUnavailable (which returns
+	// the Run to Queued) without creating anything.
 	if err := r.createPlans(ctx, KindRun, ns, name, toCreate); err != nil {
 		return err
 	}

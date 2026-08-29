@@ -309,11 +309,13 @@ func TestBuildRunInput_RunPolicyMap(t *testing.T) {
 
 func TestRunToView_Full(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	dn, desc, owner, msg := "Disp", "A desc", "alice", "running now"
+	dn, desc, owner, msg, queueReason := "Disp", "A desc", "alice", "running now", "InsufficientResources"
 	started := time.Unix(1700000000, 0).UTC()
 	finished := time.Unix(1700003600, 0).UTC()
 	created := time.Unix(1699990000, 0).UTC()
 	updated := time.Unix(1699995000, 0).UTC()
+	scheduled := time.Unix(1699992000, 0).UTC()
+	annotations := map[string]string{server.MLRunPriorityAnnotation: "12"}
 
 	r := &computeservice.MLRun{
 		Id:          id,
@@ -325,6 +327,8 @@ func TestRunToView_Full(t *testing.T) {
 		Owner:       &owner,
 		CreatedAt:   created,
 		UpdatedAt:   updated,
+		ScheduledAt: &scheduled,
+		Annotations: &annotations,
 		Spec: gen.MLRunSpec{
 			Scheduling: gen.MLRunSchedulingSpec{Quota: "quota-a"},
 			ConfigMaps: &[]gen.WorkloadconfigConfigMap{{
@@ -332,7 +336,7 @@ func TestRunToView_Full(t *testing.T) {
 				Data: &map[string]string{"trainer.yaml": "epochs: 3"},
 			}},
 		},
-		Status: gen.MLRunStatus{Message: &msg, StartedAt: &started, FinishedAt: &finished},
+		Status: gen.MLRunStatus{Message: &msg, QueueReason: &queueReason, StartedAt: &started, FinishedAt: &finished},
 	}
 	v := runutil.RunToView(r, "acme", "job-1")
 
@@ -347,6 +351,9 @@ func TestRunToView_Full(t *testing.T) {
 	assert.Equal(t, server.RunPhase("Running"), v.Phase)
 	assert.Equal(t, created, v.CreatedAt)
 	assert.Equal(t, updated, v.UpdatedAt)
+	assert.Equal(t, "12", v.Annotations[server.MLRunPriorityAnnotation])
+	require.NotNil(t, v.ScheduledAt)
+	assert.Equal(t, scheduled, *v.ScheduledAt)
 
 	assert.Empty(t, v.PoolName)
 	assert.Empty(t, v.UnitName)
@@ -356,6 +363,7 @@ func TestRunToView_Full(t *testing.T) {
 
 	// Status passthrough.
 	assert.Equal(t, "running now", v.Message)
+	assert.Equal(t, "InsufficientResources", v.QueueReason)
 	require.NotNil(t, v.StartedAt)
 	assert.Equal(t, started, *v.StartedAt)
 	require.NotNil(t, v.FinishedAt)

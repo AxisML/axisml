@@ -13,6 +13,7 @@ const PHASE_TONE: Record<string, PhaseTone> = {
   Stopping: "running",
   Deleting: "running",
   Uploading: "pending",
+  Queued: "pending",
   Ready: "success",
   Succeeded: "success",
   Completed: "success",
@@ -34,7 +35,7 @@ export function phaseTone(phase?: string | null): PhaseTone {
 // status filters expose EVERY phase instead of an ad-hoc subset that silently
 // hides Failed / Degraded / Creating from filtering.
 export const RUN_PHASES = [
-  "Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
+  "Queued", "Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
 ];
 export const WORKSPACE_PHASES = [
   "Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",

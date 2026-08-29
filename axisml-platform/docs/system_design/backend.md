@@ -85,7 +85,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 各功能复用以下共用骨架，后续小节只列差异：
 
 - **写定义** — RBAC 校验 → 字段校验 → 写 Platform PG（`(tenant_name, name)` 唯一）；不触下游。
-- **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字对 `(poolName, unitName)`，由 compute 内部展开 pool/unit，并按 tenant scope + pool 推导 ElasticQuota 名。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
+- **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字对 `(poolName, unitName)`，由 compute 内部展开 pool/unit，并按 tenant scope + pool 推导 ElasticQuota 名。Run 额外投影保留 annotation `scheduling.axisml.io/priority`：触发体优先，其次 Job/Experiment 定义 annotation，缺省 `0`；其他定义 annotation 不继承。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
 - **删除定义** — 实时列实例判活跃 → 有活跃则 `409 *-has-active-runs`，否则级联软删全部实例后软删定义（best-effort，部分失败上报）。
 - **列表** — 租户分区端点**始终**要求活跃租户（`axisml.tenant` Cookie 优先，`X-Axisml-Tenant` 头兜底），scoped 到该单一租户（§5.3）；无对应绑定且非 admin → `404`；`system-admin` 可 scope 到任意租户。
 - **身份** — 出站注入 `X-Axisml-User`；active tenant 解析见 §5.2。
@@ -114,12 +114,12 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | --- | --- |
 | 创建 / 编辑 Job | 通则"写定义"；编辑只影响**之后**触发的 Run（已有 Run 已快照） |
 | 删除 Job | 通则"删除定义"；有活跃 Run → `409 job-has-active-runs` |
-| 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `compute.axisml.io/job` label → `compute.CreateMLRun`；撞名（`409`）重列重算 `n` 重试（有界） |
+| 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `compute.axisml.io/job` label + 解析优先级继承 → `compute.CreateMLRun`；返回的初始 phase 为 `Queued`，撞名（`409`）重列重算 `n` 重试（有界） |
 | Run 列表 / 取消 / 删除 / 副本 / 事件 / 日志 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自 Job 定义行） → 透传 `compute.{ListMLRuns(labelSelector),CancelMLRun,DeleteMLRun,GetMLRun{Pods,Events,Logs}}`（日志 / 事件 SSE follow） |
 
-**触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
+**触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName}`、超参（`args` / `env`）和 Run annotations；其中 `scheduling.axisml.io/priority` 由 compute 校验为 int32 并在创建后冻结。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
 
-寻址：Job `/api/v1/jobs/{name}`（活跃租户由 `axisml.tenant` Cookie/`X-Axisml-Tenant` 头携带）；Run 为子资源 `/jobs/{name}/runs/{run}`，`{run}` = `<job>-<n>`。Run spec 触发时由 `Job.spec ⊕ overrides` 快照冻结，创建后不可变。
+寻址：Job `/api/v1/jobs/{name}`（活跃租户由 `axisml.tenant` Cookie/`X-Axisml-Tenant` 头携带）；Run 为子资源 `/jobs/{name}/runs/{run}`，`{run}` = `<job>-<n>`。Run spec 与 priority 在触发时由 `Job.spec ⊕ overrides` 快照冻结，创建后不可变；Platform 原样投影 `Queued`、`queueReason` 与 `scheduledAt`。
 
 ### 4.3 在线服务编排
 

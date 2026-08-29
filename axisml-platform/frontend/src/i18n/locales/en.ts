@@ -52,6 +52,7 @@ export const enUS: Catalog = {
     Completed: "Completed",
     Degraded: "Degraded",
     Pending: "Pending",
+    Queued: "Queued",
     Creating: "Creating",
     Starting: "Starting",
     Stopping: "Stopping",

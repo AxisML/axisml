@@ -22,6 +22,7 @@ import (
 
 // Run phases — the Job state machine (design §4.1).
 const (
+	RunQueued    = "Queued"
 	RunCreating  = "Creating"
 	RunPending   = "Pending"
 	RunRunning   = "Running"

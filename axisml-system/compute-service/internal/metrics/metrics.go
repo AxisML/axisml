@@ -59,6 +59,12 @@ var (
 		Name: "axisml_compute_informer_workqueue_depth",
 		Help: "Per-module informer work queue depth.",
 	}, []string{"resource"})
+
+	// MLRunQueueDepth is the durable PostgreSQL-backed admission queue depth.
+	MLRunQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "axisml_compute_mlrun_queue_depth",
+		Help: "Number of MLRuns waiting for capacity and quota admission.",
+	})
 )
 
 // Register installs all collectors into the controller-runtime metrics
@@ -73,6 +79,7 @@ func Register() {
 		QuotaPrecheckRejected,
 		CRDriftRepair,
 		InformerWorkqueueDepth,
+		MLRunQueueDepth,
 	)
 }
 

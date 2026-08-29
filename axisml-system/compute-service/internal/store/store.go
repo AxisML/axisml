@@ -27,8 +27,10 @@ type MLRun struct {
 	Labels      datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Annotations datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Spec        datatypes.JSON `gorm:"type:jsonb;not null"`
-	Phase       string         `gorm:"size:16;not null;default:'Creating'"`
+	Priority    int32          `gorm:"not null;default:0"`
+	Phase       string         `gorm:"size:16;not null;default:'Queued'"`
 	StatusJSON  datatypes.JSON `gorm:"type:jsonb;not null;default:'{}';column:status"`
+	ScheduledAt *time.Time     `gorm:"column:scheduled_at"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time

@@ -6,7 +6,7 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 
 | 做 | 不做 |
 | --- | --- |
-| Job / Service CRUD、cancel / scale、软删；数据卷由 Platform 经 cluster-manager 管理，compute 仅在 Pod 模板里以 PVC 引用挂载 | 租户 / 配额（Tenant CR + 折算）(→ [cluster-manager.md](cluster-manager.md))；持久卷 PVC 的创建 / 回收与对应 RBAC（→ Platform 经 [cluster-manager.md §4.5](cluster-manager.md#45-volume) Volume REST 管理数据卷；compute 不调 cluster-manager、无 PVC 写权限） |
+| Job / Service CRUD、cancel / scale、软删；MLRun 优先级队列、节点容量和 Tenant pool quota admission；数据卷由 Platform 经 cluster-manager 管理，compute 仅在 Pod 模板里以 PVC 引用挂载 | 租户 / 配额定义与资源落地 (→ [cluster-manager.md](cluster-manager.md))；持久卷 PVC 的创建 / 回收与对应 RBAC（→ Platform 经 [cluster-manager.md §4.5](cluster-manager.md#45-volume) Volume REST 管理数据卷；compute 不调 cluster-manager、无 PVC 写权限） |
 | 流量策略 CRUD、split / promote / rollback、指标代理；成员校验权威 | Namespace / ElasticQuota / initResources 落地 (→ [tenant-operator.md](tenant-operator.md)) |
 | 三类 CR spec 下发 + status 回流 | 直接创建 Pod / Deployment / PodGroup（→ [compute-operator.md](compute-operator.md)） |
 | Pod 列表 / 日志 / 事件透传 kube-apiserver | 加权 HTTPRoute / 灰度的网关派生 (→ [compute-operator.md](compute-operator.md)) |
@@ -33,9 +33,9 @@ Standard Runtime 写入 API Server 前，通过 Tenant CR 将逻辑 tenant scope
 
 ```
 ┌──────────── Compute (Go) ────────────┐
-│ HTTP API (Gin) ──写──▶ PG (generation + phase='Creating') │
+│ HTTP API (Gin) ──写──▶ PG (MLRun phase='Queued')          │
 │   ▲ 读                      │                              │
-│   │            Reconciler goroutines (leader-only)         │
+│   │ Queue admission ─▶ Creating ─▶ runtime Reconciler      │
 │   │            ┌ job ┬ service ┬ traffic ┐                 │
 │   │                         │ Create/Patch/Delete CR       │
 │   └── PG status ◀── Informer (leader-only, shared cache)   │
@@ -48,7 +48,7 @@ Standard Runtime 写入 API Server 前，通过 Tenant CR 将逻辑 tenant scope
 
 | 实体 | 含义 | 标识键 | 状态机 | CR |
 | --- | --- | --- | --- | --- |
-| Job | 一次性训练 / 离线任务 | `id` / `(namespace, name)` | `Creating｜Pending｜Running｜Succeeded｜Failed｜Canceling｜Cancelled｜Deleting｜Deleted` | `MLRun` |
+| Job | 一次性训练 / 离线任务 | `id` / `(namespace, name)` | `Queued｜Creating｜Pending｜Running｜Succeeded｜Failed｜Canceling｜Cancelled｜Deleting｜Deleted` | `MLRun` |
 | Service | 常驻服务 / 工作区 / TensorBoard | `id` / `(namespace, name)` | `Creating｜Pending｜Ready｜Degraded｜Failed｜Deleting｜Deleted` | `MLService` |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多服务 | `id` / `(namespace, name)` | 同 Service | `MLTrafficPolicy` |
 
@@ -56,14 +56,14 @@ Standard Runtime 写入 API Server 前，通过 Tenant CR 将逻辑 tenant scope
 
 **通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；UNIQUE 为 partial index `WHERE deleted_at IS NULL`（软删行不占唯一键）；`name` DNS-1123、长度 3–40。CR-backed 对象打 `compute.axisml.io/{run,service,traffic-policy}-id=<uuid>` label 作稳定锚点（`metadata.name` 可重用，UUID 永久唯一）；`mlservices` 还同步打 `compute.axisml.io/service-kind=<service|workspace|tensorboard>` label 便于 selector 区分（compute / operator 不按 kind 改变行为）。
 
-**扩展元数据 + 分组**：三表均带 `labels` / `annotations` jsonb，对齐 K8s 语义（[database.md §1.6](database.md#16-扩展元数据-labels--annotations)）；list 端点支持 `?labelSelector=`。两类扩展位 **PG-only、不下发 CR、不 `+generation`**。
+**扩展元数据 + 分组**：三表均带 `labels` / `annotations` jsonb，对齐 K8s 语义（[database.md §1.6](database.md#16-扩展元数据-labels--annotations)）；list 端点支持 `?labelSelector=`。扩展位默认 **PG-only、不下发 CR、不 `+generation`**；唯一例外是 MLRun 的保留 annotation `scheduling.axisml.io/priority`，它在创建时解析为不可变 int32 快照并随 MLRun 下发。
 
 ## 4. 核心功能
 
 ### 4.1 Job
 
 ```
-Creating ─(Informer ADD)─▶ Pending ─▶ Running ─▶ Succeeded / Failed
+Queued ─(容量 + quota admission)─▶ Creating ─(runtime Apply)─▶ Pending ─▶ Running ─▶ Succeeded / Failed
                               │ cancel    │ cancel
                               └───────────┴─▶ Canceling ─(Suspended condition)─▶ Cancelled
 任一非 Canceling/Deleting/Deleted ─[DELETE]─▶ Deleting ─(CR 清理 + deleted_at)─▶ Deleted
@@ -71,13 +71,18 @@ Creating ─(Informer ADD)─▶ Pending ─▶ Running ─▶ Succeeded / Faile
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 提交 | insert `Creating` + spec 快照（已含展开后的 nodeSelector / tolerations / resources） | reconciler `Create()` MLRun；创建后 spec 不可变 |
+| 提交 | insert `Queued` + priority/spec 快照（已含展开后的 nodeSelector / tolerations / resources） | 无；Queued 期间不存在 MLRun CR、Pod 或 Docker container |
+| admission | 事务内 `Queued → Creating` durable reservation | 事务提交后 reconciler 才调用 runtime `ApplyMLRun`；成功转 `Pending` 并写 `scheduled_at` |
 | cancel | `phase='Canceling'` + message | patch `spec.runPolicy.suspend=true`；`Creating` 拒绝（改用 DELETE） |
 | 更新 PG 元数据 | update 行 | 不影响 CR（spec 不可变，扩展位任意阶段可改） |
 | 软删 | `phase='Deleting'` + `deleted_at` | `Delete()` CR；Informer DELETE → `Deleted` |
 | Pod 列表 / 日志 / 事件 | — | 按 `compute.axisml.io/run-id` label list Pod；按 Pod 名透传 Log；按 `involvedObject` 过滤 Event |
 
-`Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态（`Cancelled` 行保留，可再 DELETE）。
+`Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态（`Cancelled` 行保留，可再 DELETE）。Queued run 可直接 cancel 为 `Cancelled`，不会调用 runtime。
+
+**队列与优先级**：`scheduling.axisml.io/priority` 是十进制有符号 int32，缺省 `0`，值越大越先检查；同优先级按 `created_at ASC, id ASC`。排序只定义检查顺序，高优先级任务暂时不可放置时允许后续可放置任务 backfill，不做抢占，也不设排队超时。稳定 `status.queueReason` 为 `InventoryUnavailable`、`QuotaUnavailable`、`QuotaExceeded`、`NoMatchingNode` 或 `InsufficientResources`，`message` 仅承载人类可读细节。priority 创建后不可修改。
+
+**资源 admission**：Kubernetes 读取 Ready、可调度 Node 的 allocatable/labels/taints 与非终态 Pod requests；standalone 把 Docker host 建模为单虚拟节点，读取 Engine CPU/内存、受管 GPU 以及活跃 container cgroup/GPU 预留。已 admission 的 MLRun 和活跃 MLService 是 durable reservation。每轮先在数据库事务外读取 inventory 和 Tenant quota，再在 transaction-scoped PostgreSQL advisory lock 内重读 active/Queued 行、按 priority/FIFO 做节点级试放置并写 `Creating`；锁不覆盖 Kubernetes/Docker 调用。
 
 **Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)）；Run 软删时按对象存储约定前缀一并 GC（与工作区卷 GC 同档）。
 
@@ -156,12 +161,16 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 | 谓词 | 动作 | 适用 |
 | --- | --- | --- |
+| `phase='Queued' AND deleted_at IS NULL` | 按 priority/FIFO 做资源与 quota admission；成功写 `Creating` | Job |
 | `phase='Creating' AND deleted_at IS NULL` | `Create()` CR（带 id label；409 视为成功） | Job / Service / TrafficPolicy |
 | `phase='Canceling'` | patch `MLRun.spec.runPolicy.suspend=true` | Job |
 | `phase='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | 三者 |
 | `generation <> observed_generation AND deleted_at IS NULL` | `Patch()` CR；成功后 `observed_generation = generation` | Service / TrafficPolicy |
 
-失败指数退避重试，错误写入 `message`。PG 行不再满足谓词后 reconciler 不再下发——自然结束 / 自愈 / 外部误删由 Informer 回流推进。
+失败指数退避重试，错误写入 `message`。Job 的 `Creating` / `Pending` 若超过 2 分钟没有更新，
+reconciler 会先 Observe runtime：对象存在时修复 dispatch 状态，对象不存在时退回 `Queued`；
+恢复先于本轮下发，且旧行在恢复前持续计入 reservation。PG 行不再满足谓词后 reconciler 不再
+下发——自然结束 / 自愈 / 外部误删由 Informer 回流推进。
 
 ### 5.2 generation spec 同步
 
@@ -187,7 +196,7 @@ POST .../mlruns  body: { name, poolName, unitName, ... }
 
 **校验失败**：pool 不存在 → `400 pool-not-found`；unit 名不在 `pool.spec.units[]` → `400 unit-not-found`；Informer 未 sync（冷启）→ `WaitForCacheSync` 通过前 `/readyz` 不就绪。
 
-**quota 名派生**：每个 `(tenant, pool)` 只有一个 ElasticQuota。compute 根据 URL tenant scope 与 `poolName` 派生 `axisml-<tenant>-<pool>`，写入内部 `spec.scheduling.quota` 并随展开一并 snapshot；调用方不传 quota name。Create 时不额外查询 ElasticQuota（由 cluster-manager / tenant-operator 维护，axisml-scheduler 调度期强制）。
+**quota 名派生与 admission**：每个 `(tenant, pool)` 只有一个 quota。compute 根据 URL tenant scope 与 `poolName` 派生 `axisml-<tenant>-<pool>`，写入内部 `spec.scheduling.quota` 并随展开一并 snapshot；调用方不传 quota name。队列 admission 读取 `Tenant.spec.quotas[pool].max` 并把 active MLRun / MLService 的 durable reservation 计入用量；Kubernetes 下游仍由 axisml-scheduler 以 ElasticQuota 做最终防线，standalone 使用同一静态 Tenant quota 契约。
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口读一次，展开结果固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit。pool 删除或 unit 改值不影响已创建 workload。
 
@@ -201,12 +210,15 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | --- | --- |
 | `Canceling` | 幂等忽略；`Cancelled` 只由 Suspended condition 推进 |
 | `Deleting` | 正常级联清理，推进 `Deleted` |
-| Job `Pending`/`Running`（外部误删） | 推 `Cancelled` + `finishedAt` + message，不补偿重建 |
+| Job `Pending`（外部误删） | 清除 `scheduled_at` 并退回 `Queued`，重新经过 admission |
+| Job `Running`（外部误删） | 推 `Cancelled` + `finishedAt` + message，不补偿重建 |
 | Service `Pending`/`Ready`/`Degraded`/`Failed`（外部误删） | 写 `Deleting` + `deleted_at` + message，下一轮幂等确认后推 `Deleted` |
 | TrafficPolicy 同 Service（外部误删） | 策略为纯声明态、PG 权威，下一轮 reconciler 按 `generation` 幂等重建 CR 恢复入口（成员不受影响） |
 | 已终态 | 忽略 |
 
-**正向孤儿**（PG `Creating` 无 CR 且未软删）属 Outbox 正常窗口，下一轮幂等重试 `Create()`。**反向孤儿**（CR 存在但 PG 无行或已 `Deleted`）：默认删 CR 并记日志。
+**正向孤儿**（PG `Creating` 无 CR 且未软删）属 Outbox 正常窗口，正常窗口内幂等重试
+`Create()`；超过 dispatch timeout 后先 Observe，再退回 `Queued` 或修复为 `Pending`。
+**反向孤儿**（CR 存在但 PG 无行或已 `Deleted`）：默认删 CR 并记日志。
 
 ## 6. 接口契约
 
@@ -227,7 +239,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | 依赖 | 用途 |
 | --- | --- |
 | PostgreSQL | 业务元数据权威；与 artifacts 共享 database，表前缀隔离（[database.md §2](database.md#2-compute-service)） |
-| Kubernetes API | 三类 CR 下发 + status watch + Pod log / Event 透传 + leader Lease |
+| Kubernetes API | 三类 CR 下发 + status watch + Node/Pod inventory + Tenant quota 读取 + Pod log / Event 透传 + leader Lease |
 | compute-operator | 下游 CR 消费者，把三类 CR 落地为底层资源（含加权路由 / 灰度派生）（[compute-operator.md](compute-operator.md)） |
 | 上游调用方 | 唯一调用方，注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由本服务展开 |
 | ResourcePool CR | 经 K8s Informer cache 直读，创建时展开为 Pod 原语 snapshot（[cluster-manager.md §3](cluster-manager.md#3-核心模型)） |
@@ -235,7 +247,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | Prometheus | 运行指标查询（`--prometheus-url`，只读） |
 | 对象存储（RustFS） | 为 Run / TensorBoard Pod 注入读写凭证、Run 软删时 GC 产出（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 
-Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<pool>` 字符串透传到 CR，不校验配额是否存在。
+Compute 不读取 ElasticQuota CR 内部结构；队列使用 Tenant 的 pool quota 定义，`axisml-<identifier>-<pool>` 字符串仍透传到 CR 供 axisml-scheduler 使用。
 
 ## 8. 运行时形态
 
@@ -245,7 +257,7 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 | 副本 | 默认 `replicas=1`（API 无状态可水平扩，reconciler / Informer 单 leader） |
 | Leader Election | K8s `Lease`（`axisml-compute-service.axisml.io`）；`/metrics` 暴露 `axisml_compute_is_leader` |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG）；ClusterIP，无外部 HTTPRoute |
-| RBAC scope | `mlruns`/`mlservices`/`mltrafficpolicies.axisml.io` 全权 + `resourcepools` `get/list/watch`（展开）+ `pods`/`pods/log`/`events` RO + 自身 ns `leases`；**不含** `persistentvolumeclaims`（持久卷由 Platform 经 cluster-manager 提前创建）/ `tenants` / `elasticquotas` / `namespaces` / `secrets` |
+| RBAC scope | `mlruns`/`mlservices`/`mltrafficpolicies.axisml.io` 全权 + `resourcepools` `get/list/watch`（展开）+ `tenants` `get`（quota）+ `nodes`/`pods`/`pods/log`/`events` RO + 自身 ns `leases`；**不含** `persistentvolumeclaims`（持久卷由 Platform 经 cluster-manager 提前创建）/ `elasticquotas` / `namespaces` / `secrets` |
 | Helm / 镜像 | 见 [deployment.md §8.3](../../../docs/deployment.md#83-helm-模板清单) |
 
 ## 9. 相关引用

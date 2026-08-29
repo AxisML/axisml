@@ -42,9 +42,10 @@ func TestMLRunMetrics(t *testing.T) {
 	seedResourcePool(t, ctx, "metrics-pool", "small")
 
 	const ns = "metrics-ns"
+	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, "metrics-pool", resourceList("100", "1Ti"))
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
-	require.NoError(t, c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))
 
 	body := buildMLRunCreateBody("metrics-job", "metrics-pool", "small")
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns", body, nil)

@@ -111,6 +111,18 @@ func TestStaticTenantStore_Writes(t *testing.T) {
 	assert.False(t, store.Writable())
 }
 
+func TestStaticTenantStore_ResolveQuota(t *testing.T) {
+	store := standalone.NewStaticTenantStore(validTenant())
+	max, err := store.ResolveQuota(context.Background(), "default", "default")
+	require.NoError(t, err)
+	assert.Equal(t, int64(10), max.Cpu().Value())
+
+	_, err = store.ResolveQuota(context.Background(), "default", "missing")
+	assert.Error(t, err)
+	_, err = store.ResolveQuota(context.Background(), "missing", "default")
+	assert.Error(t, err)
+}
+
 func TestConfigResourceCatalog_MultiplePools(t *testing.T) {
 	ctx := context.Background()
 	gpu := validPool()

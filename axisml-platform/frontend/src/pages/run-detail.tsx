@@ -42,11 +42,12 @@ import { cn } from "@/lib/utils";
 // the Run/Pod/Event shapes are identical across both. No fabricated data: logs
 // surface an Empty placeholder until backend log streaming lands.
 
-const ACTIVE_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
+const ACTIVE_PHASES: sdk.RunPhase[] = ["Queued", "Creating", "Pending", "Running", "Canceling"];
 
 // Phase → lifecycle Steps mapping (current step index + status).
 function lifecycleState(phase?: sdk.RunPhase): { current: number; error: boolean } {
   switch (phase) {
+    case "Queued":
     case "Creating":
       return { current: 0, error: false };
     case "Pending":

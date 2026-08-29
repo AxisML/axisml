@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS mlruns_queue_order;
+ALTER TABLE mlruns ALTER COLUMN phase SET DEFAULT 'Creating';
+ALTER TABLE mlruns DROP COLUMN IF EXISTS scheduled_at;
+ALTER TABLE mlruns DROP COLUMN IF EXISTS priority;

@@ -37,7 +37,7 @@ CR-backed 对象在 `id` 之外向对应 CR 打 label `axisml.io/<resource>-id=<
 
 ### 1.6 扩展元数据 labels / annotations
 
-所有业务表以 `labels jsonb` + `annotations jsonb` 承载扩展元数据（K8s 风格：`labels` 短键短值用于过滤、`annotations` 自由文本用于展示）。Key 前缀：系统 label 按域前缀 `scheduling./compute./tenant./resource./platform.axisml.io/*`（如 `compute.axisml.io/{job,experiment}`），`user.axisml.io/*` 或无前缀的裸 `axisml.io/*` 由调用方透传。list 端点接受 `?labelSelector=`（K8s grammar），各表建 GIN 索引兜底、高频 key 额外建复合表达式索引。扩展位**只落 PG**——不下发 CR、不 `+generation`、不参与 reconcile。
+所有业务表以 `labels jsonb` + `annotations jsonb` 承载扩展元数据（K8s 风格：`labels` 短键短值用于过滤、`annotations` 自由文本用于展示）。Key 前缀：系统 label 按域前缀 `scheduling./compute./tenant./resource./platform.axisml.io/*`（如 `compute.axisml.io/{job,experiment}`），`user.axisml.io/*` 或无前缀的裸 `axisml.io/*` 由调用方透传。list 端点接受 `?labelSelector=`（K8s grammar），各表建 GIN 索引兜底、高频 key 额外建复合表达式索引。扩展位默认只落 PG；MLRun 的 `scheduling.axisml.io/priority` 是保留例外，会在创建时快照到 `priority` 并下发 runtime 对象。
 
 ## 2. Compute Service
 
@@ -55,8 +55,10 @@ CREATE TABLE mlruns (
   labels       jsonb NOT NULL DEFAULT '{}',
   annotations  jsonb NOT NULL DEFAULT '{}',
   spec         jsonb NOT NULL,                -- MLRun spec 快照；不可变；含已展开的 nodeSelector / tolerations / resources
-  phase        text NOT NULL DEFAULT 'Creating',
+  priority     integer NOT NULL DEFAULT 0,    -- annotation 解析后的不可变 int32 快照
+  phase        text NOT NULL DEFAULT 'Queued',
   status       jsonb NOT NULL DEFAULT '{}',
+  scheduled_at timestamptz,                   -- runtime 首次成功接受任务的时间
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now(),
   deleted_at   timestamptz
@@ -65,11 +67,13 @@ CREATE UNIQUE INDEX mlruns_namespace_name_active_uniq ON mlruns (namespace, name
 CREATE INDEX mlruns_phase      ON mlruns (phase) WHERE deleted_at IS NULL;
 CREATE INDEX mlruns_created_at ON mlruns (created_at DESC);
 CREATE INDEX mlruns_labels_gin ON mlruns USING GIN (labels jsonb_path_ops);
+CREATE INDEX mlruns_queue_order ON mlruns (priority DESC, created_at ASC, id ASC)
+  WHERE phase = 'Queued' AND deleted_at IS NULL;
 CREATE INDEX mlruns_namespace_project_created
   ON mlruns (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt}`（informer 写；cancel 判定实时读 CR `conditions[Suspended]`，不落库）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
+`phase` 在 runtime 对象创建前额外包含 `Queued` / `Creating`，之后镜像 MLRun CR `status.phase`；`status` jsonb 持 `{message, queueReason, startedAt, finishedAt}`。`priority`、`scheduled_at` 与队列 partial index 构成 durable admission 顺序和时间边界。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 pool/unit 溯源 label（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
 
 ### 2.2 `mlservices`
 

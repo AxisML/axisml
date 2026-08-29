@@ -21,7 +21,7 @@ func testRuntime() *Runtime {
 func TestRenderRunPlans(t *testing.T) {
 	r := testRuntime()
 	run := &mlrunv1alpha1.MLRun{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "trainer"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "trainer", Labels: map[string]string{mlrunv1alpha1.LabelRunID: "run-uuid"}},
 		Spec: mlrunv1alpha1.MLRunSpec{
 			Backend: mlrunv1alpha1.BackendSpec{Name: "native", Engine: "job"},
 			Roles: []mlrunv1alpha1.RoleSpec{{
@@ -66,6 +66,7 @@ func TestRenderRunPlans(t *testing.T) {
 	assert.Equal(t, "trainer", p.Labels[LabelName])
 	assert.Equal(t, "worker", p.Labels[LabelRole])
 	assert.Equal(t, "0", p.Labels[LabelReplicaIndex])
+	assert.Equal(t, "run-uuid", p.Labels[mlrunv1alpha1.LabelRunID])
 	assert.NotEmpty(t, p.Labels[LabelSpecHash])
 	assert.Equal(t, "trainer-worker", plans[1].NamePrefix)
 	assert.Equal(t, 1, plans[1].Replica)
@@ -199,7 +200,7 @@ func TestRenderRunPlans_VolumeMountUndeclared(t *testing.T) {
 func TestRenderServicePlans(t *testing.T) {
 	r := testRuntime()
 	svc := &mlservicev1alpha1.MLService{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer", Labels: map[string]string{mlservicev1alpha1.LabelServiceID: "service-uuid"}},
 		Spec: mlservicev1alpha1.MLServiceSpec{
 			Backend: mlservicev1alpha1.Backend{Name: "native", Engine: "deployment"},
 			Roles: []mlservicev1alpha1.RoleSpec{{
@@ -228,6 +229,7 @@ func TestRenderServicePlans(t *testing.T) {
 	assert.Equal(t, int32(80), p.Ports[0].ContainerPort)
 	assert.Equal(t, 1, p.Resources.GPUCount)
 	assert.Equal(t, KindService, p.Labels[LabelResourceKind])
+	assert.Equal(t, "service-uuid", p.Labels[mlservicev1alpha1.LabelServiceID])
 }
 
 func TestRenderServicePlans_VolumeMountUndeclared(t *testing.T) {

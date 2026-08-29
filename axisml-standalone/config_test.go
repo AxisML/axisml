@@ -21,6 +21,8 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "json", cfg.Log.Format)
 	assert.Equal(t, "http://zot:5000", cfg.OCI.Endpoint)
 	assert.Equal(t, "admin", cfg.OCI.AdminUser)
+	assert.Equal(t, "0", cfg.Workload.SystemReservedCPU)
+	assert.Equal(t, "0", cfg.Workload.SystemReservedMemory)
 }
 
 func TestLoad_EnvOverride(t *testing.T) {

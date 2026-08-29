@@ -56,7 +56,7 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limi
 
 // phaseColumns are the only columns the batch/single phase probes read — the
 // heavy spec jsonb is never selected.
-var phaseColumns = []string{"namespace", "name", "phase", "status"}
+var phaseColumns = []string{"namespace", "name", "phase", "status", "scheduled_at"}
 
 // ListPhasesByNames returns the phase columns for the given run names in the
 // namespace (soft-deleted excluded). Missing names are simply absent from the
@@ -104,6 +104,16 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string
 	return r.db.WithContext(ctx).Model(&store.MLRun{}).Where("id = ?", id).Updates(fields).Error
 }
 
+// UpdatePhase applies fields only while the row is still in the expected
+// phase. Recovery observes the runtime outside PostgreSQL, so this CAS keeps a
+// concurrent informer write from being overwritten by a stale observation.
+func (r *Repository) UpdatePhase(ctx context.Context, id uuid.UUID, phase Status, fields map[string]any) (bool, error) {
+	result := r.db.WithContext(ctx).Model(&store.MLRun{}).
+		Where("id = ? AND phase = ? AND deleted_at IS NULL", id, string(phase)).
+		Updates(fields)
+	return result.RowsAffected == 1, result.Error
+}
+
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Model(&store.MLRun{}).Where("id = ?", id).Updates(map[string]any{
 		"phase":      string(StatusDeleting),
@@ -139,15 +149,27 @@ type WorkSet struct {
 
 const workSetBatch = 100
 
+// FindDispatchRecoverySet returns admitted rows whose dispatch has not
+// converged within the controller's timeout. Pending is included so an
+// in-place upgrade can recover the old standalone resource-wait state where no
+// runtime object had been created yet.
+func (r *Repository) FindDispatchRecoverySet(ctx context.Context, updatedBefore time.Time) ([]store.MLRun, error) {
+	var rows []store.MLRun
+	if err := r.db.WithContext(ctx).
+		Where("phase IN ? AND updated_at <= ? AND deleted_at IS NULL", []string{string(StatusCreating), string(StatusPending)}, updatedBefore).
+		Order("updated_at ASC").Limit(workSetBatch).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
-	// Both Creating (queued) and Pending (being placed / waiting for resources)
-	// rows are driven by handleCreate: a workload that cannot yet be placed —
-	// e.g. no free GPU — sits in Pending and is retried every tick until a card
-	// frees up. ApplyMLRun is idempotent, so re-applying a Pending row whose
-	// containers already exist is a no-op.
+	// Only admitted Creating rows may reach the runtime. Queued rows are owned by
+	// the admission controller and Pending rows already have a runtime object.
 	if err := r.db.WithContext(ctx).
-		Where("phase IN ? AND deleted_at IS NULL", []string{string(StatusCreating), string(StatusPending)}).
+		Where("phase = ? AND deleted_at IS NULL", string(StatusCreating)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err

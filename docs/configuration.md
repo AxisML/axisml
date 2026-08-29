@@ -140,8 +140,10 @@ Configuration source: **environment only**. This binary reads no config file.
 | `oci.admin_user` | `AXISML_OCI_ADMIN_USER` | `admin` | — | OCI registry admin username |
 | `oci.admin_password` | `AXISML_OCI_ADMIN_PASSWORD`<br>`AXISML_OCI_ADMIN_PASSWORD_FILE` | — | yes | OCI registry admin password |
 | `docker.config_file` | `AXISML_DOCKER_CONFIG_FILE` | — | — | Path to a Docker config.json used for workload image pull credentials; empty pulls anonymously |
-| `gpu.devices` | `AXISML_GPU_DEVICES` | — | — | Physical GPU indices to schedule onto (comma list, e.g. 0,1,2); empty falls back to Docker's default count-based GPU request |
+| `gpu.devices` | `AXISML_GPU_DEVICES` | — | — | Physical GPU indices available to AxisML (comma list, e.g. 0,1,2); empty keeps GPU Runs queued because capacity is unknown |
 | `workload.tenant_prefix` | `AXISML_WORKLOAD_TENANT_PREFIX` | `false` | — | Prefix physical workload names with a readable, collision-resistant tenant token |
+| `workload.system_reserved_cpu` | `AXISML_WORKLOAD_SYSTEM_RESERVED_CPU` | `0` | — | Host CPU capacity reserved from workload queue admission |
+| `workload.system_reserved_memory` | `AXISML_WORKLOAD_SYSTEM_RESERVED_MEMORY` | `0` | — | Host memory capacity reserved from workload queue admission |
 
 ## platform-backend
 

@@ -7,8 +7,9 @@ import (
 
 // ResourceUnavailableError marks an Apply that could not place the workload
 // because the runtime currently has insufficient free resources (e.g. no free
-// GPU). It is not a failure: the reconciler keeps the workload Pending and
-// retries on the next tick. The Kubernetes runtime never returns it (the
+// GPU). For MLRuns it is not a failure: when Apply created no instance, the
+// reconciler returns the Run to Queued for a fresh admission decision. The
+// Kubernetes runtime never returns it (the
 // in-cluster scheduler handles pending placement); it originates only in the
 // single-host standalone runtime.
 type ResourceUnavailableError struct{ Msg string }

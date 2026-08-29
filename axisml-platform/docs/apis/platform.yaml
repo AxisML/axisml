@@ -4253,6 +4253,10 @@ components:
         unitName: a100-2x
         updatedAt: "2026-06-28T09:30:00Z"
       properties:
+        annotations:
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Run annotations, including the immutable queue priority.
         backend:
           allOf:
           - $ref: '#/components/schemas/Backend'
@@ -4307,6 +4311,9 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        queueReason:
+          description: Stable reason explaining why a Run remains Queued.
+          type: string
         resources:
           allOf:
           - $ref: '#/components/schemas/ResourceMap'
@@ -4324,7 +4331,7 @@ components:
           - $ref: '#/components/schemas/RunPolicy'
           description: Effective run-level execution limits.
         scheduledAt:
-          description: Time the run was admitted by the scheduler (left Pending).
+          description: Time the runtime accepted the run and it entered Pending.
           format: date-time
           nullable: true
           type: string
@@ -4528,6 +4535,7 @@ components:
       description: Run (compute MLRun) phase. The active (non-terminal) phases — Creating
         / Pending / Running / Canceling — block Job-definition deletion.
       enum:
+      - Queued
       - Creating
       - Pending
       - Running

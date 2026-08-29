@@ -2196,6 +2196,10 @@ export type RoleTemplate = {
 
 export type Run = {
     /**
+     * Run annotations, including the immutable queue priority.
+     */
+    annotations?: StringMap;
+    /**
      * Compute backend/engine executing the run.
      */
     backend: Backend;
@@ -2256,6 +2260,10 @@ export type Run = {
      */
     poolName?: string;
     /**
+     * Stable reason explaining why a Run remains Queued.
+     */
+    queueReason?: string;
+    /**
      * Aggregate resources reserved by the run.
      */
     resources?: ResourceMap;
@@ -2272,7 +2280,7 @@ export type Run = {
      */
     runPolicy?: RunPolicy;
     /**
-     * Time the run was admitted by the scheduler (left Pending).
+     * Time the runtime accepted the run and it entered Pending.
      */
     scheduledAt?: string | null;
     /**
@@ -2323,7 +2331,7 @@ export type RunList = {
 /**
  * Run (compute MLRun) phase. The active (non-terminal) phases — Creating / Pending / Running / Canceling — block Job-definition deletion.
  */
-export type RunPhase = 'Creating' | 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Canceling' | 'Cancelled' | 'Deleting' | 'Deleted';
+export type RunPhase = 'Queued' | 'Creating' | 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Canceling' | 'Cancelled' | 'Deleting' | 'Deleted';
 
 export type RunPolicy = {
     /**

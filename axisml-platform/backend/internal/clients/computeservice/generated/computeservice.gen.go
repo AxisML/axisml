@@ -22,6 +22,7 @@ import (
 const (
 	Conflict           ComputeServiceErrorCode = "conflict"
 	Forbidden          ComputeServiceErrorCode = "forbidden"
+	ImmutableField     ComputeServiceErrorCode = "immutable-field"
 	InternalError      ComputeServiceErrorCode = "internal_error"
 	NotFound           ComputeServiceErrorCode = "not_found"
 	PreconditionFailed ComputeServiceErrorCode = "precondition_failed"
@@ -33,8 +34,17 @@ const (
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	// QuotaEnforcement True when the scheduler admits pods against an ElasticQuota; false when the runtime has no quota admission.
+	// QuotaEnforcement True when Kubernetes scheduler-side ElasticQuota enforcement is enabled; false in standalone.
 	QuotaEnforcement bool `json:"quotaEnforcement"`
+
+	// RunPriority True when queued Runs are considered by priority then FIFO.
+	RunPriority bool `json:"runPriority"`
+
+	// RunQueueAdmission True when Compute keeps Runs queued until capacity and quota are available.
+	RunQueueAdmission bool `json:"runQueueAdmission"`
+
+	// RunQueueQuotaEnforcement True when Run queue admission enforces Tenant pool quotas in this deployment form.
+	RunQueueQuotaEnforcement bool `json:"runQueueQuotaEnforcement"`
 
 	// Runtime Workload execution engine for this deployment form (kubernetes or standalone).
 	Runtime string `json:"runtime"`
@@ -634,8 +644,11 @@ type MLRun struct {
 	// Owner Username of the run owner.
 	Owner *string `json:"owner,omitempty"`
 
-	// Phase Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
+	// Phase Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
 	Phase string `json:"phase"`
+
+	// ScheduledAt Time the runtime accepted the run and it entered Pending.
+	ScheduledAt *time.Time `json:"scheduledAt"`
 
 	// Spec Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy).
 	Spec MLRunSpec `json:"spec"`
@@ -657,7 +670,7 @@ type MLRunBackendSpec struct {
 
 // MLRunCreateRequest defines model for MLRunCreateRequest.
 type MLRunCreateRequest struct {
-	// Annotations User-defined annotations stored on the row and stamped onto the CR.
+	// Annotations User-defined annotations stored on the row; scheduling.axisml.io/priority is also stamped onto the runtime object.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
 	// Backend Compute backend/engine that runs the workload; defaults to (native, job) when omitted.
@@ -735,8 +748,14 @@ type MLRunPhase struct {
 	// Name MLRun name, unique within the namespace.
 	Name string `json:"name"`
 
-	// Phase Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
+	// Phase Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
 	Phase string `json:"phase"`
+
+	// QueueReason Stable reason while Queued.
+	QueueReason *string `json:"queueReason,omitempty"`
+
+	// ScheduledAt Time the runtime accepted the run and it entered Pending.
+	ScheduledAt *time.Time `json:"scheduledAt"`
 
 	// StartedAt Time the run started executing.
 	StartedAt *time.Time `json:"startedAt"`
@@ -811,6 +830,9 @@ type MLRunStatus struct {
 
 	// Message Human-readable status detail for the current phase.
 	Message *string `json:"message,omitempty"`
+
+	// QueueReason Stable reason while Queued: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources.
+	QueueReason *string `json:"queueReason,omitempty"`
 
 	// StartedAt Time the run started executing.
 	StartedAt *time.Time `json:"startedAt"`

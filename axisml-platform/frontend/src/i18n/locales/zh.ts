@@ -51,6 +51,7 @@ export const zhCN = {
     Completed: "已完成",
     Degraded: "降级",
     Pending: "等待中",
+    Queued: "排队中",
     Creating: "创建中",
     Starting: "启动中",
     Stopping: "停止中",

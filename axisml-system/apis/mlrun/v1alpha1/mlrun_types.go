@@ -182,6 +182,10 @@ const (
 	LabelSchedulerQuota = "scheduling.axisml.io/quota"
 
 	AnnotationAppliedSpec = "compute.axisml.io/applied-spec"
+	// AnnotationPriority is the public queue priority contract. Compute parses
+	// it as a signed int32 when the MLRun is submitted; larger values are
+	// considered before smaller values.
+	AnnotationPriority = "scheduling.axisml.io/priority"
 
 	SchedulerName = "axisml-scheduler"
 

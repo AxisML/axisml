@@ -29,6 +29,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events"]
     verbs: ["get", "list", "watch"]
+  # Queue admission reads allocatable capacity and scheduling constraints.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
   # The events kubeproxy endpoint reads the events.k8s.io/v1 Event type (not just
   # core/v1 events), so the informer needs list/watch on that group too.
   - apiGroups: ["events.k8s.io"]

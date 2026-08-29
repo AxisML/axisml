@@ -48,6 +48,10 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 	} else if err != nil && !IsNotFound(err) {
 		return nil, err
 	}
+	priority, err := PriorityFromAnnotations(in.Annotations)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeValidation, err.Error())
+	}
 
 	pool, err := s.pools.ResolveResourcePool(ctx, in.PoolName)
 	if err != nil {
@@ -121,7 +125,8 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 		Labels:      mapBytes(mergedLabels),
 		Annotations: mapBytes(in.Annotations),
 		Spec:        datatypes.JSON(specJSON),
-		Phase:       string(StatusCreating),
+		Priority:    priority,
+		Phase:       string(StatusQueued),
 		StatusJSON:  []byte("{}"),
 	}
 	if err := s.repo.Create(ctx, j); err != nil {
@@ -185,11 +190,13 @@ func phaseView(j *store.MLRun) server.MLRunPhase {
 		_ = json.Unmarshal(j.StatusJSON, &status)
 	}
 	return server.MLRunPhase{
-		Name:       j.Name,
-		Phase:      j.Phase,
-		Message:    status.Message,
-		StartedAt:  status.StartedAt,
-		FinishedAt: status.FinishedAt,
+		Name:        j.Name,
+		Phase:       j.Phase,
+		Message:     status.Message,
+		QueueReason: status.QueueReason,
+		ScheduledAt: j.ScheduledAt,
+		StartedAt:   status.StartedAt,
+		FinishedAt:  status.FinishedAt,
 	}
 }
 
@@ -226,6 +233,23 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*server.M
 		return nil, err
 	}
 	switch Status(j.Phase) {
+	case StatusQueued:
+		now := time.Now().UTC()
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
+			s.Message = "user cancelled"
+			s.QueueReason = ""
+			s.FinishedAt = &now
+		})
+		if err := s.repo.Update(ctx, j.ID, map[string]any{
+			"phase":  string(StatusCancelled),
+			"status": datatypes.JSON(next),
+		}); err != nil {
+			return nil, err
+		}
+		j.Phase = string(StatusCancelled)
+		j.StatusJSON = next
+		j.UpdatedAt = now
+		return s.toView(j)
 	case StatusCreating:
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is still being created; use DELETE")
 	case StatusCanceling, StatusCancelled, StatusDeleting, StatusDeleted, StatusSucceeded, StatusFailed:
@@ -268,9 +292,24 @@ func (s *Service) Patch(ctx context.Context, namespace, name string, in server.M
 		updates["description"] = *in.Description
 	}
 	if in.Labels != nil {
-		updates["labels"] = mapBytes(in.Labels)
+		current := decodeMap(j.Labels)
+		updates["labels"] = mapBytes(mergeLabels(in.Labels, map[string]string{
+			mlrunv1alpha1.LabelResourcePool: current[mlrunv1alpha1.LabelResourcePool],
+			mlrunv1alpha1.LabelResourceUnit: current[mlrunv1alpha1.LabelResourceUnit],
+		}))
 	}
 	if in.Annotations != nil {
+		_, err := PriorityFromAnnotations(in.Annotations)
+		if err != nil {
+			return nil, apperrors.New(apperrors.CodeValidation, err.Error())
+		}
+		current := decodeMap(j.Annotations)
+		currentPriority, currentHasPriority := current[mlrunv1alpha1.AnnotationPriority]
+		nextPriority, nextHasPriority := in.Annotations[mlrunv1alpha1.AnnotationPriority]
+		if currentHasPriority != nextHasPriority || currentPriority != nextPriority {
+			return nil, apperrors.New(apperrors.CodeImmutableField, "annotation scheduling.axisml.io/priority is immutable").
+				WithDetails(map[string]any{"field": "annotations.scheduling.axisml.io/priority"})
+		}
 		updates["annotations"] = mapBytes(in.Annotations)
 	}
 	if len(updates) == 0 {
@@ -295,6 +334,12 @@ func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 		return err
 	}
 	switch Status(j.Phase) {
+	case StatusQueued:
+		now := time.Now().UTC()
+		return s.repo.Update(ctx, j.ID, map[string]any{
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
@@ -347,6 +392,7 @@ func (s *Service) toView(j *store.MLRun) (*server.MLRun, error) {
 		Phase:       j.Phase,
 		Spec:        spec,
 		Status:      status,
+		ScheduledAt: j.ScheduledAt,
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
 		DeletedAt:   j.DeletedAt,

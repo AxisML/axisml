@@ -157,10 +157,12 @@ func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
 		JobName:     defName,
 		DisplayName: strv(r.DisplayName),
 		Description: strv(r.Description),
+		Annotations: mapv(r.Annotations),
 		Owner:       strv(r.Owner),
 		Phase:       server.RunPhase(r.Phase),
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
+		ScheduledAt: r.ScheduledAt,
 	}
 	// Pull scheduling convenience fields by re-reading the spec as JSON.
 	var spec struct {
@@ -177,17 +179,26 @@ func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
 	v.Spec.ConfigMaps = spec.ConfigMaps
 	// Status passthrough (message/started/finished).
 	var st struct {
-		Message    string     `json:"message"`
-		StartedAt  *time.Time `json:"startedAt"`
-		FinishedAt *time.Time `json:"finishedAt"`
+		Message     string     `json:"message"`
+		QueueReason string     `json:"queueReason"`
+		StartedAt   *time.Time `json:"startedAt"`
+		FinishedAt  *time.Time `json:"finishedAt"`
 	}
 	if b, err := json.Marshal(r.Status); err == nil {
 		_ = json.Unmarshal(b, &st)
 	}
 	v.Message = st.Message
+	v.QueueReason = st.QueueReason
 	v.StartedAt = st.StartedAt
 	v.FinishedAt = st.FinishedAt
 	return v
+}
+
+func mapv(p *map[string]string) server.StringMap {
+	if p == nil {
+		return nil
+	}
+	return server.StringMap(*p)
 }
 
 func strv(p *string) string {

@@ -31,10 +31,11 @@ func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 	require.NoError(t, err)
 
 	row := &store.MLRun{
-		ID:        id,
-		Namespace: "team-a",
-		Name:      "trainer",
-		Spec:      datatypes.JSON(specJSON),
+		ID:          id,
+		Namespace:   "team-a",
+		Name:        "trainer",
+		Spec:        datatypes.JSON(specJSON),
+		Annotations: datatypes.JSON([]byte(`{"scheduling.axisml.io/priority":"9","example.com/private":"hidden"}`)),
 	}
 
 	cr, err := ToCR(row, false)
@@ -47,6 +48,8 @@ func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 		"quota label is the operator's gating signal — it must be sourced from spec.scheduling.quota")
 	assert.Equal(t, spec.Backend, cr.Spec.Backend)
 	assert.Equal(t, int32(2), cr.Spec.Roles[0].Replicas)
+	assert.Equal(t, "9", cr.Annotations[mlrunv1alpha1.AnnotationPriority])
+	assert.NotContains(t, cr.Annotations, "example.com/private")
 }
 
 func TestToCR_EmptySpec_StillRenders(t *testing.T) {
@@ -87,7 +90,7 @@ func TestIsTerminal(t *testing.T) {
 	for _, s := range terminal {
 		assert.Truef(t, IsTerminal(s), "%s must be terminal", s)
 	}
-	nonTerminal := []Status{StatusCreating, StatusPending, StatusRunning, StatusCanceling, StatusDeleting}
+	nonTerminal := []Status{StatusQueued, StatusCreating, StatusPending, StatusRunning, StatusCanceling, StatusDeleting}
 	for _, s := range nonTerminal {
 		assert.Falsef(t, IsTerminal(s), "%s must not be terminal", s)
 	}

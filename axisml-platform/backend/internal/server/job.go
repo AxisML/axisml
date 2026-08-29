@@ -2,6 +2,10 @@ package server
 
 import "time"
 
+// MLRunPriorityAnnotation is the only definition annotation inherited by a
+// triggered Run. Trigger-time annotations override it.
+const MLRunPriorityAnnotation = "scheduling.axisml.io/priority"
+
 // Backend selects the compute backend + engine for a run/service.
 type Backend struct {
 	Name   BackendName    `json:"name" desc:"Compute backend that runs the workload (native, kubeflow-trainer, kserve, custom)."`
@@ -65,6 +69,7 @@ type Run struct {
 	RunNumber         int               `json:"runNumber,omitempty" desc:"Monotonic per-job run sequence number."`
 	DisplayName       string            `json:"displayName,omitempty" desc:"Human-readable run label."`
 	Description       string            `json:"description,omitempty" desc:"Free-text run description."`
+	Annotations       StringMap         `json:"annotations,omitempty" desc:"Run annotations, including the immutable queue priority."`
 	Owner             string            `json:"owner" desc:"Username of the run owner."`
 	OwnerID           UUID              `json:"ownerId,omitempty" desc:"User ID of the run owner."`
 	Backend           Backend           `json:"backend" desc:"Compute backend/engine executing the run."`
@@ -76,7 +81,8 @@ type Run struct {
 	Spec              MLRunSpec         `json:"spec,omitempty" desc:"Full resolved run spec (for the YAML view)."`
 	Phase             RunPhase          `json:"phase,omitempty" desc:"Current run lifecycle phase."`
 	Message           string            `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	ScheduledAt       *time.Time        `json:"scheduledAt,omitempty" desc:"Time the run was admitted by the scheduler (left Pending)."`
+	QueueReason       string            `json:"queueReason,omitempty" desc:"Stable reason explaining why a Run remains Queued."`
+	ScheduledAt       *time.Time        `json:"scheduledAt,omitempty" desc:"Time the runtime accepted the run and it entered Pending."`
 	StartedAt         *time.Time        `json:"startedAt,omitempty" desc:"Time the run started executing."`
 	FinishedAt        *time.Time        `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
 	CreatedAt         time.Time         `json:"createdAt" desc:"Time the run was created."`

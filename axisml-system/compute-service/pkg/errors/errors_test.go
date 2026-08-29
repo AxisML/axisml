@@ -80,7 +80,7 @@ func TestWithDetails(t *testing.T) {
 func TestAllCodes_ContainsEveryCode(t *testing.T) {
 	codes := AllCodes()
 	want := []Code{
-		CodeValidation, CodeNotFound, CodeConflict, CodePrecondition,
+		CodeValidation, CodeNotFound, CodeConflict, CodeImmutableField, CodePrecondition,
 		CodeUnauthorized, CodeForbidden, CodeUnavailable, CodeInternal,
 		CodeQuotaExceeded,
 	}

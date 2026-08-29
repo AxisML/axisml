@@ -34,6 +34,7 @@ func TestKubeProxy_ListMLRunPods(t *testing.T) {
 	seedResourcePool(t, ctx, "kp-pool", "small")
 	const ns = "kp-ns"
 	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, "kp-pool", resourceList("100", "1Ti"))
 
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
 		buildMLRunCreateBody("kp-job", "kp-pool", "small"), nil)

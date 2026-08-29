@@ -4,6 +4,7 @@ package mlrun
 type Status string
 
 const (
+	StatusQueued    Status = "Queued"
 	StatusCreating  Status = "Creating"
 	StatusPending   Status = "Pending"
 	StatusRunning   Status = "Running"

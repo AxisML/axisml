@@ -16,7 +16,7 @@ type MLRunCreateRequest struct {
 	DisplayName   string                       `json:"displayName" desc:"Human-readable run label."`
 	Description   string                       `json:"description" desc:"Free-text run description."`
 	Labels        map[string]string            `json:"labels,omitempty" desc:"User-defined labels stored on the row and stamped onto the CR."`
-	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row and stamped onto the CR."`
+	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row; scheduling.axisml.io/priority is also stamped onto the runtime object."`
 	PoolName      string                       `json:"poolName" binding:"required" desc:"Resource pool name resolved against the ResourcePool CRD via the Informer cache."`
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the run's pods."`
@@ -38,9 +38,10 @@ type MLRun struct {
 	Owner       string                  `json:"owner,omitempty" desc:"Username of the run owner."`
 	Labels      map[string]string       `json:"labels,omitempty" desc:"User-defined labels."`
 	Annotations map[string]string       `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Phase       string                  `json:"phase" desc:"Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
+	Phase       string                  `json:"phase" desc:"Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
 	Spec        mlrunv1alpha1.MLRunSpec `json:"spec" desc:"Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy)."`
 	Status      MLRunStatus             `json:"status" desc:"Operator-reported status sub-tree."`
+	ScheduledAt *time.Time              `json:"scheduledAt,omitempty" desc:"Time the runtime accepted the run and it entered Pending."`
 	CreatedAt   time.Time               `json:"createdAt" desc:"Time the run was created."`
 	UpdatedAt   time.Time               `json:"updatedAt" desc:"Time the run was last updated."`
 	DeletedAt   *time.Time              `json:"deletedAt,omitempty" desc:"Soft-deletion timestamp, set once the run is deleted."`
@@ -58,9 +59,10 @@ type MLRunPatchRequest struct {
 
 // MLRunStatus mirrors the CR status sub-tree compute persists for MLRuns.
 type MLRunStatus struct {
-	Message    string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	StartedAt  *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
-	FinishedAt *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
+	Message     string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	QueueReason string     `json:"queueReason,omitempty" desc:"Stable reason while Queued: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources."`
+	StartedAt   *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
+	FinishedAt  *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
 }
 
 // MLRunPhase is the lightweight response for the phase probes — GET
@@ -69,9 +71,11 @@ type MLRunStatus struct {
 // phase and status detail, skipping the heavy spec sub-tree the full MLRun
 // payload carries. `name` identifies the run in batch responses.
 type MLRunPhase struct {
-	Name       string     `json:"name" desc:"MLRun name, unique within the namespace."`
-	Phase      string     `json:"phase" desc:"Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
-	Message    string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	StartedAt  *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
-	FinishedAt *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
+	Name        string     `json:"name" desc:"MLRun name, unique within the namespace."`
+	Phase       string     `json:"phase" desc:"Current run lifecycle phase: Queued, Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
+	Message     string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	QueueReason string     `json:"queueReason,omitempty" desc:"Stable reason while Queued."`
+	ScheduledAt *time.Time `json:"scheduledAt,omitempty" desc:"Time the runtime accepted the run and it entered Pending."`
+	StartedAt   *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
+	FinishedAt  *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
 }

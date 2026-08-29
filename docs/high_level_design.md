@@ -111,7 +111,7 @@ System 进程及必要基础设施（见 [deployment.md](deployment.md)）。
 
 - 外部流量经 Envoy Gateway 进入 Platform；System 层仅接受 Platform 内部调用。
 - **租户闭环**：Platform 写 `tenants` 表 → cluster-manager REST 创建 / 删除 Tenant CR → tenant-operator 落地 Namespace / ElasticQuota / 初始化资源。
-- **负载闭环**：Platform 调 compute（创建 workload 时仅传 pool/unit 名字）→ compute 写 PG 并 patch MLRun / MLService / MLTrafficPolicy CR → compute-operator 按 `spec.backend.{name, engine}` 路由 handler 渲染 K8s 与第三方 CR。
+- **负载闭环**：Platform 调 compute（创建 workload 时仅传 pool/unit 名字；Run priority 来自 annotation）→ MLRun 先以 `Queued` 写 PG → compute 在容量与 Tenant pool quota 可用时 admission 为 `Creating` → Kubernetes 形态下才提交 MLRun CR，standalone 形态下才创建 Docker container → operator/runtime 执行并回流状态。
 - **制品域**：artifacts 元数据走 PG；model / image 走 zot（OCI），dataset 走 RustFS（S3），上传下载由消费方直连存储，artifacts 不代理大文件。
 
 Standalone 保持相同的上游调用关系，只替换 System 以下的落地路径：

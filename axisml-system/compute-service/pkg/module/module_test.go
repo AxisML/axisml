@@ -1,13 +1,17 @@
 package module_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+	corev1 "k8s.io/api/core/v1"
 
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 )
 
@@ -39,6 +43,29 @@ func TestNew_RuntimeOverride(t *testing.T) {
 	caps := m.Capabilities()
 	assert.Equal(t, "standalone", caps.Runtime)
 	assert.True(t, caps.QuotaEnforcement)
+}
+
+type inventoryStub struct{}
+
+func (inventoryStub) Snapshot(context.Context) (extensions.ResourceSnapshot, error) {
+	return extensions.ResourceSnapshot{}, nil
+}
+
+type quotaStub struct{}
+
+func (quotaStub) ResolveQuota(context.Context, string, string) (corev1.ResourceList, error) {
+	return corev1.ResourceList{}, nil
+}
+
+func TestNew_AssemblesRunQueueWhenAdmissionDependenciesExist(t *testing.T) {
+	m, err := module.New(module.Deps{
+		DB: &gorm.DB{}, Inventory: inventoryStub{}, Quotas: quotaStub{}, Log: logr.Discard(),
+	})
+	require.NoError(t, err)
+	assert.Len(t, m.Runnables(), 4)
+	assert.True(t, m.Capabilities().RunQueueAdmission)
+	assert.True(t, m.Capabilities().RunPriority)
+	assert.True(t, m.Capabilities().RunQueueQuotaEnforcement)
 }
 
 func TestRegisterRoutes(t *testing.T) {

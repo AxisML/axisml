@@ -10,6 +10,7 @@ import (
 // phase enum and the published statusmap constants the informer reflows through.
 func TestPhaseValuesMatchStatusmap(t *testing.T) {
 	cases := map[Status]string{
+		StatusQueued:    statusmap.RunQueued,
 		StatusCreating:  statusmap.RunCreating,
 		StatusPending:   statusmap.RunPending,
 		StatusRunning:   statusmap.RunRunning,

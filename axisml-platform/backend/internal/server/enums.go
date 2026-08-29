@@ -40,7 +40,7 @@ type RunPhase string
 
 // RunPhaseValues enumerates RunPhase.
 var RunPhaseValues = []string{
-	"Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
+	"Queued", "Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
 }
 
 // MLServicePhase is the lifecycle phase of an MLService.

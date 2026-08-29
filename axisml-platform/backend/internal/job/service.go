@@ -34,6 +34,9 @@ func NewService(defs *store.DefinitionRepo, tenants *store.TenantRepo, compute *
 
 // Create writes a Job definition.
 func (s *Service) Create(ctx context.Context, tenant, owner string, in server.JobCreateRequest) (*server.Job, error) {
+	if err := rundef.ValidatePriorityAnnotations(map[string]string(in.Annotations)); err != nil {
+		return nil, err
+	}
 	d := &store.Definition{
 		TenantName:  tenant,
 		Name:        in.Name,
@@ -96,6 +99,9 @@ func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name st
 		d.Labels = store.StrMap(in.Labels)
 	}
 	if in.Annotations != nil {
+		if err := rundef.ValidatePriorityAnnotations(map[string]string(in.Annotations)); err != nil {
+			return nil, err
+		}
 		d.Annotations = store.StrMap(in.Annotations)
 	}
 	if in.Spec != nil && len(in.Spec.Roles) > 0 {
@@ -144,7 +150,7 @@ func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName stri
 	if err := jsonUnmarshalSpec(d.Spec, &spec); err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "decode job spec", err)
 	}
-	return s.runner.Trigger(ctx, tenant, name, displayName, spec, ov)
+	return s.runner.Trigger(ctx, tenant, name, displayName, spec, map[string]string(d.Annotations), ov)
 }
 
 func (s *Service) ListRuns(ctx context.Context, tenant, name, phase string) ([]server.Run, error) {

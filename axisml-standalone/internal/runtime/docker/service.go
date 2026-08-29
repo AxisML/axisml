@@ -56,6 +56,7 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 	var plans []ContainerPlan
 	for i := 0; i < int(role.Replicas); i++ {
 		labels := r.baseLabels(KindService, ns, name)
+		labels[mlservicev1alpha1.LabelServiceID] = svc.Labels[mlservicev1alpha1.LabelServiceID]
 		labels[LabelRole] = roleOr(role.Name)
 		labels[LabelReplicaIndex] = formatLabelInt(i)
 		p := ContainerPlan{

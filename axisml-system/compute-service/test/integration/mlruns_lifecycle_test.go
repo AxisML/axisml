@@ -10,12 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
 
 // TestMLRunCreateRoundTrip exercises the namespace-keyed job pipeline:
@@ -30,11 +29,10 @@ func TestMLRunCreateRoundTrip(t *testing.T) {
 	seedResourcePool(t, ctx, "jobs-e2e-pool", "small")
 
 	const ns = "jobs-e2e-ns"
+	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, "jobs-e2e-pool", resourceList("100", "1Ti"))
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
-	require.NoError(t, c.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: ns},
-	}))
 
 	body := buildMLRunCreateBody("my-job", "jobs-e2e-pool", "small")
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns", body, nil)
@@ -79,4 +77,31 @@ func TestMLRunValidation(t *testing.T) {
 		"/api/v1/namespaces/x-ns/mlruns",
 		map[string]any{"name": "no-quota"}, nil)
 	requireClientError(t, rr)
+}
+
+func TestMLRunDispatchRecoveryRequeuesMissingRuntimeObject(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	seedResourcePoolWithSelector(t, ctx, "jobs-recovery-pool", "small", map[string]string{"queue.axisml.io/test": "blocked"})
+	const ns = "jobs-recovery-ns"
+	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, "jobs-recovery-pool", resourceList("100", "1Ti"))
+
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("recover-me", "jobs-recovery-pool", "small"), nil)
+	requireStatus(t, rr, http.StatusCreated)
+
+	old := time.Now().UTC().Add(-3 * time.Minute)
+	require.NoError(t, gormDB.Model(&store.MLRun{}).
+		Where("namespace = ? AND name = ?", ns, "recover-me").
+		UpdateColumns(map[string]any{"phase": "Pending", "scheduled_at": old, "updated_at": old}).Error)
+
+	require.Eventually(t, func() bool {
+		var row store.MLRun
+		if err := gormDB.Where("namespace = ? AND name = ?", ns, "recover-me").First(&row).Error; err != nil {
+			return false
+		}
+		return row.Phase == "Queued" && row.ScheduledAt == nil
+	}, 10*time.Second, 200*time.Millisecond, "stale Pending MLRun was not returned to admission")
 }

@@ -24,6 +24,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
@@ -74,8 +75,11 @@ type Config struct {
 	HostPathVolumes map[string]string
 	// GPUDevices is the set of physical GPU indices the host has handed to
 	// AxisML for scheduling. Empty disables GPU scheduling (GPU workloads stay
-	// Pending). Resolved from gpu.devices via ResolveGPUDevices.
+	// Queued). Resolved from gpu.devices via ResolveGPUDevices.
 	GPUDevices []int
+	// Reserved is host capacity withheld from queue admission for the OS and
+	// AxisML control plane.
+	Reserved corev1.ResourceList
 }
 
 // Runtime implements extensions.ComputeRuntime over the Docker Engine API.
@@ -99,6 +103,7 @@ type Runtime struct {
 }
 
 var _ extensions.ComputeRuntime = (*Runtime)(nil)
+var _ extensions.ResourceInventory = (*Runtime)(nil)
 
 // New builds a Runtime from an existing Docker client.
 func New(cli *client.Client, cfg Config, log logr.Logger) *Runtime {

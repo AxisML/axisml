@@ -15,6 +15,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	arthubmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
 	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
@@ -148,6 +150,10 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		ConfigMapsVolume: o.settings.WorkloadConfigVolume,
 		HostPathVolumes:  tenantsHostPathVolumes(static.Tenants),
 		GPUDevices:       gpuDevices,
+		Reserved: corev1.ResourceList{
+			corev1.ResourceCPU:    reservedQuantity(cfg.Workload.SystemReservedCPU),
+			corev1.ResourceMemory: reservedQuantity(cfg.Workload.SystemReservedMemory),
+		},
 	}, log.WithName("runtime"))
 	if nerr := rt.EnsureNetwork(ctx); nerr != nil {
 		log.Error(nerr, "ensure workloads network (continuing)")
@@ -163,6 +169,8 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		DB:                db,
 		Runtime:           rt,
 		Resolver:          catalog,
+		Inventory:         rt,
+		Quotas:            tenants,
 		Log:               log,
 		ReconcileInterval: o.settings.ReconcileInterval,
 		// Docker runtime: no scheduler, so no ElasticQuota admission.
@@ -224,6 +232,13 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		arthubMod:  arthubMod,
 		runnables:  runnables,
 	}, nil
+}
+
+func reservedQuantity(raw string) resource.Quantity {
+	if raw == "" {
+		return resource.MustParse("0")
+	}
+	return resource.MustParse(raw)
 }
 
 // RegisterRoutes mounts the full axisml-standalone HTTP surface — the liveness /

@@ -10,15 +10,16 @@ import (
 type Code string
 
 const (
-	CodeValidation    Code = "validation_failed"
-	CodeNotFound      Code = "not_found"
-	CodeConflict      Code = "conflict"
-	CodePrecondition  Code = "precondition_failed"
-	CodeUnauthorized  Code = "unauthorized"
-	CodeForbidden     Code = "forbidden"
-	CodeUnavailable   Code = "service_unavailable"
-	CodeInternal      Code = "internal_error"
-	CodeQuotaExceeded Code = "quota_exceeded"
+	CodeValidation     Code = "validation_failed"
+	CodeNotFound       Code = "not_found"
+	CodeConflict       Code = "conflict"
+	CodeImmutableField Code = "immutable-field"
+	CodePrecondition   Code = "precondition_failed"
+	CodeUnauthorized   Code = "unauthorized"
+	CodeForbidden      Code = "forbidden"
+	CodeUnavailable    Code = "service_unavailable"
+	CodeInternal       Code = "internal_error"
+	CodeQuotaExceeded  Code = "quota_exceeded"
 )
 
 // AllCodes lists every Code constant in declaration order. It exists so
@@ -29,6 +30,7 @@ func AllCodes() []string {
 		string(CodeValidation),
 		string(CodeNotFound),
 		string(CodeConflict),
+		string(CodeImmutableField),
 		string(CodePrecondition),
 		string(CodeUnauthorized),
 		string(CodeForbidden),
