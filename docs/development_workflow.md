@@ -101,8 +101,9 @@ The E2E suite is Python + pytest (uv-managed), not Go. Bring an environment up
 with `uv run test-setup --mode kubernetes|standalone`, then pass the same mode to
 `uv run pytest --mode <mode> api` (API tests) or
 `uv run pytest --mode <mode> e2e` (UI). It drives clients generated from the
-OpenAPI specs and treats the system as a black box. CI runs the standalone path;
-see [`tests/README.md`](../tests/README.md).
+OpenAPI specs and treats the system as a black box. The E2E suite is run
+manually rather than as a CI gate. See
+[`tests/README.md`](../tests/README.md).
 
 Conventions that bite:
 
@@ -119,8 +120,9 @@ Staged via the `pre-commit` framework (`.pre-commit-config.yaml`):
 - **pre-commit** (<5s): gofmt, hygiene, `go vet` on touched modules, `doc-test` when API Go files change, `helm-lint` when `deploy/helm/**` changes.
 - **pre-push** (30–60s): `golangci-lint` and `go test -short` on every Go module with a pushed file.
 
-Bypass once with `git commit --no-verify`. CI (`.github/workflows/ci.yml`) re-runs
-lint + unit + integration and the standalone API/UI path on every PR.
+Bypass once with `git commit --no-verify`. CI (`.github/workflows/ci.yml`) runs
+lint, unit tests, and generated-doc checks on pull requests; integration runs on
+main/tag pushes and manual dispatches. E2E remains a local/manual workflow.
 
 ## Troubleshooting
 
