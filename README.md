@@ -30,7 +30,13 @@
 
 ---
 
-**AxisML** is a Kubernetes-native ML platform that manages the entire model lifecycle — development, distributed training, artifact management, online inference, and operations — behind one coherent control plane. It pairs a clean tenant/quota model with a self-built elastic scheduler (`axisml-scheduler`, built on [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)) so teams share GPU capacity without stepping on each other, and routes every workload — native Jobs, Kubeflow trainers, KServe inference — through a single quota-enforced scheduling path.
+**AxisML** is a Kubernetes-native ML platform that manages the entire model
+lifecycle — development, distributed training, artifact management, online
+inference, and operations — behind one coherent control plane. It pairs a clean
+tenant/quota model with a self-built elastic scheduler (`axisml-scheduler`, built
+on [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)) so
+teams share GPU capacity without stepping on each other, and routes every
+workload through a single quota-enforced scheduling path.
 
 <p align="center">
   <img src="docs/screenshots/en/dashboard.png" alt="AxisML console" width="860">
@@ -52,7 +58,10 @@
 
 ## Architecture
 
-AxisML splits into three deployable layers, each shipped as its own Helm chart and installed bottom-up (**infra → system → platform**). Only the Platform layer is exposed; everything below it is internal and trusts the identity Platform propagates.
+AxisML splits into three deployable layers, each shipped as its own Helm chart
+and installed bottom-up (**infra → system → platform**). Only the Platform layer
+is exposed; everything below it is internal and trusts the identity Platform
+propagates.
 
 <p align="center">
   <img src="docs/drawio/architecture.drawio.png" alt="AxisML console" width="860">
@@ -71,7 +80,8 @@ See the [High-Level Design](docs/high_level_design.md) for the full picture, and
 
 ## Quick Start
 
-> **Prerequisites:** Docker Desktop, [minikube](https://minikube.sigs.k8s.io/), `kubectl`, [Helm](https://helm.sh/), and Go 1.26+.
+> **Prerequisites:** Docker Desktop, [minikube](https://minikube.sigs.k8s.io/),
+> `kubectl`, [Helm](https://helm.sh/), and Go 1.26+.
 
 ```bash
 # 1. Spin up a local cluster (minikube profile "axisml")
@@ -92,11 +102,21 @@ make integration-test             # envtest + testcontainers integration tests (
 make help                         # discover every available target
 ```
 
+For a lightweight local evaluation on one Docker host, use the optional
+Standalone distribution:
+
+```bash
+make standalone-up               # Platform :8080, System :8090
+make standalone-down
+```
+
 Full walkthrough — setup, build/test, and the testing layers (unit / integration / the black-box pytest suite in `tests/`) — lives in the [Development Workflow](docs/development_workflow.md).
 
 ## Components
 
-AxisML is a monorepo of independent Go modules grouped into the three layers. Each layer dir has its own README.
+AxisML is a monorepo of independent Go modules grouped into three deployment
+layers. The optional Standalone distribution is packaged separately for
+single-host use.
 
 | Component | Layer | What it does |
 | --- | --- | --- |
@@ -106,6 +126,7 @@ AxisML is a monorepo of independent Go modules grouped into the three layers. Ea
 | **[tenant-operator](axisml-system/tenant-operator/)** | System | Reconciles the `Tenant` CR into a Namespace, `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
 | **[compute-operator](axisml-system/compute-operator/)** | System | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `axisml-scheduler`. |
 | **[artifact-hub](axisml-system/artifact-hub/)** | System | Registry for models, datasets, images, and eval reports, addressed by `(namespace, kind, name, version)`. PG holds metadata; bytes live in zot (OCI) and RustFS (S3). |
+| **[axisml-standalone](axisml-standalone/)** | Distribution | Top-level single-host module with the composition root, Docker runtime and Compose assets. |
 
 **Infrastructure** ([`axisml-infra`](axisml-infra/) chart): Envoy Gateway, RustFS, zot, axisml-scheduler, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](axisml-infra/docs/system_design/overview.md).
 
@@ -115,15 +136,19 @@ AxisML is a monorepo of independent Go modules grouped into the three layers. Ea
 make build               # build every component
 make fmt vet             # before every commit
 make install-hooks       # pre-commit + pre-push hooks (pre-commit framework)
-make doc-gen             # regenerate OpenAPI specs from Go DTOs
-make doc-test            # verify specs match Go types (CI guard)
+make docs-gen            # regenerate OpenAPI specs and configuration docs
+make docs-test           # verify generated docs match Go sources (CI guard)
 make coverage            # unit + integration coverage, merged into coverage/coverage.out
 ```
 
 Things that bite if you don't know them:
 
-- **Each component is its own Go module** with a sibling `test/integration/` submodule — `go test ./...` from the root won't traverse everything; use the `make` targets (or `make -C <layer> ...` for per-layer work).
-- **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend`, run `make doc-gen` before committing. The pre-commit hook does *not* watch Platform backend DTOs — run `make -C axisml-platform doc-gen` yourself there.
+- **System components are independent Go modules.** Shared APIs, five deployable
+  components, integration tests and generation tools keep explicit module
+  boundaries; use the `make` targets to traverse all validation boundaries.
+- Single-host distribution code and deployment assets live under
+  `axisml-standalone/`.
+- **Generated docs are not hand-written.** After changing a handler signature, DTO, or configuration struct, run `make docs-gen` before committing. `make docs-test` is the repository-wide consistency guard.
 - **Conventional Commits, scoped to a layer** — `feat(infra|system|platform)` plus the cross-cutting `build` / `repo` / `deps`; enforced by commitlint on commits and PR titles.
 - **External CRDs** the operators import (scheduler-plugins' `ElasticQuota`, scheduler-plugins' `PodGroup`, …) are vendored under `axisml-system/test/crds/external/`.
 
@@ -132,9 +157,10 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 ## Documentation
 
 - **[High-Level Design](docs/high_level_design.md)** — start here (core concepts, feature matrix, full architecture)
-- **By layer** — [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/) — each layer dir has a `README.md`, a design overview at `docs/system_design/overview.md`, and per-component docs
+- **By layer** — [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/)
+- **Optional single-host deployment** — [Standalone](axisml-standalone/)
 - **Cross-cutting** — [Deployment manual](docs/deployment.md) · [Development Workflow](docs/development_workflow.md) (per-layer DB schema lives under each `<layer>/docs/system_design/database.md`)
-- **OpenAPI specs** — generated REST contracts under each layer's `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis))
+- **OpenAPI specs** — generated REST contracts under each owner’s `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis) · [standalone](axisml-standalone/docs/apis))
 - **Frontend design system** — [DESIGN.md](DESIGN.md) (Vercel Geist style)
 
 ## Project Status

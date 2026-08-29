@@ -30,7 +30,11 @@
 
 ---
 
-**AxisML** 是一个 Kubernetes 原生的机器学习平台，在统一、一致的控制平面下管理模型的完整生命周期 —— 开发、分布式训练、制品管理、在线推理与运维。它将简洁的租户/配额模型与自研弹性调度器（`axisml-scheduler`，基于 [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)）相结合，让团队在共享 GPU 资源的同时互不干扰；并把所有工作负载 —— 原生 Job、Kubeflow 训练器、KServe 推理 —— 统一汇入一条受配额约束的调度路径。
+**AxisML** 是面向机器学习全生命周期的 Kubernetes 原生平台，在统一控制平面下
+管理开发、分布式训练、制品、在线推理与运维。它以清晰的租户/配额模型和自研的
+弹性调度器 `axisml-scheduler`（基于
+[scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)）帮助团队
+共享 GPU 资源，并确保所有 workload 都经过统一的配额调度路径。
 
 <p align="center">
   <img src="docs/screenshots/zh-CN/dashboard.png" alt="AxisML 控制台" width="860">
@@ -52,7 +56,9 @@
 
 ## 架构
 
-AxisML 拆分为三个可部署的分层，各自作为独立的 Helm chart 发布，并自底向上安装（**infra → system → platform**）。只有 Platform 层对外暴露；其下的一切都是内部组件，信任 Platform 传播下来的身份。
+AxisML 分为三个可部署层，每层分别通过 Helm chart 交付，并按
+**infra → system → platform** 自底向上安装。只有 Platform 层对外暴露；其下层均为
+内部服务，并信任 Platform 透传的身份。
 
 <p align="center">
   <img src="docs/drawio/architecture.drawio.png" alt="AxisML 架构" width="860">
@@ -71,7 +77,8 @@ AxisML 拆分为三个可部署的分层，各自作为独立的 Helm chart 发�
 
 ## 快速开始
 
-> **前置依赖：** Docker Desktop、[minikube](https://minikube.sigs.k8s.io/)、`kubectl`、[Helm](https://helm.sh/) 以及 Go 1.26+。
+> **前置条件：** Docker Desktop、[minikube](https://minikube.sigs.k8s.io/)、
+> `kubectl`、[Helm](https://helm.sh/) 与 Go 1.26+。
 
 ```bash
 # 1. 启动本地集群（minikube profile "axisml"）
@@ -92,11 +99,19 @@ make integration-test             # envtest + testcontainers 集成测试（需�
 make help                         # 列出所有可用的 target
 ```
 
+如需在单台 Docker 主机上进行轻量本地体验，可以使用可选的 Standalone 发行形态：
+
+```bash
+make standalone-up               # Platform :8080，System :8090
+make standalone-down
+```
+
 完整流程 —— 环境搭建、构建/测试，以及各测试分层（单元 / 集成 / `tests/` 下的黑盒 pytest 套件）—— 详见[开发工作流](docs/development_workflow.md)。
 
 ## 组件
 
-AxisML 是由多个独立 Go 模块组成的 monorepo，按三层分组。每一层目录都有自己的 README。
+AxisML 是按三个部署层组织的多 Go module monorepo。可选的 Standalone 发行形态
+独立打包，用于单机部署。
 
 | 组件 | 分层 | 职责 |
 | --- | --- | --- |
@@ -106,6 +121,7 @@ AxisML 是由多个独立 Go 模块组成的 monorepo，按三层分组。每一
 | **[tenant-operator](axisml-system/tenant-operator/)** | System | 将 `Tenant` CR 协调为 Namespace、`ElasticQuota`，以及每租户的 Secret / ConfigMap / ServiceAccount / RBAC。 |
 | **[compute-operator](axisml-system/compute-operator/)** | System | 通过 dispatcher + handler 模型协调 `MLRun` / `MLService` / `MLTrafficPolicy`（`native`、`kubeflow-trainer`、`kserve`、`custom`）。所有派生 Pod 都经由 `axisml-scheduler`。 |
 | **[artifact-hub](axisml-system/artifact-hub/)** | System | 模型、数据集、镜像与评估报告的注册中心，以 `(namespace, kind, name, version)` 寻址。PG 存元数据；字节存于 zot（OCI）与 RustFS（S3）。 |
+| **[axisml-standalone](axisml-standalone/)** | 发行形态 | 顶层单机模块，包含三个 REST 模块的 composition root、Docker runtime 与 Compose 资产。 |
 
 **基础设施**（[`axisml-infra`](axisml-infra/) chart）：Envoy Gateway、RustFS、zot、axisml-scheduler、NVIDIA GPU Operator、kube-prometheus-stack 以及 PostgreSQL。详见 [infra 设计](axisml-infra/docs/system_design/overview.md)。
 
@@ -115,15 +131,17 @@ AxisML 是由多个独立 Go 模块组成的 monorepo，按三层分组。每一
 make build               # 构建所有组件
 make fmt vet             # 每次提交前
 make install-hooks       # pre-commit + pre-push 钩子（pre-commit 框架）
-make doc-gen             # 从 Go DTO 重新生成 OpenAPI 规范
-make doc-test            # 校验规范与 Go 类型一致（CI 守卫）
+make docs-gen            # 重新生成 OpenAPI 规范与配置文档
+make docs-test           # 校验生成文档与 Go 源码一致（CI 守卫）
 make coverage            # 单元 + 集成覆盖率，合并到 coverage/coverage.out
 ```
 
 不了解就会踩坑的点：
 
-- **每个组件都是独立的 Go 模块**，并带有一个同级的 `test/integration/` 子模块 —— 在根目录执行 `go test ./...` 不会遍历所有内容；请使用 `make` target（按层操作时用 `make -C <layer> ...`）。
-- **OpenAPI 规范是生成的，而非手写的。** 在 `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend` 中改动 handler 签名或 DTO 后，提交前请运行 `make doc-gen`。pre-commit 钩子*不会*监视 Platform backend 的 DTO —— 那里需要你自己运行 `make -C axisml-platform doc-gen`。
+- **System 组件是独立 Go module。** 公共 APIs、五个可部署组件、集成测试与生成
+  工具保持明确的 module 边界；使用 `make` target 遍历所有验证边界。
+- 单机发行形态的代码与部署资产位于 `axisml-standalone/`。
+- **生成文档不得手工修改。** 修改 handler 签名、DTO 或配置结构后，提交前运行 `make docs-gen`；`make docs-test` 是仓库级一致性检查。
 - **Conventional Commits，按层加 scope** —— `feat(infra|system|platform)` 外加跨切面的 `build` / `repo` / `deps`；由 commitlint 在提交与 PR 标题上强制执行。
 - **算子引入的外部 CRD**（scheduler-plugins 的 `ElasticQuota` 与 `PodGroup`……）已 vendored 到 `axisml-system/test/crds/external/`。
 
@@ -132,9 +150,10 @@ make coverage            # 单元 + 集成覆盖率，合并到 coverage/coverag
 ## 文档
 
 - **[高层设计](docs/high_level_design.md)** —— 从这里开始（核心概念、特性矩阵、完整架构）
-- **按层** —— [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/) —— 每层目录都有 `README.md`、位于 `docs/system_design/overview.md` 的设计概览，以及各组件文档
+- **按层** —— [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/)
+- **可选单机部署** —— [Standalone](axisml-standalone/)
 - **跨切面** —— [部署手册](docs/deployment.md) · [开发工作流](docs/development_workflow.md)（各层 DB schema 位于各自的 `<layer>/docs/system_design/database.md`）
-- **OpenAPI 规范** —— 各层 `docs/apis/` 下生成的 REST 契约（[system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis)）
+- **OpenAPI 规范** —— 各归属目录 `docs/apis/` 下生成的 REST 契约（[system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis) · [standalone](axisml-standalone/docs/apis)）
 - **前端设计体系** —— [DESIGN.md](DESIGN.md)（Vercel Geist 风格）
 
 ## 项目状态

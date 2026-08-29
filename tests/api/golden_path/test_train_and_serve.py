@@ -26,11 +26,13 @@ from clients.computeservice.api.ml_services import (
     get_ml_service,
 )
 from lib import builders, oci
+from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
 
 def test_train_and_serve_journey(harness, cfg):
+    harness.skip_unless(Capability.MULTI_TENANT)
     tenant = unique_name("e2e-golden")
     harness.create_tenant(tenant)
     model = unique_name("golden-model")

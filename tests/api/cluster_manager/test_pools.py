@@ -29,6 +29,7 @@ from clients.clustermanager.models import (
     ServerCreateResourceUnitRequestLimits,
     ServerCreateResourceUnitRequestRequests,
 )
+from lib.harness import Capability
 from lib.naming import unique_name
 
 
@@ -47,6 +48,7 @@ def test_get_unknown_pool_returns_404(harness):
 
 
 def test_resource_pool_and_unit_crud(harness):
+    harness.skip_unless(Capability.RESOURCE_POOL_WRITE)
     pool = unique_name("e2e-pool")
 
     r = create_resource_pool.sync_detailed(

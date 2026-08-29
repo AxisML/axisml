@@ -37,7 +37,7 @@ help: ## Show this help
 # --- Aggregate targets (fan out over every component) ---
 .PHONY: build test image image-load integration doc-gen doc-test coverage integration-coverage coverage-html fmt vet tidy clean
 build:                $(COMPONENTS:%=%-build)                  ## Build every component binary
-test:                 $(COMPONENTS:%=%-test)                  ## Unit-test every component
+test:                 apis-test $(COMPONENTS:%=%-test)        ## Unit-test APIs and every component
 image:                $(COMPONENTS:%=%-image)                 ## Build every component image
 image-load:           $(COMPONENTS:%=%-image-load)           ## Build + load every image into minikube
 integration:          $(COMPONENTS:%=%-integration)          ## Integration-test every component (envtest)
@@ -46,10 +46,20 @@ doc-test:            $(DOC_COMPONENTS:%=%-doc-test)           ## Verify every Op
 coverage:             $(COMPONENTS:%=%-coverage)              ## Unit coverage for every component
 integration-coverage: $(COMPONENTS:%=%-integration-coverage) ## Integration coverage for every component
 coverage-html:        $(COMPONENTS:%=%-coverage-html)        ## Render HTML coverage per component
-fmt:                  $(COMPONENTS:%=%-fmt)                  ## go fmt every component
-vet:                  $(COMPONENTS:%=%-vet)                  ## go vet every component
-tidy:                 $(COMPONENTS:%=%-tidy)                 ## go mod tidy every component
+fmt:                  apis-fmt $(COMPONENTS:%=%-fmt)         ## go fmt APIs and every component
+vet:                  apis-vet $(COMPONENTS:%=%-vet)         ## go vet APIs and every component
+tidy:                 apis-tidy $(COMPONENTS:%=%-tidy)       ## go mod tidy APIs and every component
 clean:                $(COMPONENTS:%=%-clean)                ## Remove build/coverage artifacts
+
+.PHONY: apis-test apis-fmt apis-vet apis-tidy
+apis-test:
+	@echo ">>> apis test" && cd apis && go test ./...
+apis-fmt:
+	@cd apis && go fmt ./...
+apis-vet:
+	@cd apis && go vet ./...
+apis-tidy:
+	@cd apis && go mod tidy
 
 # --- Per-component rules (explicit, generated; e.g. `make compute-service-test`) ---
 # Generated as explicit targets (not pattern rules) so overlapping suffixes like

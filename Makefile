@@ -1,11 +1,12 @@
 # AxisML root Makefile — thin orchestrator over the per-layer Makefiles.
 #
-# Each layer owns one Makefile with the real build/test/helm logic:
+# Each layer or distribution owns one Makefile with the real build/test/deploy logic:
 #   axisml-infra/Makefile      cluster lifecycle + infra Helm chart
-#   axisml-system/Makefile     the 5 System components + System Helm + envtest
+#   axisml-system/Makefile     Kubernetes components + Helm/envtest
+#   axisml-standalone/Makefile single-host module, image, Compose and API spec
 #   axisml-platform/Makefile   backend + frontend + Platform Helm
 #
-# This file delegates aggregate targets to those layers, enforces cross-layer
+# This file delegates aggregate targets to those owners, enforces cross-layer
 # install ordering, and keeps repo-level concerns (e2e, coverage merge, hooks).
 
 # Single version authority: the System chart's appVersion. Exported so every
@@ -21,20 +22,21 @@ export MINIKUBE_DISK    ?= 20g
 export K8S_VERSION      ?=
 export MINIKUBE_DRIVER  ?=
 
-# Layers that contain Go modules / build artifacts. axisml-infra hosts the
-# first-party axisml-scheduler component; system + platform host the rest.
-GO_LAYERS := axisml-infra axisml-system axisml-platform
+# Owners that contain production Go modules / build artifacts. axisml-infra hosts
+# axisml-scheduler; system and platform own their layers; standalone is a
+# separate distribution module.
+GO_LAYERS := axisml-infra axisml-system axisml-platform axisml-standalone
 
 # Layers that own generated OpenAPI specs (doc-gen/doc-test). axisml-infra is
 # excluded: the axisml-scheduler is a controller/plugin with no HTTP surface.
-DOC_LAYERS := axisml-system axisml-platform
+DOC_LAYERS := axisml-system axisml-platform axisml-standalone
 
 # Component dirs that emit coverage profiles (for the merged report).
 COVERAGE_COMPONENTS := \
   axisml-infra/axisml-scheduler \
   axisml-system/tenant-operator axisml-system/compute-operator \
   axisml-system/cluster-manager axisml-system/compute-service \
-  axisml-system/artifact-hub axisml-platform/backend
+  axisml-system/artifact-hub axisml-platform/backend axisml-standalone
 
 COVERAGE_DIR  ?= $(CURDIR)/coverage
 COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
@@ -85,7 +87,8 @@ integration-test: ## Integration tests across every layer (hermetic, CI-friendly
 # Black-box test suite (Python + pytest) lives in tests/. Its dependencies, env
 # lifecycle, and runs are uv commands (see tests/README.md):
 #   cd tests && uv sync && uv run playwright install chromium
-#   uv run test-setup                          # bring a Standard environment up
+#   uv run test-setup --mode kubernetes        # bring a Kubernetes environment up
+#   uv run test-setup --mode standalone        # bring a single-host environment up
 #   uv run pytest api                          # API tests (per component)
 #   uv run pytest e2e                          # UI end-to-end (Playwright)
 # Only client generation is a make target, delegated to the suite's Makefile:
@@ -120,6 +123,15 @@ cluster-delete: ## Destroy the cluster entirely
 	@$(MAKE) -C axisml-infra cluster-delete
 cluster-status: ## Show cluster status
 	@$(MAKE) -C axisml-infra cluster-status
+
+##@ Standalone deployment
+.PHONY: standalone-up standalone-down standalone-delete
+standalone-up: ## Build and start AxisML on one Docker host
+	@$(MAKE) -C axisml-standalone up IMAGE_TAG=$(IMAGE_TAG) PROFILES="$(PROFILES)"
+standalone-down: ## Stop the standalone stack (CLEAN=1 also removes data volumes)
+	@$(MAKE) -C axisml-standalone down IMAGE_TAG=$(IMAGE_TAG) PROFILES="$(PROFILES)" CLEAN=$(CLEAN)
+standalone-delete: ## Purge the stack and all standalone-managed workloads/volumes
+	@$(MAKE) -C axisml-standalone delete IMAGE_TAG=$(IMAGE_TAG)
 
 ##@ Helm (cross-layer ordering: infra -> system -> platform)
 .PHONY: helm-deps helm-lint helm-template helm-install helm-upgrade helm-uninstall

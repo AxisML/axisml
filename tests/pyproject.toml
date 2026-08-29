@@ -40,6 +40,8 @@ addopts = "--import-mode=importlib --strict-markers -ra"
 pythonpath = ["."]
 testpaths = ["api", "e2e"]
 markers = [
+    "kubernetes_only: requires the Kubernetes deployment form",
+    "standalone_only: requires the standalone deployment form",
     "cleanup: maintenance helpers (reap leftover e2e-* tenants), not part of a normal run",
     "slow: long-running scenarios (real scheduling / image pulls / kubelet startup)",
 ]

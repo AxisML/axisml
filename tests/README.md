@@ -1,69 +1,60 @@
-# AxisML black-box test suite (Python + pytest)
+# AxisML black-box test suite
 
-Treats the system as a black box: **API tests** drive each component's HTTP
-contract through clients generated from its OpenAPI spec, and **UI e2e** drives
-the Platform SPA with Playwright. White-box assertions (CR/ElasticQuota/HTTPRoute
-shapes) live at each Go component's `test/integration/` layer, not here.
+The Python/pytest suite drives AxisML only through generated HTTP clients and
+the Platform UI. The same tests run against both deployment forms; white-box
+Kubernetes and Docker assertions stay in Go integration tests.
 
-Dependencies are managed with [uv](https://docs.astral.sh/uv/); the suite is its
-own project (`pyproject.toml`), independent of the Go modules.
-
-## Layout
-
-```
-tests/
-  setup/        env lifecycle (test-setup / test-teardown console scripts)
-  lib/          harness, config, port-forward, polling, OCI push, builders
-  clients/      generated OpenAPI clients (committed) — make -C tests client-gen
-  api/          API tests, one dir per component (black-box HTTP)
-    cluster_manager/  compute_service/  artifact_hub/  platform/  golden_path/
-  e2e/          UI end-to-end (pytest-playwright)
-    auth/  navigation/
-```
-
-## Deployment
-
-The suite targets a real AxisML Kubernetes cluster through `kubectl port-forward`.
-
-## One-time setup
+## Install
 
 ```sh
 cd tests
-uv sync                              # build the venv + install deps
-uv run playwright install chromium   # browser for the UI e2e
-make -C . client-gen                 # (re)generate clients after a spec change
+uv sync
+uv run playwright install chromium
 ```
 
-## Bring an environment up / down
+## Environment lifecycle
 
-Provisioning is **not** a pytest fixture — bring an environment up once, then run
-pytest against it many times.
+Provisioning is explicit and separate from pytest:
 
 ```sh
-uv run test-setup                    # images -> minikube -> helm -> admin
+uv run test-setup --mode kubernetes
+uv run test-teardown --mode kubernetes
+uv run test-teardown --mode kubernetes --delete
 
-uv run test-teardown                 # helm uninstall + cluster-down
-uv run test-teardown --delete        # ... cluster-delete instead
+uv run test-setup --mode standalone
+uv run test-teardown --mode standalone
+uv run test-teardown --mode standalone --clean
 ```
 
-`test-setup` resets the Platform `admin` password in the metadata DB to a known
-suite value (clearing the forced first-login change), so the tests log in with a
-deterministic credential regardless of the cluster's prior state.
+Kubernetes builds and loads images into minikube, installs the three Helm layers
+and uses port-forwards. Standalone builds the top-level `axisml-standalone`
+distribution and Platform images from the current checkout, then starts
+`axisml-standalone/compose.yaml`.
 
 ## Run
 
+Pass the same mode used for environment setup:
+
 ```sh
-uv run pytest api                    # all API tests
-uv run pytest e2e                    # UI end-to-end
-uv run pytest api/compute_service -k mlrun -v   # a slice
+uv run pytest --mode kubernetes api
+uv run pytest --mode kubernetes e2e
+
+uv run pytest --mode standalone api
+uv run pytest --mode standalone e2e
 ```
 
-If the environment isn't ready, the session aborts with guidance to run
-`uv run test-setup` first (a read-only gate — it never provisions).
+Unmarked tests are shared. `kubernetes_only` and `standalone_only` express a
+hard runtime boundary; finer differences use the capability matrix in
+`lib/harness.py`.
 
-## Configuration
+## Generated clients
 
-Every knob has a stock-install default; override via env (see `lib/config.py`):
-`AXISML_DEFAULT_POOL`, `AXISML_DEFAULT_UNIT`, `AXISML_MLRUN_IMAGE`,
-`AXISML_ADMIN_PASSWORD`, the per-service `*_SVC`/`*_NS`, and the
-timeout budgets.
+Clients are committed and generated from the canonical specs in this repository:
+
+```sh
+make -C .. client-gen
+```
+
+Regenerate after changing a component or Platform HTTP contract. The aggregate
+standalone capability contract is tested directly because it intentionally
+wraps the three component capability documents.

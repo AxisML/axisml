@@ -47,8 +47,9 @@ Defaults (override via env vars): `MINIKUBE_PROFILE=axisml`, `MINIKUBE_CPUS=4`,
 
 This is a multi-module Go monorepo — `go test ./...` from the root does **not**
 traverse the components. The repo-root `Makefile` is a thin orchestrator that fans
-out to the three layer Makefiles (`axisml-infra/`, `axisml-system/`, `axisml-platform/`),
-which hold the real logic.
+out to the three layer Makefiles (`axisml-infra/`, `axisml-system/`,
+`axisml-platform/`) and the distribution Makefile (`axisml-standalone/`), which
+hold the real logic.
 
 ```sh
 # Repo-root aggregates (run across every layer):
@@ -75,13 +76,13 @@ Single test: `cd axisml-system/compute-service && go test -run TestX ./internal/
 
 ## Generated OpenAPI specs
 
-`cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` generate
-their spec under `<layer>/docs/apis/<component>.yaml` from Go DTOs — **never hand-edit
-them**.
+`cluster-manager`, `compute-service`, `artifact-hub`, `platform/backend`, and the
+Standalone aggregate generate specs under their owner’s `docs/apis/` directory
+from Go DTOs — **never hand-edit them**.
 
 ```sh
-make doc-gen    # regenerate every spec (or make -C <layer> <component>-doc-gen)
-make doc-test   # verify specs match the Go types — CI guard + pre-commit hook
+make docs-gen   # regenerate every spec and the configuration manual
+make docs-test  # verify generated docs match Go sources — CI guard
 ```
 
 If `doc-test` fails after changing a DTO, run `doc-gen` and re-stage.
@@ -94,13 +95,14 @@ Pick the cheapest layer that proves what you need.
 |---|---|---|---|---|
 | **Unit** | none | `*_test.go` next to package | `controller-runtime` fake client | pure logic, validation, mapping |
 | **Integration** | `//go:build integration` | each component's `test/integration/` submodule | envtest apiserver+etcd; testcontainers Postgres for compute-service / artifact-hub; gin via `httptest` for HTTP contracts | reconciler behavior, REST endpoints |
-| **E2E (black-box)** | none (Python) | `tests/` (centralized, Python + pytest) | a real `axisml` minikube cluster via `kubectl port-forward`; Playwright for the UI | full-stack smoke over the HTTP contract + UI; **manual, not in CI** |
+| **E2E (black-box)** | none (Python) | `tests/` (centralized, Python + pytest) | Kubernetes/minikube or standalone/Compose selected with `--mode`; Playwright for the UI | full-stack smoke over the HTTP contract + UI |
 
 The E2E suite is Python + pytest (uv-managed), not Go. Bring an environment up
-with `uv run test-setup`, then run
-`uv run pytest api` (API tests per component) or
-`uv run pytest e2e` (UI). It drives clients generated from the OpenAPI specs and
-treats the system as a black box. See [`tests/README.md`](../tests/README.md).
+with `uv run test-setup --mode kubernetes|standalone`, then pass the same mode to
+`uv run pytest --mode <mode> api` (API tests) or
+`uv run pytest --mode <mode> e2e` (UI). It drives clients generated from the
+OpenAPI specs and treats the system as a black box. CI runs the standalone path;
+see [`tests/README.md`](../tests/README.md).
 
 Conventions that bite:
 
@@ -118,7 +120,7 @@ Staged via the `pre-commit` framework (`.pre-commit-config.yaml`):
 - **pre-push** (30–60s): `golangci-lint` and `go test -short` on every Go module with a pushed file.
 
 Bypass once with `git commit --no-verify`. CI (`.github/workflows/ci.yml`) re-runs
-lint + unit + integration on every PR; e2e is never in CI.
+lint + unit + integration and the standalone API/UI path on every PR.
 
 ## Troubleshooting
 

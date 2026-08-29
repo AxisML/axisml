@@ -1,0 +1,10 @@
+go 1.26.0
+
+use .
+
+replace (
+	github.com/axisml/axisml/axisml-system/apis => ../axisml-system/apis
+	github.com/axisml/axisml/axisml-system/artifact-hub => ../axisml-system/artifact-hub
+	github.com/axisml/axisml/axisml-system/cluster-manager => ../axisml-system/cluster-manager
+	github.com/axisml/axisml/axisml-system/compute-service => ../axisml-system/compute-service
+)

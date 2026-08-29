@@ -12,10 +12,15 @@ runs once against a throwaway test cluster, and is fully idempotent.
 
 from __future__ import annotations
 
+import time
+
 import bcrypt
+import httpx
 
 from lib import config
 from setup._proc import REPO_ROOT, log, run
+
+STANDALONE_COMPOSE = "axisml-standalone/compose.yaml"
 
 def _admin_reset_sql(cfg: config.Config) -> str:
     hashed = bcrypt.hashpw(cfg.admin_password.encode(), bcrypt.gensalt()).decode()
@@ -38,3 +43,36 @@ def ensure_admin_ready() -> None:
         cwd=REPO_ROOT,
     )
     log("seed", f"admin '{cfg.admin_username}' password reset; forced-change cleared")
+
+
+def ensure_admin_ready_standalone() -> None:
+    """Reset the Compose Platform admin to the suite credential."""
+    cfg = config.load()
+    _wait_platform_ready(cfg)
+    run(
+        [
+            "docker", "compose", "-f", STANDALONE_COMPOSE, "exec", "-T",
+            "-e", f"PGPASSWORD={cfg.db_password}", "axisml-database",
+            "psql", "-U", cfg.db_user, "-d", cfg.db_name,
+            "-v", "ON_ERROR_STOP=1", "-c", _admin_reset_sql(cfg),
+        ],
+        cwd=REPO_ROOT,
+    )
+    log("seed", f"admin '{cfg.admin_username}' password reset; forced-change cleared")
+
+
+def _wait_platform_ready(cfg: config.Config, *, timeout: float = 120.0) -> None:
+    deadline = time.monotonic() + timeout
+    last = "no response"
+    while time.monotonic() < deadline:
+        try:
+            response = httpx.get(f"{cfg.standalone_platform_url}/readyz", timeout=5.0)
+            if response.status_code == 200:
+                return
+            last = f"HTTP {response.status_code}"
+        except httpx.HTTPError as error:
+            last = str(error)
+        time.sleep(2.0)
+    raise SystemExit(
+        f"axisml-platform not ready at {cfg.standalone_platform_url}/readyz ({last})"
+    )

@@ -1,0 +1,402 @@
+package docker
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"path"
+	"path/filepath"
+	"strings"
+
+	"github.com/docker/docker/api/types/container"
+	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+)
+
+// renderServicePlans renders a (native, deployment|statefulset) MLService into
+// one ContainerPlan per replica of its single role. Unsupported backends and
+// fields surface as CapabilityError.
+func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]ContainerPlan, error) {
+	if svc.Spec.Backend.Name != "native" ||
+		(svc.Spec.Backend.Engine != "deployment" && svc.Spec.Backend.Engine != "statefulset") {
+		return nil, capabilityError("MLService backend %s/%s is unsupported in standalone (only native/deployment|statefulset)",
+			svc.Spec.Backend.Name, svc.Spec.Backend.Engine)
+	}
+	if len(svc.Spec.Roles) == 0 {
+		return nil, capabilityError("MLService %s/%s has no roles", svc.Namespace, svc.Name)
+	}
+	role := svc.Spec.Roles[0]
+	tmpl := role.Template
+	pullPolicy, err := resolveImagePullPolicy(tmpl.Image, tmpl.ImagePullPolicy)
+	if err != nil {
+		return nil, err
+	}
+	configMaps, err := newConfigMapSet(svc.Spec.ConfigMaps)
+	if err != nil {
+		return nil, err
+	}
+	env, err := resolveEnv(configMaps, tmpl.EnvFrom, tmpl.Env)
+	if err != nil {
+		return nil, err
+	}
+	ns, name := svc.Namespace, svc.Name
+
+	var ports []PortPlan
+	for _, p := range tmpl.Ports {
+		ports = append(ports, PortPlan{Name: p.Name, ContainerPort: p.ContainerPort, Protocol: protoString(p.Protocol)})
+	}
+	mounts, err := r.volumeMounts(KindService, ns, name, roleOr(role.Name), configMaps, tmpl.Volumes, tmpl.VolumeMounts)
+	if err != nil {
+		return nil, err
+	}
+
+	var plans []ContainerPlan
+	for i := 0; i < int(role.Replicas); i++ {
+		labels := r.baseLabels(KindService, ns, name)
+		labels[LabelRole] = roleOr(role.Name)
+		labels[LabelReplicaIndex] = formatLabelInt(i)
+		p := ContainerPlan{
+			NamePrefix:      instanceBase(svc, roleOr(role.Name)),
+			Replica:         i,
+			StableOrdinal:   svc.Spec.Backend.Engine == "statefulset",
+			Image:           tmpl.Image,
+			ImagePullPolicy: pullPolicy,
+			Command:         tmpl.Command,
+			Args:            tmpl.Args,
+			Env:             env,
+			WorkingDir:      tmpl.WorkingDir,
+			Labels:          labels,
+			Ports:           ports,
+			Mounts:          mounts,
+			Resources:       resourcePlan(tmpl.Resources),
+			RestartPolicy:   string(container.RestartPolicyUnlessStopped),
+		}
+		p.Labels[LabelSpecHash] = specHash(planIdentity(&p))
+		plans = append(plans, p)
+	}
+	return plans, nil
+}
+
+// volumeMounts maps each declared volumeMount onto a Docker mount. It is shared
+// by MLService and MLRun rendering, so a training run mounts a dataset volume by
+// exactly the same rules a service mounts its workspace. Resolution order per
+// mount:
+//   - a workload-owned ConfigMap → a read-only projection in the shared
+//     ConfigMapsVolume (or a host bind for an embedded runtime);
+//   - a predefined host-path volume (claim name registered in cfg.HostPathVolumes)
+//     → a bind mount to the host directory (standalone-only "hostPath" support);
+//   - a PVC-backed volume → the managed Docker volume keyed on its claim name —
+//     the same name the VolumeManager (Runtime.Ensure / Runtime.Delete)
+//     materialises and reclaims, so mount, provision and retention target agree;
+//   - any other declared volume → a per-(namespace, name, volume) managed volume.
+func (r *Runtime) volumeMounts(kind, namespace, name, role string, configMaps configMapSet, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) ([]MountPlan, error) {
+	if len(volumeMounts) == 0 {
+		return nil, nil
+	}
+	declared := map[string]corev1.Volume{}
+	for _, v := range volumes {
+		declared[v.Name] = v
+	}
+	var mounts []MountPlan
+	for _, vm := range volumeMounts {
+		vol, ok := declared[vm.Name]
+		if !ok {
+			return nil, capabilityError("volumeMount %q references an undeclared volume", vm.Name)
+		}
+		subPath, err := validateSubPath(vm)
+		if err != nil {
+			return nil, err
+		}
+		if vol.ConfigMap != nil {
+			if subPath != "" {
+				return nil, capabilityError("ConfigMap volumeMount %q subPath is unsupported in standalone", vm.Name)
+			}
+			files, err := configMapFiles(configMaps, vol.ConfigMap)
+			if err != nil {
+				return nil, fmt.Errorf("volume %q: %w", vol.Name, err)
+			}
+			projection, err := projectionPath(kind, namespace, name, role, vol.Name)
+			if err != nil {
+				return nil, err
+			}
+			mount := MountPlan{
+				Target:         vm.MountPath,
+				ReadOnly:       true,
+				ConfigMapPath:  projection,
+				ConfigMapFiles: files,
+			}
+			if r.cfg.ConfigMapsVolume != "" {
+				mount.Type = "volume"
+				mount.Source = r.cfg.ConfigMapsVolume
+				mount.SubPath = projection
+			} else {
+				if r.cfg.ConfigMapsDir == "" {
+					return nil, capabilityError("ConfigMap volume projection is not configured in standalone")
+				}
+				mount.Type = "bind"
+				mount.Source = filepath.Join(r.cfg.ConfigMapsDir, filepath.FromSlash(projection))
+			}
+			mounts = append(mounts, mount)
+			continue
+		}
+		if hp := r.hostPathFor(vol); hp != "" {
+			mounts = append(mounts, MountPlan{
+				Type:     "bind",
+				Source:   hp,
+				Target:   vm.MountPath,
+				SubPath:  subPath,
+				ReadOnly: vm.ReadOnly,
+			})
+			continue
+		}
+		source := r.volumeName(namespace, name, vm.Name)
+		if vol.PersistentVolumeClaim != nil {
+			source = r.pvcVolumeName(namespace, vol.PersistentVolumeClaim.ClaimName)
+		}
+		mounts = append(mounts, MountPlan{
+			Type:     "volume",
+			Source:   source,
+			Target:   vm.MountPath,
+			SubPath:  subPath,
+			ReadOnly: vm.ReadOnly,
+		})
+	}
+	return mounts, nil
+}
+
+// validateSubPath returns the cleaned subPath to mount for a volumeMount, or a
+// CapabilityError when the request names a sub-mount form standalone can't honour. A
+// subPath must be relative and stay inside the volume; a ".." escape or an
+// absolute path is rejected rather than silently clamped. subPathExpr (which
+// needs env/downward-API expansion standalone does not perform) is unsupported.
+func validateSubPath(vm corev1.VolumeMount) (string, error) {
+	if vm.SubPathExpr != "" {
+		return "", capabilityError("volumeMount %q subPathExpr is unsupported in standalone", vm.Name)
+	}
+	if vm.SubPath == "" {
+		return "", nil
+	}
+	if path.IsAbs(vm.SubPath) {
+		return "", capabilityError("volumeMount %q subPath %q must be relative", vm.Name, vm.SubPath)
+	}
+	clean := path.Clean(vm.SubPath)
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", capabilityError("volumeMount %q subPath %q must not escape the volume", vm.Name, vm.SubPath)
+	}
+	return clean, nil
+}
+
+// hostPathFor returns the host directory to bind-mount for a declared volume, or
+// "" when it is not host-backed. It resolves a PVC-backed volume whose claim name
+// is registered as a predefined hostPath volume (cfg.HostPathVolumes) — so a
+// workspace/run that references the volume by claim name (its ordinary PVC form)
+// transparently binds the host path. Only admin-declared paths are honoured; a
+// raw hostPath source in a pod template is not, keeping the bindable set to the
+// tenant's predefined registry.
+func (r *Runtime) hostPathFor(vol corev1.Volume) string {
+	if vol.PersistentVolumeClaim == nil {
+		return ""
+	}
+	return r.cfg.HostPathVolumes[vol.PersistentVolumeClaim.ClaimName]
+}
+
+func (r *Runtime) volumeName(namespace, name, vol string) string {
+	raw := fmt.Sprintf("axisml-vol-%s-%s-%s", namespace, name, vol)
+	clean := nameSanitizer.ReplaceAllString(raw, "-")
+	if clean == raw && len(clean) <= 100 {
+		return clean
+	}
+	return fmt.Sprintf("axisml-vol-%s", shortHash(raw))
+}
+
+// ApplyMLService idempotently converges the Service's replicas: it ensures the
+// backing volumes, (re)creates changed/missing replicas and removes surplus
+// ones (scale down).
+func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1.MLService) error {
+	ns, name := desired.Namespace, desired.Name
+	plans, err := r.renderServicePlans(desired)
+	if err != nil {
+		return err
+	}
+	if err := r.reconcileConfigMapProjections(KindService, ns, name, plans); err != nil {
+		return err
+	}
+	existing, err := r.listContainers(ctx, KindService, ns, name)
+	if err != nil {
+		return err
+	}
+	bySlot := indexBySlot(existing)
+	wanted := map[string]struct{}{}
+
+	// Ensure backing volumes once.
+	for i := range plans {
+		for _, m := range plans[i].Mounts {
+			if m.Type != "volume" {
+				continue
+			}
+			vlabels := r.baseLabels(KindService, ns, name)
+			if err := r.ensureVolume(ctx, m.Source, vlabels); err != nil {
+				return fmt.Errorf("ensure volume %q: %w", m.Source, err)
+			}
+		}
+	}
+
+	// On a mid-loop create failure, already-created replicas are left running and
+	// the error is returned; the reconcile loop re-applies idempotently (unchanged
+	// replicas skip by spec hash, missing ones are created) and converges the
+	// rest. Tearing created replicas back down would only reduce availability and
+	// force a full rebuild next apply.
+	var toCreate []*ContainerPlan
+	for i := range plans {
+		p := &plans[i]
+		slot := planSlot(p)
+		wanted[slot] = struct{}{}
+		if cur, ok := bySlot[slot]; ok {
+			if cur.Labels[LabelSpecHash] == p.Labels[LabelSpecHash] {
+				p.Name = summaryName(cur)
+				continue
+			}
+			if err := r.removeContainer(ctx, cur.ID); err != nil {
+				return err
+			}
+		}
+		p.Name = instanceName(p.NamePrefix, p.Replica, p.StableOrdinal)
+		toCreate = append(toCreate, p)
+	}
+	// GPU admission is atomic across the replicas being created: createPlans
+	// reserves a free card for each or returns ResourceUnavailable (keeping the
+	// Service Pending) without creating anything. Already-running replicas are
+	// untouched.
+	if len(toCreate) > 0 {
+		if err := r.createPlans(ctx, KindService, ns, name, toCreate); err != nil {
+			return err
+		}
+	}
+
+	// Scale down: remove replicas no longer desired.
+	for _, c := range existing {
+		if _, ok := wanted[containerSlot(c)]; !ok {
+			if err := r.removeContainer(ctx, c.ID); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Service-level routing: a spec.route exposes the service through Traefik
+	// (the mechanism workspace / tensorboard and any routed service rely on).
+	if err := r.applyServiceRoute(desired, plans); err != nil {
+		r.events.record(KindService, ns, name, "", "RouteFailed", err.Error())
+		return err
+	}
+	r.events.record(KindService, ns, name, "", "Applied", "service converged")
+	return nil
+}
+
+// ObserveMLService aggregates the Service's container states into a status.
+func (r *Runtime) ObserveMLService(ctx context.Context, key types.NamespacedName) (mlservicev1alpha1.MLServiceStatus, error) {
+	conts, err := r.listContainers(ctx, KindService, key.Namespace, key.Name)
+	if err != nil {
+		return mlservicev1alpha1.MLServiceStatus{}, err
+	}
+	if len(conts) == 0 {
+		return mlservicev1alpha1.MLServiceStatus{}, notFound("mlservices", key)
+	}
+	states, err := r.inspectAll(ctx, conts)
+	if err != nil {
+		return mlservicev1alpha1.MLServiceStatus{}, err
+	}
+
+	var ready, failed int
+	for i := range states {
+		switch {
+		case states[i].ready():
+			ready++
+		case states[i].status == "exited" && states[i].exitCode != 0:
+			failed++
+		}
+	}
+	total := len(states)
+	status := mlservicev1alpha1.MLServiceStatus{ReadyReplicas: int32(ready)}
+	switch {
+	case ready == total:
+		status.Phase = mlservicev1alpha1.PhaseReady
+	case ready > 0:
+		status.Phase = mlservicev1alpha1.PhaseDegraded
+	case failed == total:
+		status.Phase = mlservicev1alpha1.PhaseFailed
+		status.Message = "all replicas failed"
+	default:
+		status.Phase = mlservicev1alpha1.PhasePending
+	}
+	status.Endpoint = r.serviceRouteEndpoint(key.Namespace, key.Name)
+	return status, nil
+}
+
+// DeleteMLService removes the Service's containers and backing volumes.
+func (r *Runtime) DeleteMLService(ctx context.Context, key types.NamespacedName) error {
+	conts, err := r.listContainers(ctx, KindService, key.Namespace, key.Name)
+	if err != nil {
+		return err
+	}
+	for _, c := range conts {
+		if err := r.removeContainer(ctx, c.ID); err != nil {
+			return err
+		}
+	}
+	if err := r.deleteServiceRoute(key.Namespace, key.Name); err != nil {
+		return err
+	}
+	if err := r.removeConfigMapProjections(KindService, key.Namespace, key.Name); err != nil {
+		return err
+	}
+	// Volumes are NOT removed here: their lifecycle follows the retention policy
+	// and is driven explicitly through the VolumeManager (Runtime.Delete), so
+	// deleting a workspace never silently wipes user data the policy meant to
+	// keep.
+	if len(conts) > 0 {
+		r.events.record(KindService, key.Namespace, key.Name, "", "Deleted", "service containers removed")
+	}
+	return nil
+}
+
+// ListMLServiceInstances projects the Service's containers as Pods.
+func (r *Runtime) ListMLServiceInstances(ctx context.Context, key types.NamespacedName) (*corev1.PodList, error) {
+	conts, err := r.listContainers(ctx, KindService, key.Namespace, key.Name)
+	if err != nil {
+		return nil, err
+	}
+	return r.projectPods(ctx, key.Namespace, conts)
+}
+
+// GetMLServiceInstanceLogs streams an instance's logs after verifying ownership.
+func (r *Runtime) GetMLServiceInstanceLogs(ctx context.Context, key types.NamespacedName, instance string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
+	if err := r.verifyInstance(ctx, KindService, key, instance); err != nil {
+		return nil, err
+	}
+	return r.streamLogs(ctx, instance, opts)
+}
+
+// GetMLServiceInstanceEvents returns runtime events for an instance.
+func (r *Runtime) GetMLServiceInstanceEvents(ctx context.Context, key types.NamespacedName, instance string) (*eventsv1.EventList, error) {
+	if err := r.verifyInstance(ctx, KindService, key, instance); err != nil {
+		return nil, err
+	}
+	return r.events.list(KindService, key.Namespace, key.Name, instance), nil
+}
+
+// GetMLServiceEvents returns resource-level runtime events for the Service.
+func (r *Runtime) GetMLServiceEvents(_ context.Context, key types.NamespacedName) (*eventsv1.EventList, error) {
+	return r.events.list(KindService, key.Namespace, key.Name, ""), nil
+}
+
+func protoString(p corev1.Protocol) string {
+	switch p {
+	case corev1.ProtocolUDP:
+		return "udp"
+	default:
+		return "tcp"
+	}
+}

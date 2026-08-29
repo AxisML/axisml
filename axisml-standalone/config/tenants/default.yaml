@@ -1,0 +1,26 @@
+# Default standalone tenant.
+apiVersion: axisml.io/v1alpha1
+kind: Tenant
+metadata:
+  name: default
+spec:
+  namespace:
+    name: default
+  quotas:
+    - pool: default
+      min:
+        cpu: "0"
+        memory: "0"
+      max:
+        cpu: "16"
+        memory: 64Gi
+        nvidia.com/gpu: "1"
+  # Predefined data volumes are created at startup so workloads can mount them
+  # by name. size, storageClass and accessModes are ignored by this deployment.
+  # initResources:
+  #   volumes:
+  #     - name: dataset
+  #       description: shared training data
+  #     - name: checkpoints
+  #     - name: host-datasets
+  #       hostPath: /srv/axisml/datasets

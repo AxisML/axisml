@@ -56,7 +56,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Cache golangci-lint analysis
         # Not a download cache, but the dominant cost on this repo: lint
-        # walks 12 Go modules sequentially, and without per-file analysis
+        # walks every Go module sequentially, and without per-file analysis
         # results the full job is ~12 min. With this cache restored
         # incremental runs are several times faster.
         uses: actions/cache@v4
@@ -122,6 +122,12 @@ jobs:
         with:
           files: ./axisml-system/artifact-hub/coverage/coverage.out
           flags: test,artifacts
+          fail_ci_if_error: false
+      - name: Upload standalone coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./axisml-standalone/coverage/coverage.out
+          flags: test,standalone
           fail_ci_if_error: false
 
   integration:
@@ -221,13 +227,37 @@ jobs:
         # any committed file drifted. Run `make docs-gen` locally and commit.
         run: make docs-test
 
+  standalone-e2e:
+    name: standalone-e2e
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go-cached
+      - uses: astral-sh/setup-uv@v6
+      - name: Install black-box test dependencies
+        working-directory: tests
+        run: |
+          uv sync --frozen
+          uv run playwright install --with-deps chromium
+      - name: Start the standalone distribution
+        working-directory: tests
+        run: uv run test-setup --mode standalone
+      - name: Run standalone API and UI suites
+        working-directory: tests
+        run: uv run pytest --mode standalone api e2e
+      - name: Stop the standalone distribution
+        if: always()
+        working-directory: tests
+        run: uv run test-teardown --mode standalone --clean
+
   image:
     name: image (${{ matrix.component.name }})
     # Only build and push on tag pushes (release cuts). PRs and main pushes
     # run lint/test but don't publish images. Gate behind every other check
     # so a red tag doesn't ship.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test, integration, helm-lint, docs-test]
+    needs: [lint, test, integration, helm-lint, docs-test, standalone-e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -242,6 +272,8 @@ jobs:
           - { name: cluster-manager,  image: axisml-cluster-manager,  context: ., dockerfile: axisml-system/cluster-manager/Dockerfile }
           - { name: compute,          image: axisml-compute-service,          context: ., dockerfile: axisml-system/compute-service/Dockerfile }
           - { name: artifacts,        image: axisml-artifact-hub,        context: ., dockerfile: axisml-system/artifact-hub/Dockerfile }
+          - { name: standalone,       image: axisml-standalone,          context: ., dockerfile: axisml-standalone/Dockerfile }
+          - { name: platform,         image: axisml-platform,            context: ., dockerfile: axisml-platform/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

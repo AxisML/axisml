@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from clients.artifacthub.api.artifacts import (
     complete_artifact,
     delete_artifact,
@@ -16,15 +18,17 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
+from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
 
+@pytest.mark.kubernetes_only
 def test_capabilities(harness):
     caps = get_capabilities.sync_detailed(client=harness.artifact_hub)
     assert caps.status_code == 200, caps.content
     assert "model" in caps.parsed.kinds
-    assert caps.parsed.upload is True
+    assert caps.parsed.upload == harness.supports(Capability.ARTIFACT_UPLOAD)
 
 
 def test_health(harness):
@@ -34,7 +38,8 @@ def test_health(harness):
 
 def test_list_artifacts_projects_uploaded(harness, cfg, tenant):
     """A completed model must surface in the namespace's artifact listing."""
-    ns, _ = tenant
+    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
+    ns = tenant
     name = unique_name("e2e-list")
     version = "1.0.0"
 

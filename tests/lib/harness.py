@@ -1,10 +1,12 @@
-"""The environment seam between black-box tests and the Standard deployment."""
+"""The environment seam between black-box tests and AxisML deployments."""
 
 from __future__ import annotations
 
+import enum
 from abc import ABC, abstractmethod
 
 import httpx
+import pytest
 
 from clients.artifacthub import Client as ArtifactHubClient
 from clients.clustermanager import Client as ClusterManagerClient
@@ -15,6 +17,22 @@ from lib.naming import unique_name
 from lib.portforward import PortForward
 
 USER_HEADER = "X-Axisml-User"
+
+
+class Capability(str, enum.Enum):
+    """A capability whose availability differs by deployment form."""
+
+    MULTI_TENANT = "multiTenant"
+    RESOURCE_POOL_WRITE = "resourcePoolsWritable"
+    QUOTA_ENFORCEMENT = "quotaEnforcement"
+    ARTIFACT_UPLOAD = "artifactUpload"
+
+
+def form_supports(mode: str, cap: Capability) -> bool:
+    """Single source of truth for black-box capability gating."""
+    if mode == "kubernetes":
+        return True
+    return cap == Capability.ARTIFACT_UPLOAD
 
 
 class Harness(ABC):
@@ -37,6 +55,13 @@ class Harness(ABC):
     @property
     @abstractmethod
     def artifact_hub(self) -> ArtifactHubClient: ...
+
+    @abstractmethod
+    def supports(self, cap: Capability) -> bool: ...
+
+    def skip_unless(self, cap: Capability) -> None:
+        if not self.supports(cap):
+            pytest.skip(f"deployment does not support {cap.value}")
 
     # --- platform ---
     @property
@@ -92,7 +117,7 @@ class Harness(ABC):
     def new_tenant_name(self) -> str:
         return unique_name("e2e")
 
-    def close(self) -> None:  # overridden by Standard to stop port-forwards
+    def close(self) -> None:  # overridden by Kubernetes to stop port-forwards
         pass
 
 
@@ -102,7 +127,7 @@ def _system_client(cls, base_url: str, user: str):
     )
 
 
-class StandardHarness(Harness):
+class KubernetesHarness(Harness):
     """Real Kubernetes cluster reached over per-service port-forwards."""
 
     def __init__(self, cfg: config.Config):
@@ -149,6 +174,9 @@ class StandardHarness(Harness):
             self._forwards.append(self._zot_pf)
         return self._zot_pf.local_url
 
+    def supports(self, cap: Capability) -> bool:
+        return form_supports("kubernetes", cap)
+
     def create_tenant(
         self, name: str, *, pool: str | None = None, quantity: int = 4
     ) -> None:
@@ -189,3 +217,50 @@ class StandardHarness(Harness):
     def close(self) -> None:
         for pf in self._forwards:
             pf.stop()
+
+
+class StandaloneHarness(Harness):
+    """Single Docker-host distribution with one System endpoint."""
+
+    TENANT = "default"
+
+    def __init__(self, cfg: config.Config):
+        super().__init__(cfg)
+        base = cfg.standalone_system_url
+        self._cm = _system_client(ClusterManagerClient, base, cfg.user)
+        self._cs = _system_client(ComputeServiceClient, base, cfg.user)
+        self._ah = _system_client(ArtifactHubClient, base, cfg.user)
+
+    @property
+    def cluster_manager(self) -> ClusterManagerClient:
+        return self._cm
+
+    @property
+    def compute_service(self) -> ComputeServiceClient:
+        return self._cs
+
+    @property
+    def artifact_hub(self) -> ArtifactHubClient:
+        return self._ah
+
+    @property
+    def platform_base_url(self) -> str:
+        return self.cfg.standalone_platform_url
+
+    def oci_endpoint(self) -> str:
+        return self.cfg.standalone_oci_url
+
+    def supports(self, cap: Capability) -> bool:
+        return form_supports("standalone", cap)
+
+    def create_tenant(
+        self, name: str, *, pool: str | None = None, quantity: int = 4
+    ) -> None:
+        if name != self.TENANT:
+            raise AssertionError("standalone exposes only the static default tenant")
+
+    def delete_tenant(self, name: str) -> None:
+        pass
+
+    def new_tenant_name(self) -> str:
+        return self.TENANT

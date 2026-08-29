@@ -1,22 +1,33 @@
 # AxisML 部署手册
 
-本手册介绍如何把 AxisML 部署到 Kubernetes 集群：前置条件、安装步骤、配置项、验证、升级与卸载，以及组件部署形态参考与常见问题。系统的整体架构与设计取舍见 [high_level_design.md](high_level_design.md)；本地开发环境搭建见 [development_workflow.md](development_workflow.md)。
+本手册覆盖 AxisML 的 `kubernetes` 与 `standalone` 两种部署形态。系统整体
+架构见 [high_level_design.md](high_level_design.md)，本地开发环境见
+[development_workflow.md](development_workflow.md)。
 
-AxisML 按 Platform / System / Infra 三层各打包为一个 Helm chart，按 **infra → system → platform** 顺序安装、反向卸载。
+两种形态来自同一仓库、同一版本和同一 API 合同，不单独发布另一套产品或
+独立 System 子模块。
 
 ## 1. 前置条件
 
 | 工具 | 用途 | 备注 |
 | --- | --- | --- |
-| Kubernetes 集群 | 运行目标 | 本地用 minikube（profile `axisml`）；生产用任意发行版 |
+| Kubernetes 集群 | Kubernetes 形态运行目标 | 本地用 minikube（profile `axisml`）；生产用任意发行版 |
 | `kubectl` | 集群操作 + CRD apply | 与集群版本匹配 |
 | Helm 3 | chart 安装 | 三层 chart 均经 Helm |
-| Docker | 构建 / 本地镜像、集成测试 | 本地开发需要 |
+| Docker | standalone 运行目标、镜像构建和集成测试 | standalone 必需 |
 | Go 1.26+ | 从源码构建镜像 | 仅自行构建镜像时需要 |
 
 集群需满足：支持 `ReadWriteOnce` PVC（PostgreSQL / Redis / RustFS / zot 落盘）；如需 GPU，节点装好 NVIDIA 驱动栈所需内核头（GPU Operator 负责其余）。最小可跑（无 GPU）即可在 minikube 上完成全栈安装。
 
 ## 2. 部署形态总览
+
+| 形态 | 入口 | System 落地 | 适用范围 |
+| --- | --- | --- | --- |
+| `kubernetes` | Platform + Envoy Gateway | 三个 REST service + 两个 operator；workload 落为 K8s/网关资源 | 多租户、弹性配额、集群调度与完整 backend |
+| `standalone` | Platform `:8080` | 一个 `axisml-standalone` 进程；workload 落为 Docker/Traefik 资源 | 单机开发、评估和边缘部署 |
+
+Kubernetes 形态按 Platform / System / Infra 三层各打包为一个 Helm chart，
+按 **infra → system → platform** 顺序安装、反向卸载：
 
 | Chart | 路径 | Release | Namespace | 内容 |
 | --- | --- | --- | --- | --- |
@@ -38,7 +49,19 @@ Kubernetes Cluster
 
 ## 3. 快速开始
 
-本地一键全栈：
+Standalone 本地全栈只需要 Docker：
+
+```sh
+make standalone-up
+curl -fsS http://localhost:8090/readyz
+curl -fsS http://localhost:8080/readyz
+make standalone-down
+```
+
+`PROFILES="storage gateway" make standalone-up` 启用 RustFS 与 Traefik；
+`CLEAN=1 make standalone-down` 同时删除 Compose 数据卷。
+
+Kubernetes 本地全栈：
 
 ```sh
 make cluster-up             # 拉起本地 minikube 集群（profile "axisml"）
@@ -47,7 +70,7 @@ make helm-install           # 按 infra → system → platform 串装（idempot
 
 `make help` 列出全部目标；`make helm-template` 在不安装的前提下渲染三层 chart 供 review。卸载见 [§7](#7-卸载)。
 
-## 4. 安装步骤
+## 4. Kubernetes 安装步骤
 
 ### 4.1 安装顺序与约束
 
@@ -121,15 +144,27 @@ kubectl get tenant,resourcepool         # 内置租户 default 与默认 Resourc
 
 各服务暴露 `/healthz`（liveness）与 `/readyz`（readiness）；Pod 全部 Ready 即控制面就绪。黑盒 e2e 套件见 `tests/README.md`（Python + pytest，经 `uv run pytest` 运行）。
 
+Standalone 验证：
+
+```sh
+docker compose -f axisml-standalone/compose.yaml ps
+curl -fsS http://localhost:8090/api/v1/capabilities
+cd tests
+uv run pytest --mode standalone api
+uv run pytest --mode standalone e2e
+```
+
 ## 7. 卸载
 
 ```sh
 make helm-uninstall          # 反向 platform → system → infra
+make standalone-down         # 保留 standalone 数据卷
+make standalone-delete       # 删除 stack、数据卷和受管 workload 资源
 ```
 
 CRD 与 `axisml-tenant` Namespace 标记了 `helm.sh/resource-policy=keep`，不随 chart 卸载删除（避免误删租户工作负载）；需要彻底清理时手工 `kubectl delete crd ...` 与对应 namespace。
 
-## 8. 组件部署形态参考
+## 8. Kubernetes 组件部署参考
 
 ### 8.1 控制面 Deployment
 
@@ -178,6 +213,7 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 | 缓存归属 | Redis 同纳入 `axisml-infra`（与 PostgreSQL 同性质）；Platform 当外部依赖消费。仅缓存可重建数据，故 standalone 单实例 + 可选降级，权威始终在 PostgreSQL |
 | CRD 安装 | `kubectl apply -f crds/` + `helm upgrade --install` 组合（Helm 只在初次安装处理 `crds/`，apply 保证 schema 升级） |
 | 镜像 tag 来源 | 由 `axisml-system/Chart.yaml` `appVersion` 统一注入三 chart（单一版本源，保证 chart 与镜像一致） |
+| Standalone 版本 | Compose 的 `AXISML_VERSION` 同时选择 System 与 Platform 镜像；根 Makefile 默认从相同 `appVersion` 注入 |
 | 外部 PostgreSQL | `database.enabled=false` + `externalDatabase.*` 切换（生产推荐外接 RDS） |
 
 ## 11. 关联文档

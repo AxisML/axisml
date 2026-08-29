@@ -4,7 +4,10 @@
 
 **AxisML** 是面向机器学习工作负载的一站式平台，覆盖模型开发、训练、制品管理、在线推理与运维。本文是系统设计的高层导航：平台边界、核心概念、组件职责与关键不变量；字段级 schema、状态机与实现契约以各组件详细设计为准。
 
-AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTrafficPolicy` workload contract 映射为 Job / Deployment / HTTPRoute 等集群资源。
+AxisML 发布两种部署形态：`kubernetes` 由 operator 把 `MLRun` / `MLService` /
+`MLTrafficPolicy` 映射为集群资源；`standalone` 在单 Docker host 上把同一
+workload contract 映射为 container、volume、network 和 Traefik route。两种
+形态共用 Platform、System API、数据库 schema、migration 与版本号。
 
 ## 2. 核心概念
 
@@ -46,6 +49,8 @@ AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTr
 - **Platform 拥有定义、下游拥有实例**：Job / 实验 / Model / Image 的 name 级定义在 Platform；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。Platform 不建 run/version 索引表，不缓存 phase / digest / 配额用量等可变状态（一律实时回源）。
 - **分组维度走 labels**：Run 经 `compute.axisml.io/{job,experiment}` 归属；系统 label 一律带域前缀（`scheduling./compute./tenant./resource./platform.axisml.io/`），用户自定义分组走裸 `axisml.io/<dim>`，list 端点支持 `?labelSelector=`。
 - **外部入口只在 Platform**：cluster-manager / compute-service / artifact-hub 不暴露到集群外，仅接受 Platform 内部调用并信任 `X-Axisml-User` 身份透传。
+- **部署形态不是产品分叉**：`kubernetes` 与 `standalone` 只替换资源 provider、
+  Compute Runtime 和部署资产；领域服务、状态机、OpenAPI 与 UI 只有一份。
 
 ## 3. 功能矩阵
 
@@ -65,7 +70,9 @@ AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTr
 
 ## 4. 整体架构
 
-系统沿职责划分三层，各部署为一个 Helm chart（见 [deployment.md](deployment.md)）：**Platform 层**（用户面，唯一对外）、**System 层**（控制面，自研领域能力，不对外）、**Infra 层**（第三方基础设施）。
+系统沿职责划分 Platform、System、Infra 三层。Kubernetes 形态以三个 Helm
+chart 部署；standalone 形态以一个 Compose project 部署 Platform、合并的
+System 进程及必要基础设施（见 [deployment.md](deployment.md)）。
 
 ```
                               External Users
@@ -107,6 +114,15 @@ AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTr
 - **负载闭环**：Platform 调 compute（创建 workload 时仅传 pool/unit 名字）→ compute 写 PG 并 patch MLRun / MLService / MLTrafficPolicy CR → compute-operator 按 `spec.backend.{name, engine}` 路由 handler 渲染 K8s 与第三方 CR。
 - **制品域**：artifacts 元数据走 PG；model / image 走 zot（OCI），dataset 走 RustFS（S3），上传下载由消费方直连存储，artifacts 不代理大文件。
 
+Standalone 保持相同的上游调用关系，只替换 System 以下的落地路径：
+
+```text
+External Users → Platform(API + UI) → axisml-standalone(:8080)
+                                      ├─ Cluster Manager module → static pool/tenant config
+                                      ├─ Compute module → PostgreSQL → Docker runtime
+                                      └─ Artifact Hub module → PostgreSQL + zot/RustFS
+```
+
 ## 5. 文档导航
 
 设计文档按系统三层组织，每层一个 `overview.md`：
@@ -126,6 +142,7 @@ AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTr
 | [artifact-hub.md](../axisml-system/docs/system_design/artifact-hub.md) | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` |
 | [tenant-operator.md](../axisml-system/docs/system_design/tenant-operator.md) | Tenant CR → Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） |
 | [compute-operator.md](../axisml-system/docs/system_design/compute-operator.md) | 三类 CR → backend handler → K8s 与网关 CR | 三类 CR + backend handler registry |
+| [axisml-standalone](../axisml-standalone/README.md) | 顶层单机发行模块，装配三个 REST 服务并通过 Docker 执行 workload contract | Docker runtime + 静态 pool/tenant provider |
 
 **Infra 层**（第三方基础设施）— [infra/overview.md](../axisml-infra/docs/system_design/overview.md)：[服务网关](../axisml-infra/docs/system_design/overview.md#3-服务网关) · [存储](../axisml-infra/docs/system_design/overview.md#4-存储) · [加速器管理](../axisml-infra/docs/system_design/overview.md#5-加速器管理) · [调度与配额](../axisml-infra/docs/system_design/overview.md#6-调度与配额) · [监控](../axisml-infra/docs/system_design/overview.md#7-监控)。
 
@@ -144,6 +161,7 @@ AxisML 部署在 Kubernetes 上，由 operator 将 `MLRun` / `MLService` / `MLTr
 | 调度收编 | 所有 Pod 强制 `schedulerName: axisml-scheduler` + ElasticQuota label（自研 axisml-scheduler，基于 scheduler-plugins） |
 | 制品抽象 | `(namespace, kind, name, version)` 四元组寻址，无"仓库"两级空间；model/image → zot，dataset → RustFS |
 | 部署分层 | `axisml-infra` / `axisml-system` / `axisml-platform` 三 chart，对齐职责分层；PostgreSQL 归 infra |
+| 部署形态 | 同一产品发布 `kubernetes`（三 Helm chart）与 `standalone`（Compose）两种形态；同版本、同 API、同测试套件 |
 | 技术栈 | 后端 Go，前端 TypeScript + React |
 | 认证鉴权 | Platform 统一入口；内置用户 + RBAC 三档（硬编码）；下层信任 `X-Axisml-User`；OIDC 后续接入 |
 
@@ -166,10 +184,12 @@ axisml/                        # 按部署层组织，每层一个自包含目�
 │   └── test/                  # testutil / crds/external / setup-envtest（System 集成测试基建）
 ├── axisml-infra/              # 第三方基础设施
 │   ├── deploy/helm/  docs/  scripts/minikube.sh
+├── axisml-standalone/         # 单机 Go module + Docker runtime + image/Compose/config/OpenAPI
 ├── docs/                      # 跨层：high_level_design.md + deployment.md + development_workflow.md
 ├── pkg/openapigen/  tests/    # 共享：OpenAPI 引擎 / 黑盒测试套件（Python + pytest）
 ├── Makefile                   # 根编排器（委派给各层 Makefile）
 └── README.md
 ```
 
-部署按三层各为一个 Helm chart，安装顺序 infra → system → platform，卸载反向（详见 [deployment.md](deployment.md)）。
+Kubernetes 按 infra → system → platform 安装；standalone 由一个 Compose project
+整体启停（详见 [deployment.md](deployment.md)）。

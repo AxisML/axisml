@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository shape
 
-AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by deployment layer at the top level — `axisml-platform/`, `axisml-system/`, and `axisml-infra/` — where each layer dir holds its components, its Helm chart under `deploy/helm/`, and its design docs under `docs/`:
+AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by deployment layer at the top level — `axisml-platform/`, `axisml-system/`, and `axisml-infra/` — plus the top-level `axisml-standalone/` distribution. Each layer owns its components and Helm assets; Standalone owns its independent Go module, Docker runtime, image, Compose stack, static catalog and aggregate API contract:
 
 - `axisml-system/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
 - `axisml-system/compute-operator/` — Go operator binary reconciling `MLRun`, `MLService`, and `MLTrafficPolicy` CRs via the dispatcher + handler model (one dispatcher per CR under `internal/{mlrun,mlservice,mltrafficpolicy}`, each gated by `--enable-mlrun` / `--enable-mlservice` / `--enable-mltrafficpolicy`).
@@ -21,7 +21,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by d
   - `axisml-platform/deploy/helm/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
 - Design docs: each layer owns its per-component design docs under `<layer>/docs/system_design/`, and its per-layer DB schema in `<layer>/docs/system_design/database.md` (system + platform have one; infra's is folded into `axisml-infra/docs/system_design/overview.md`). Cross-cutting docs sit directly in `docs/`: `high_level_design.md` (system-level overview), `deployment.md` (deployment manual), `development_workflow.md` (the single dev guide — setup, build/test, testing layers). Generated API specs live in each layer's `docs/apis/`. Product/UX docs live in `axisml-platform/docs/product_design/` (incl. an interactive `prototype/`). `DESIGN.md` at the root is the **frontend** visual design system (Vercel Geist style), not the system design.
 - `axisml-system/test/` — System-layer test infrastructure used by the System integration suites: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs.
-- `tests/` — the repo-level **black-box test suite** (Python + pytest, uv-managed): API tests per component + Playwright UI e2e against a Kubernetes deployment. See `tests/README.md`.
+- `tests/` — the repo-level **black-box test suite** (Python + pytest, uv-managed): API tests per component + Playwright UI e2e against either Kubernetes or Standalone. See `tests/README.md`.
 - `pkg/openapigen/` — shared Go module backing the `openapi-gen` doc-generation tooling used by the API components.
 - `scripts/` — repo-wide build/CI helpers that serve the root Makefile and repo-wide pre-commit hooks, not any single layer (`merge-coverage.sh`, `touched-go-modules.sh`). Layer-specific scripts live under `<layer>/scripts/` instead (e.g. `axisml-infra/scripts/minikube.sh`).
 
@@ -39,22 +39,23 @@ Design docs capture the **final intended state only**, not the reasoning journey
 
 A reader opening the doc cold should not be able to tell which parts were rewritten in which round.
 
-## Multi-module Go workspace
+## Go module workspace
 
-Each component is its own Go module, and each has a sibling `test/integration/` Go submodule that holds its integration tests:
+The shared API contract and each deployable System component are independent production modules. Integration tests and OpenAPI tooling retain their own nested modules:
 
 ```
-axisml-system/apis/                                  (shared CRD Go types: MLRun/MLService/MLTrafficPolicy/Tenant/ResourcePool, axisml.io/v1alpha1)
-axisml-system/tenant-operator/                       (Tenant CR reconciler)
+axisml-system/apis/go.mod                            (shared CRD Go types: MLRun/MLService/MLTrafficPolicy/Tenant/ResourcePool, axisml.io/v1alpha1)
+axisml-system/tenant-operator/go.mod                 (Tenant CR reconciler)
 axisml-system/tenant-operator/test/integration/      (integration tests, separate module)
-axisml-system/compute-operator/                       (MLRun + MLService + MLTrafficPolicy controllers)
+axisml-system/compute-operator/go.mod                (MLRun + MLService + MLTrafficPolicy controllers)
 axisml-system/compute-operator/test/integration/      (integration tests, separate module)
-axisml-system/cluster-manager/                        (REST shell over ResourcePool CR)
+axisml-system/cluster-manager/go.mod                 (REST shell over ResourcePool CR)
 axisml-system/cluster-manager/test/integration/       (integration tests, separate module)
-axisml-system/compute-service/                        (business authority; PG-backed)
+axisml-system/compute-service/go.mod                 (business authority; PG-backed)
 axisml-system/compute-service/test/integration/       (integration tests — envtest + testcontainers Postgres)
-axisml-system/artifact-hub/                           (artifact registry)
+axisml-system/artifact-hub/go.mod                    (artifact registry)
 axisml-system/artifact-hub/test/integration/          (integration tests — testcontainers Postgres + httptest OCI stub)
+axisml-standalone/go.mod                             (top-level single-host module + Docker runtime + Compose)
 axisml-platform/backend/                              (user-facing API authority)
 axisml-platform/backend/test/integration/             (integration tests — drives in-process gin via httptest; no envtest/Docker)
 axisml-system/test/testutil/                          (shared helpers, no operator deps)
@@ -62,25 +63,25 @@ pkg/openapigen/                                       (shared doc-gen tooling mo
 tests/                                                (black-box test suite — Python + pytest + Playwright, NOT a Go module)
 ```
 
-Why split: keeps test-only deps (`testify`, `testcontainers-go`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
+The nested test modules keep test-only dependencies (`testcontainers-go`, `testutil`) out of deployable component modules. `testutil` is imported via `replace` from each test module; keep it component-agnostic to avoid cycles.
 
-The five system CRD Go types (MLRun, MLService, MLTrafficPolicy, Tenant, ResourcePool — all Group `axisml.io/v1alpha1`) live in the shared `axisml-system/apis` module, one dependency-light package per CRD (`apis/{mlrun,mlservice,mltrafficpolicy,tenant,resourcepool}/v1alpha1`; deps are only apimachinery + `k8s.io/api`). Every producer and consumer in the System layer depends on this leaf module via `replace`, so nobody reaches CR types *through* the operator that happens to reconcile them and module cycles are structurally impossible. **Owner semantics** live in the design docs, not in where the type physically sits.
+The five System CRD Go types (MLRun, MLService, MLTrafficPolicy, Tenant, ResourcePool — all Group `axisml.io/v1alpha1`) live under `axisml-system/apis`, one package per CRD (`apis/{mlrun,mlservice,mltrafficpolicy,tenant,resourcepool}/v1alpha1`). Every producer and consumer imports these packages directly rather than reaching CR types through an operator. **Owner semantics** live in the design docs, not in where the type physically sits.
 
 Practical implications:
-- `go test ./...` from the repo root won't traverse all of these. Use `make test` / `make integration-test` instead, or `cd` into the right module.
-- `go mod tidy` runs per-module — `make tidy` fans out across all of them.
+- `go test ./...` from the repo root does not traverse layer and test/tool modules. Use `make test` / `make integration-test` instead, or `cd` into the right module.
+- `make tidy` validates the production and documentation modules; integration modules are maintained with their suites.
 - CI walks every module that contains a `go.mod` automatically (driven by `find`); newly added modules are picked up without editing the workflow.
 
 ## Build / test / install commands
 
-There are **four build Makefiles**: the repo-root orchestrator plus one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`). The root Makefile is a thin delegator — its aggregate targets fan out to the layer Makefiles, which hold the real build/test/helm logic. (A fifth, tiny `tests/Makefile` exists for the Python test suite but holds only `client-gen`; the suite itself runs via `uv`, not make.) The most common root targets:
+There are **five build Makefiles**: the repo-root orchestrator, one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`), and `axisml-standalone/`. The root Makefile is a thin delegator — its aggregate targets fan out to the layer and distribution Makefiles, which hold the real build/test/deployment logic. (A sixth, tiny `tests/Makefile` exists for the Python test suite but holds only `client-gen`; the suite itself runs via `uv`, not make.) The most common root targets:
 
 ```sh
 make help                # list root targets (delegated to layers)
-make build               # → make -C each Go layer build (system 5 components + platform backend)
-make test                # unit tests across every layer
+make build               # → make -C each Go owner build (system 5 components + platform backend + standalone)
+make test                # unit tests across every production module
 make integration-test    # integration tests across layers (envtest + testcontainers, needs Docker)
-make doc-gen / doc-test  # regenerate / verify every OpenAPI spec
+make docs-gen / docs-test # regenerate / verify OpenAPI and configuration docs
 make coverage            # unit + integration coverage, merged into coverage/coverage.out
 
 # Cluster + Helm (root orchestrates ordering; per-layer logic lives in each layer Makefile):
@@ -107,10 +108,10 @@ Single test invocation: `cd axisml-system/compute-service && go test -run TestX 
 The system layer Makefile generates each component's targets from its `COMPONENTS` list (`tenant-operator compute-operator cluster-manager compute-service artifact-hub`) — `<component>-{build,image,image-load,test,integration,coverage,integration-coverage,coverage-html,fmt,vet,tidy,clean}`; the three API services in `DOC_COMPONENTS` (`cluster-manager compute-service artifact-hub`) also get `<component>-{doc-gen,doc-test}`. Generated as explicit targets (not pattern rules) so overlapping suffixes like `-test` / `-doc-test` never collide. Root `make fmt` delegates to each layer's `fmt`.
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are staged:
-- **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make doc-test` when Go in `cluster-manager` / `compute-service` / `artifact-hub` changes, `make helm-lint` when `deploy/helm/**` changes.
+- **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make docs-test` when API or configuration Go sources change, `make helm-lint` when `deploy/helm/**` changes.
 - **pre-push** (30-60s): `golangci-lint` and `go test -short` on every Go module containing a pushed file.
 
-Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`axisml-system/test/crds/external/`) and Helm sub-charts are excluded from hooks. If `doc-test` fails after editing DTOs, run `make <component>-doc-gen` (or top-level `make doc-gen`) to regenerate the layer's `docs/apis/<component>.yaml` and re-stage — see next section.
+Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`axisml-system/test/crds/external/`) and Helm sub-charts are excluded from hooks. If `docs-test` fails after editing DTOs, run `make docs-gen` (or `make -C axisml-system <component>-doc-gen`) to regenerate the API artifacts and re-stage — see next section.
 
 ## Testing layers
 
@@ -120,9 +121,9 @@ Documented in detail in `docs/development_workflow.md`. The short version:
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
 | Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute-service and artifact-hub |
-| E2E (black-box) | none (Python) | `tests/` (centralized, **not** Go) | a real `axisml` minikube cluster; API tests over each component's HTTP contract + Playwright UI e2e |
+| E2E (black-box) | none (Python) | `tests/` (centralized, **not** Go) | Kubernetes/minikube or standalone/Compose selected with `--mode`; API contracts + Playwright UI |
 
-The e2e suite is **manual and not in CI**: bring an environment up with `uv run test-setup` (after `cd tests && uv sync`), then `uv run pytest api` / `uv run pytest e2e`. It drives clients generated from the OpenAPI specs and treats the system as a black box. Details are in `tests/README.md`.
+Bring an environment up with `uv run test-setup --mode kubernetes|standalone` (after `cd tests && uv sync`), then pass the same mode to `uv run pytest`. CI exercises the standalone API and UI path; Kubernetes black-box runs remain explicit. Details are in `tests/README.md`.
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
@@ -155,8 +156,8 @@ When adding a new handler:
 
 Four components own a generated spec under their layer's `docs/apis/<component>.yaml`, produced from their Go request/response DTOs: `cluster-manager`, `compute-service`, `artifact-hub` (under `axisml-system/docs/apis/`), and `platform/backend` (`axisml-platform/docs/apis/platform.yaml`). The two operators have no HTTP surface and are excluded. The generated specs under each layer's `docs/apis/` are the single source of truth for HTTP API contracts.
 
-- `make doc-gen` (root, all specs) or per-component, e.g. `make -C axisml-system compute-service-doc-gen`, regenerates the spec(s). Platform's is `make -C axisml-platform doc-gen`.
-- `make doc-test` (root) or per-component verifies the spec matches the current Go types — this is the CI guard and the pre-commit hook described above.
+- `make docs-gen` (root, all generated docs) or per-component, e.g. `make -C axisml-system compute-service-doc-gen`, regenerates the artifacts. Platform's OpenAPI target is `make -C axisml-platform doc-gen`.
+- `make docs-test` (root) or a layer/component `doc-test` target verifies generated artifacts against the current Go sources — this is the CI guard described above.
 - Downstream of the specs: the Platform backend's typed System clients (`make -C axisml-platform client-gen`) and the Platform frontend's typed API client (`make -C axisml-platform frontend-gen-api`) are generated from these YAMLs.
 
 When you change a handler signature or DTO, regenerate before committing and never hand-edit `<layer>/docs/apis/*.yaml`. **Gotcha:** the pre-commit `doc-test` hook only watches `axisml-system/{cluster-manager,compute-service,artifact-hub}` Go files, so editing Platform backend DTOs won't trip it — run `make -C axisml-platform doc-gen` yourself.

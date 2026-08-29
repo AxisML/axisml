@@ -1,4 +1,4 @@
-"""UI e2e fixtures for the Kubernetes Standard deployment."""
+"""UI e2e fixtures shared by Kubernetes and standalone deployments."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from lib import config, seeding
+from lib.harness import Capability, form_supports
 from lib.naming import unique_name
 from lib.portforward import PortForward
 
@@ -23,7 +24,9 @@ def _platform_forward():
 
 
 @pytest.fixture(scope="session")
-def base_url(cfg: config.Config, request: pytest.FixtureRequest) -> str:
+def base_url(mode: str, cfg: config.Config, request: pytest.FixtureRequest) -> str:
+    if mode == "standalone":
+        return cfg.standalone_platform_url
     return request.getfixturevalue("_platform_forward").local_url
 
 
@@ -66,10 +69,12 @@ def admin_token(base_url: str, cfg: config.Config) -> str:
 
 
 @pytest.fixture
-def seeded_tenant(base_url: str, admin_token: str, cfg: config.Config):
+def seeded_tenant(mode: str, base_url: str, admin_token: str, cfg: config.Config):
     """A tenant (admin is its initial member) + quota, removed after the test.
 
-    Provisioning uses the Standard multi-tenant control plane."""
+    Provisioning requires the multi-tenant Kubernetes control plane."""
+    if not form_supports(mode, Capability.MULTI_TENANT):
+        pytest.skip("deployment does not support multiTenant")
     client = seeding.admin_client(base_url, admin_token)
     identifier = unique_name("ui-t")
     seeding.create_tenant_with_quota(client, identifier, cfg.admin_username, cfg)

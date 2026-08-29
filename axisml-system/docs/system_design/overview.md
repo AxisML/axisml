@@ -1,6 +1,8 @@
 # AxisML System 层概要
 
-System 层是 AxisML 的**控制面**：100% 自研领域能力，承接 Platform 的内部调用并把用户意图落地为 Kubernetes 上的真实资源。**不对外暴露**——全部 ClusterIP，仅接受 Platform 调用并信任 `X-Axisml-User` 身份透传。CRDs 随本层一同发布。
+System 层是 AxisML 的 **Kubernetes 控制面**：承接 Platform 的内部调用，并通过
+CR 与 operator 落地 workload contract。System 不作为产品外部入口，信任
+Platform 透传的 `X-Axisml-User` 身份。
 
 ## 组成
 
@@ -12,7 +14,7 @@ System 层是 AxisML 的**控制面**：100% 自研领域能力，承接 Platfor
 | [tenant-operator.md](tenant-operator.md) | 把 Tenant CR 翻译为 Namespace / ElasticQuota / 初始化资源，回流 `status.used` | Tenant CR（cluster-scoped） |
 | [compute-operator.md](compute-operator.md) | dispatcher + handler 把三类 CR 按 `spec.backend.{name,engine}` 路由为 K8s 与网关资源 | 三类 CR + backend handler registry |
 
-前三者是 REST 服务（业务域 / admin 域），后两者是 operator（消费 CR）。
+Kubernetes 形态部署前三个 REST 服务和两个 operator。
 
 ## 层内关键约定
 
@@ -21,5 +23,11 @@ System 层是 AxisML 的**控制面**：100% 自研领域能力，承接 Platfor
 - **写 / 读路径经 etcd 收敛**：cluster-manager 写 ResourcePool / Tenant CR，compute-service（Informer 展开 pool/unit）与 tenant-operator（落地）直读 CR，组件间无直接调用。
 - **租户作用域与落地点分离**：compute / artifacts 的 `namespace` 兼容字段表示 tenant scope；Tenant CR 的 `spec.namespace.name` 才是 K8s Namespace，可由多个 Tenant 共享。
 - **配额与调度收编**：所有派生 Pod 强制 `schedulerName: axisml-scheduler` + ElasticQuota label，不存在绕过配额的路径。
+- **公共领域契约、私有 runtime**：REST 服务通过 `pkg/module` 暴露构造、路由、
+  migration 与后台任务，复用 System API、状态机和 OpenAPI DTO；Kubernetes
+  client 留在 System adapter 内。
+- **独立组件模块与统一版本**：公共 APIs 与五个可部署组件分别归属
+  `github.com/axisml/axisml/axisml-system/...` 模块，按依赖顺序发布同一 AxisML
+  版本；集成测试、生成工具和共享测试工具使用仓库内嵌套 module。
 
 完整系统级不变量见 [high_level_design.md §2.2](../../../docs/high_level_design.md#22-关键不变量)。schema 见 [database.md](database.md)，部署见 [deployment.md](../../../docs/deployment.md)，基础设施依赖见 [infra/overview.md](../../../axisml-infra/docs/system_design/overview.md)。

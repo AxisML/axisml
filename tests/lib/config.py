@@ -58,6 +58,18 @@ class Config:
     # Envoy gateway fronting the Platform SPA (UI e2e base URL is derived from it).
     gateway_name: str = field(default_factory=lambda: _env("AXISML_GATEWAY", "axisml-gateway"))
 
+    # The standalone distribution serves all System APIs from one process while
+    # Platform remains a separate API/UI process.
+    standalone_system_url: str = field(
+        default_factory=lambda: _env("AXISML_STANDALONE_SYSTEM_URL", "http://localhost:8090")
+    )
+    standalone_platform_url: str = field(
+        default_factory=lambda: _env("AXISML_STANDALONE_PLATFORM_URL", "http://localhost:8080")
+    )
+    standalone_oci_url: str = field(
+        default_factory=lambda: _env("AXISML_STANDALONE_OCI_URL", "http://localhost:5001")
+    )
+
     # Identity stamped on every System call (X-Axisml-User). Platform uses JWT.
     user: str = field(default_factory=lambda: _env("AXISML_TEST_USER", "axisml-tester"))
 

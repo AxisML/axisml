@@ -24,6 +24,7 @@ from clients.artifacthub.models import (
     ArtifactInitiateRequestSpec,
 )
 from lib import oci
+from lib.harness import Capability
 from lib.naming import unique_name
 from lib.polling import eventually
 
@@ -36,8 +37,9 @@ _KINDS = {
 
 @pytest.mark.parametrize("kind", list(_KINDS))
 def test_two_phase_upload_resolve(harness, cfg, tenant, kind):
+    harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     spec_fields = _KINDS[kind]
-    ns, _ = tenant
+    ns = tenant
     name = unique_name(f"e2e-{kind}")
     version = "1.0.0"
 

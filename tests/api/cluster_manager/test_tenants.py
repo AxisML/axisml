@@ -21,10 +21,12 @@ from clients.clustermanager.models import (
     ServerQuotaUnit,
     SetQuotaRequest,
 )
+from lib.harness import Capability
 from lib.naming import unique_name
 
 
 def test_tenant_create_and_read(harness):
+    harness.skip_unless(Capability.MULTI_TENANT)
     name = unique_name("e2e-apitenant")
     harness.create_tenant(name)
     try:
@@ -36,6 +38,7 @@ def test_tenant_create_and_read(harness):
 
 
 def test_tenant_list_and_update(harness):
+    harness.skip_unless(Capability.MULTI_TENANT)
     name = unique_name("e2e-tenant-lu")
     harness.create_tenant(name)
     try:
@@ -54,6 +57,7 @@ def test_tenant_list_and_update(harness):
 
 
 def test_tenant_quota_crud(harness, cfg):
+    harness.skip_unless(Capability.MULTI_TENANT)
     name = unique_name("e2e-tenant-q")
     harness.create_tenant(name)
     pool = cfg.default_pool

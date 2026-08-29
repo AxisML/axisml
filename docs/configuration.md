@@ -6,8 +6,9 @@
 -->
 # Configuration
 
-AxisML's deployable services are configured by a YAML file at `/etc/axisml/config.yaml` plus
-environment overrides under the mandatory `AXISML_` prefix; secrets are always supplied out of band.
+Kubernetes services use `/etc/axisml/config.yaml` plus `AXISML_` environment
+overrides. The standalone distribution is environment-only. Secrets are
+always supplied out of band.
 The per-service reference tables at the bottom of this document are generated from the Go `Config`
 structs, so they always match the running code.
 
@@ -17,6 +18,7 @@ structs, so they always match the running code.
 |---|---|
 | `compute-service` | `axisml-system/compute-service` |
 | `artifact-hub` | `axisml-system/artifact-hub` |
+| `axisml-standalone` | `axisml-standalone` |
 | `platform-backend` | `axisml-platform/backend` |
 
 Out of scope: the controller-runtime components (`tenant-operator`, `compute-operator`,
@@ -31,8 +33,9 @@ Each key resolves from these layers, lowest priority first:
 3. **Environment override** — any `AXISML_`-prefixed variable.
 4. **Secret file** — for secret keys, `AXISML_<KEY>_FILE`. Highest priority.
 
-A later layer overrides an earlier one per key. A missing config file is not an error; production fails
-fast on validation instead. The only CLI flag is `--config`.
+A later layer overrides an earlier one per key. Standalone omits layer 2 and
+does not accept `--config`. A missing Kubernetes config file is not an error;
+production fails fast on validation instead.
 
 ## File discovery
 
@@ -67,7 +70,7 @@ image's `POSTGRES_*`, and Go/OS runtime knobs (`GOMAXPROCS`, `TZ`, …).
 
 ## Fixed by design (not configurable)
 
-These do not differ across deployments, so they are code constants or derived values, not config:
+These are code constants or derived values rather than configuration:
 listen ports (`:8080` API, `:8081` health, `:9090` metrics), HTTP/DB-pool tuning, reconcile cadence,
 GC and session TTLs, leader election (unconditionally on — a no-op at one replica), the OCI scheme
 (derived from the endpoint URL), and the JWT `kid` (RFC 7638 thumbprint of the signing key). The
@@ -118,6 +121,27 @@ Config file: `/etc/axisml/config.yaml` (override with `--config` or `AXISML_CONF
 | `s3.access_key` | `AXISML_S3_ACCESS_KEY` | — | — | S3/RustFS access key |
 | `s3.secret_key` | `AXISML_S3_SECRET_KEY`<br>`AXISML_S3_SECRET_KEY_FILE` | — | yes | S3/RustFS secret key |
 | `s3.bucket` | `AXISML_S3_BUCKET` | `axisml-artifact-hub` | — | S3 bucket datasets are stored in |
+
+## axisml-standalone
+
+Configuration source: **environment only**. This binary reads no config file.
+
+| Key | Environment variable | Default | Secret | Description |
+|---|---|---|---|---|
+| `database.host` | `AXISML_DATABASE_HOST` | `localhost` | — | PostgreSQL host |
+| `database.port` | `AXISML_DATABASE_PORT` | `5432` | — | PostgreSQL port |
+| `database.name` | `AXISML_DATABASE_NAME` | `axisml` | — | Database name |
+| `database.user` | `AXISML_DATABASE_USER` | `axisml` | — | Database user |
+| `database.password` | `AXISML_DATABASE_PASSWORD`<br>`AXISML_DATABASE_PASSWORD_FILE` | — | yes | Database password |
+| `database.sslmode` | `AXISML_DATABASE_SSLMODE` | `disable` | — | libpq sslmode: disable \| require \| verify-full |
+| `log.level` | `AXISML_LOG_LEVEL` | `info` | — | Log level: debug \| info \| warn \| error |
+| `log.format` | `AXISML_LOG_FORMAT` | `json` | — | Log format: json \| console |
+| `oci.endpoint` | `AXISML_OCI_ENDPOINT` | `http://zot:5000` | — | OCI registry endpoint (full URL; scheme derived from it) |
+| `oci.admin_user` | `AXISML_OCI_ADMIN_USER` | `admin` | — | OCI registry admin username |
+| `oci.admin_password` | `AXISML_OCI_ADMIN_PASSWORD`<br>`AXISML_OCI_ADMIN_PASSWORD_FILE` | — | yes | OCI registry admin password |
+| `docker.config_file` | `AXISML_DOCKER_CONFIG_FILE` | — | — | Path to a Docker config.json used for workload image pull credentials; empty pulls anonymously |
+| `gpu.devices` | `AXISML_GPU_DEVICES` | — | — | Physical GPU indices to schedule onto (comma list, e.g. 0,1,2); empty falls back to Docker's default count-based GPU request |
+| `workload.tenant_prefix` | `AXISML_WORKLOAD_TENANT_PREFIX` | `false` | — | Prefix physical workload names with a readable, collision-resistant tenant token |
 
 ## platform-backend
 

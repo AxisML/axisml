@@ -6,8 +6,9 @@
 -->
 # Configuration
 
-AxisML's deployable services are configured by a YAML file at `/etc/axisml/config.yaml` plus
-environment overrides under the mandatory `AXISML_` prefix; secrets are always supplied out of band.
+Kubernetes services use `/etc/axisml/config.yaml` plus `AXISML_` environment
+overrides. The standalone distribution is environment-only. Secrets are
+always supplied out of band.
 The per-service reference tables at the bottom of this document are generated from the Go `Config`
 structs, so they always match the running code.
 
@@ -17,6 +18,7 @@ structs, so they always match the running code.
 |---|---|
 | `compute-service` | `axisml-system/compute-service` |
 | `artifact-hub` | `axisml-system/artifact-hub` |
+| `axisml-standalone` | `axisml-standalone` |
 | `platform-backend` | `axisml-platform/backend` |
 
 Out of scope: the controller-runtime components (`tenant-operator`, `compute-operator`,
@@ -31,8 +33,9 @@ Each key resolves from these layers, lowest priority first:
 3. **Environment override** — any `AXISML_`-prefixed variable.
 4. **Secret file** — for secret keys, `AXISML_<KEY>_FILE`. Highest priority.
 
-A later layer overrides an earlier one per key. A missing config file is not an error; production fails
-fast on validation instead. The only CLI flag is `--config`.
+A later layer overrides an earlier one per key. Standalone omits layer 2 and
+does not accept `--config`. A missing Kubernetes config file is not an error;
+production fails fast on validation instead.
 
 ## File discovery
 
@@ -67,7 +70,7 @@ image's `POSTGRES_*`, and Go/OS runtime knobs (`GOMAXPROCS`, `TZ`, …).
 
 ## Fixed by design (not configurable)
 
-These do not differ across deployments, so they are code constants or derived values, not config:
+These are code constants or derived values rather than configuration:
 listen ports (`:8080` API, `:8081` health, `:9090` metrics), HTTP/DB-pool tuning, reconcile cadence,
 GC and session TTLs, leader election (unconditionally on — a no-op at one replica), the OCI scheme
 (derived from the endpoint URL), and the JWT `kid` (RFC 7638 thumbprint of the signing key). The

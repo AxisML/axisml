@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Publish the AxisML Go modules consumed by out-of-tree composition roots such
-# as aios-ml. The external composition root and standalone runtime are owned by
-# that project; this script publishes only the shared AxisML modules it consumes.
+# Publish the AxisML Go modules consumed by out-of-tree applications such as
+# aios-ml. System components keep independent module boundaries, while the
+# top-level Standalone module is the reusable single-host composition root.
 #
 # Local development may keep relative replace directives. External consumers
 # ignore dependency-module replaces, so every in-repo requirement must name a
@@ -25,9 +25,10 @@ MODULES=(
   axisml-system/apis
   axisml-system/artifact-hub
   axisml-system/cluster-manager
-  axisml-system/compute-operator
   axisml-system/compute-service
+  axisml-system/compute-operator
   axisml-system/tenant-operator
+  axisml-standalone
 )
 
 MODPREFIX="github.com/axisml/axisml"
@@ -80,7 +81,11 @@ cmd_bump() {
 
     if [ "$bumped" -eq 1 ]; then
       echo ">>> $dir: bumped in-repo requirements to $version"
-      (cd "$dir" && go mod tidy) || exit 1
+      if [ "$dir" = "axisml-standalone" ]; then
+        (cd "$dir" && ./scripts/tidy.sh) || exit 1
+      else
+        (cd "$dir" && go mod tidy) || exit 1
+      fi
     else
       echo ">>> $dir: no published in-repo requirements"
     fi

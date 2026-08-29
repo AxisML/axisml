@@ -11,6 +11,7 @@ PREAMBLE="$ROOT/docs/configuration.preamble.md"
 SERVICES=(
   "axisml-system/compute-service"
   "axisml-system/artifact-hub"
+  "axisml-standalone"
   "axisml-platform/backend"
 )
 

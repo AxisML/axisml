@@ -1,6 +1,7 @@
 """UI e2e: the tenant switcher selects an active scope (mandatory tenant scope).
 
-The ``seeded_tenant`` fixture provisions the second tenant."""
+The ``seeded_tenant`` fixture provisions the second tenant and skips this flow
+on a single-tenant standalone deployment."""
 
 from __future__ import annotations
 

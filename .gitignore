@@ -24,6 +24,7 @@ Thumbs.db
 # Go workspaces (each component is its own module)
 go.work
 go.work.sum
+!axisml-standalone/go.work
 
 # Helm-fetched dependency tarballs
 axisml-*/deploy/helm/charts/*.tgz

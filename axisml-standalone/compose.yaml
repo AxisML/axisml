@@ -1,0 +1,137 @@
+# AxisML standalone distribution for one Docker host.
+#
+# The default stack contains the complete product: PostgreSQL, the consolidated
+# Standalone process, Platform API/UI, and a local OCI registry. Optional profiles
+# add S3-compatible storage and an HTTP gateway.
+
+name: axisml-standalone
+
+services:
+  axisml-database:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: axisml
+      POSTGRES_PASSWORD: axisml
+      POSTGRES_DB: axisml
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axisml -d axisml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [axisml-control]
+
+  axisml-standalone:
+    build:
+      context: ..
+      dockerfile: axisml-standalone/Dockerfile
+    image: ghcr.io/axisml/axisml-standalone:${AXISML_VERSION:-dev}
+    depends_on:
+      axisml-database:
+        condition: service_healthy
+      zot:
+        condition: service_started
+    environment:
+      AXISML_DATABASE_HOST: axisml-database
+      AXISML_DATABASE_PORT: "5432"
+      AXISML_DATABASE_NAME: axisml
+      AXISML_DATABASE_USER: axisml
+      AXISML_DATABASE_PASSWORD: axisml
+      AXISML_DATABASE_SSLMODE: disable
+      AXISML_OCI_ENDPOINT: http://zot:5000
+      AXISML_OCI_ADMIN_USER: admin
+      AXISML_OCI_ADMIN_PASSWORD: admin
+      AXISML_LOG_LEVEL: info
+      AXISML_LOG_FORMAT: json
+      # AXISML_DOCKER_CONFIG_FILE: /run/axisml/docker/config.json
+      # AXISML_WORKLOAD_TENANT_PREFIX: "true"
+      # AXISML_GPU_DEVICES: "0,1,2"
+    ports:
+      - "8090:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/etc/axisml/pools:ro
+      - traefik-dynamic:/var/lib/axisml/traefik
+      - axisml-configmaps:/var/lib/axisml/configmaps
+    networks: [axisml-control]
+
+  zot:
+    image: ghcr.io/project-zot/zot-linux-${TARGETARCH:-arm64}:latest
+    volumes:
+      - zotdata:/var/lib/registry
+    ports:
+      - "5001:5000"
+    networks: [axisml-control]
+
+  rustfs:
+    profiles: ["storage"]
+    image: rustfs/rustfs:latest
+    volumes:
+      - rustfsdata:/data
+    networks: [axisml-control]
+
+  traefik:
+    profiles: ["gateway"]
+    image: traefik:v3.1
+    command:
+      - "--entrypoints.web.address=:80"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--api.dashboard=false"
+    ports:
+      - "80:80"
+    volumes:
+      - traefik-dynamic:/etc/traefik/dynamic:ro
+    networks: [axisml-control, axisml-workloads]
+
+  axisml-platform-bootstrap:
+    build:
+      context: ..
+      dockerfile: axisml-platform/Dockerfile
+    image: &platform-image ghcr.io/axisml/axisml-platform:${AXISML_VERSION:-dev}
+    command: ["bootstrap"]
+    restart: "no"
+    depends_on:
+      axisml-database:
+        condition: service_healthy
+      axisml-standalone:
+        condition: service_started
+    environment: &platform-env
+      AXISML_DATABASE_HOST: axisml-database
+      AXISML_DATABASE_PORT: "5432"
+      AXISML_DATABASE_NAME: axisml
+      AXISML_DATABASE_USER: axisml
+      AXISML_DATABASE_PASSWORD: axisml
+      AXISML_DATABASE_SSLMODE: disable
+      AXISML_SYSTEM_CLUSTER_MANAGER: http://axisml-standalone:8080
+      AXISML_SYSTEM_COMPUTE_SERVICE: http://axisml-standalone:8080
+      AXISML_SYSTEM_ARTIFACT_HUB: http://axisml-standalone:8080
+      AXISML_BOOTSTRAP_USERNAME: admin
+      AXISML_BOOTSTRAP_PASSWORD: admin
+    networks: [axisml-control]
+
+  axisml-platform:
+    image: *platform-image
+    command: ["serve"]
+    depends_on:
+      axisml-platform-bootstrap:
+        condition: service_completed_successfully
+    environment: *platform-env
+    ports:
+      - "8080:8080"
+    networks: [axisml-control]
+
+networks:
+  axisml-control:
+    name: axisml-control
+  axisml-workloads:
+    name: axisml-workloads
+
+volumes:
+  pgdata:
+  zotdata:
+  rustfsdata:
+  traefik-dynamic:
+  axisml-configmaps:
+    name: axisml-configmaps
