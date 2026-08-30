@@ -138,6 +138,7 @@ func TestQuotaError_Error(t *testing.T) {
 		srv.QuotaModeConflict:     "must use either units or quota",
 		srv.QuotaModeRequired:     "must specify either units or quota",
 		srv.QuotaMaxRequired:      "quota.max is required",
+		srv.QuotaInvalidResource:  "invalid quota resources",
 		srv.QuotaNegativeResource: "must be >= 0 in pool",
 		srv.QuotaMinWithoutMax:    "must also be present in quota.max",
 		srv.QuotaMinExceedsMax:    "exceeds quota.max",

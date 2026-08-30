@@ -129,7 +129,7 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		if err != nil {
 			return nil, fmt.Errorf("load static config: %w", err)
 		}
-	} else if err = static.validate(); err != nil {
+	} else if err = static.Validate(); err != nil {
 		return nil, fmt.Errorf("validate static config: %w", err)
 	}
 	// DOCKER_HOST is read by the Docker SDK (client.FromEnv); no config key.
@@ -173,7 +173,12 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		return materializeTenantVolumes(ctx, rt, tenant)
 	}
 
-	clusterMod := clustermodule.New(clustermodule.Deps{Pools: pools, Tenants: tenants, Volumes: rt})
+	clusterMod := clustermodule.New(clustermodule.Deps{
+		Pools:             pools,
+		Tenants:           tenants,
+		Volumes:           rt,
+		ValidateResources: validateStandaloneResourceList,
+	})
 	computeMod, err := computemodule.New(computemodule.Deps{
 		DB:                   db,
 		Runtime:              rt,

@@ -6,10 +6,12 @@ package resourcepool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -32,15 +34,16 @@ type MetricsQuerier interface {
 // ResourcePoolProvider (Kubernetes CRD or static config). usage/metrics also read
 // the Tenant CR (tenants) and query Prometheus (metrics).
 type Handler struct {
-	pools   extensions.ResourcePoolProvider
-	tenants extensions.TenantProvider
-	metrics MetricsQuerier
+	pools             extensions.ResourcePoolProvider
+	tenants           extensions.TenantProvider
+	metrics           MetricsQuerier
+	validateResources extensions.ResourceListValidator
 }
 
 // NewHandler builds a resourcepool handler over the given stores. tenants powers
 // the per-tenant usage endpoint; metrics (optional) powers the metrics endpoint.
-func NewHandler(pools extensions.ResourcePoolProvider, tenants extensions.TenantProvider, metrics MetricsQuerier) *Handler {
-	return &Handler{pools: pools, tenants: tenants, metrics: metrics}
+func NewHandler(pools extensions.ResourcePoolProvider, tenants extensions.TenantProvider, metrics MetricsQuerier, validateResources extensions.ResourceListValidator) *Handler {
+	return &Handler{pools: pools, tenants: tenants, metrics: metrics, validateResources: validateResources}
 }
 
 // Register attaches all routes to the provided /api/v1 group.
@@ -140,9 +143,13 @@ func (h *Handler) Create(c *gin.Context) {
 			"unit names must be unique within a pool", "duplicate: "+name)
 		return
 	}
-	for _, u := range req.Units {
+	for i, u := range req.Units {
 		if err := srv.ValidateDNS1123Name("units["+u.Name+"].name", u.Name); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidUnitName", err.Error(), "")
+			return
+		}
+		if err := h.validateUnitResources(fmt.Sprintf("units[%d]", i), u.Requests, u.Limits); err != nil {
+			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidResources", err.Error(), "")
 			return
 		}
 	}
@@ -298,6 +305,10 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidName", err.Error(), "")
 		return
 	}
+	if err := h.validateUnitResources("unit", req.Requests, req.Limits); err != nil {
+		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidResources", err.Error(), "")
+		return
+	}
 
 	var added axismlv1alpha1.ResourceUnit
 	err := h.mutateWithRetry(c.Request.Context(), poolName, func(pool *axismlv1alpha1.ResourcePool) error {
@@ -366,6 +377,10 @@ func (h *Handler) PatchUnit(c *gin.Context) {
 	var req srv.PatchResourceUnitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidBody", "request body malformed", err.Error())
+		return
+	}
+	if err := h.validateUnitResources("unit", req.Requests, req.Limits); err != nil {
+		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidResources", err.Error(), "")
 		return
 	}
 
@@ -480,6 +495,16 @@ var errNoMutationNeeded = errors.New("no mutation needed")
 
 func (h *Handler) getPool(ctx context.Context, name string) (*axismlv1alpha1.ResourcePool, error) {
 	return h.pools.Get(ctx, name)
+}
+
+func (h *Handler) validateUnitResources(field string, requests, limits corev1.ResourceList) error {
+	if h.validateResources == nil {
+		return nil
+	}
+	if err := h.validateResources(field+".requests", requests); err != nil {
+		return err
+	}
+	return h.validateResources(field+".limits", limits)
 }
 
 // mutateWithRetry runs `mutate` against a fresh ResourcePool read; if the

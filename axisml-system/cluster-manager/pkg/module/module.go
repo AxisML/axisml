@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/resourcepool"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/tenant"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/volume"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
@@ -31,6 +32,9 @@ type Deps struct {
 	Volumes extensions.VolumeManager
 	// Metrics backs the per-pool metrics route (optional; nil = unavailable).
 	Metrics resourcepool.MetricsQuerier
+	// ValidateResources optionally narrows the scheduler resources accepted by
+	// this deployment form. Nil uses Kubernetes-compatible resource names.
+	ValidateResources extensions.ResourceListValidator
 }
 
 // Module is the assembled Cluster Manager REST surface.
@@ -40,10 +44,14 @@ type Module struct {
 
 // New assembles the Cluster Manager handlers over the injected stores.
 func New(d Deps) *Module {
+	validateResources := d.ValidateResources
+	if validateResources == nil {
+		validateResources = srv.ValidateResourceList
+	}
 	return &Module{
 		routes: []Route{
-			resourcepool.NewHandler(d.Pools, d.Tenants, d.Metrics),
-			tenant.NewHandler(d.Tenants, d.Pools),
+			resourcepool.NewHandler(d.Pools, d.Tenants, d.Metrics, validateResources),
+			tenant.NewHandler(d.Tenants, d.Pools, validateResources),
 			volume.NewHandler(d.Volumes),
 		},
 	}

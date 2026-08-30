@@ -322,6 +322,7 @@ const (
 	QuotaModeConflict     QuotaErrorReason = "ModeConflict"
 	QuotaModeRequired     QuotaErrorReason = "ModeRequired"
 	QuotaMaxRequired      QuotaErrorReason = "MaxRequired"
+	QuotaInvalidResource  QuotaErrorReason = "InvalidResource"
 	QuotaNegativeResource QuotaErrorReason = "NegativeResource"
 	QuotaMinWithoutMax    QuotaErrorReason = "MinWithoutMax"
 	QuotaMinExceedsMax    QuotaErrorReason = "MinExceedsMax"
@@ -351,6 +352,8 @@ func (e *QuotaError) Error() string {
 		return "quota for pool " + e.Pool + " must specify either units or quota"
 	case QuotaMaxRequired:
 		return "quota.max is required for pool " + e.Pool
+	case QuotaInvalidResource:
+		return "invalid quota resources for pool " + e.Pool + ": " + e.Resource
 	case QuotaNegativeResource:
 		return "quota resource " + e.Resource + " must be >= 0 in pool " + e.Pool
 	case QuotaMinWithoutMax:

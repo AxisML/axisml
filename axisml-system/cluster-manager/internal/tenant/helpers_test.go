@@ -100,7 +100,7 @@ func TestReplacePoolQuota(t *testing.T) {
 func TestIsBadQuotaInput(t *testing.T) {
 	bad := []srv.QuotaErrorReason{
 		srv.QuotaBadQuantity, srv.QuotaDuplicatePool, srv.QuotaModeConflict,
-		srv.QuotaModeRequired, srv.QuotaMaxRequired, srv.QuotaNegativeResource,
+		srv.QuotaModeRequired, srv.QuotaMaxRequired, srv.QuotaInvalidResource, srv.QuotaNegativeResource,
 		srv.QuotaMinWithoutMax, srv.QuotaMinExceedsMax,
 	}
 	for _, r := range bad {

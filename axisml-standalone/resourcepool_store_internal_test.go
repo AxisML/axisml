@@ -136,3 +136,13 @@ func TestPersistentResourcePoolStoreRejectsKubernetesSchedulingFields(t *testing
 	err := store.Create(context.Background(), pool)
 	assert.True(t, apierrors.IsInvalid(err), "want Invalid, got %v", err)
 }
+
+func TestPersistentResourcePoolStoreRejectsUnsupportedResources(t *testing.T) {
+	store := newResourcePoolStoreForTest(t)
+	pool := persistentResourcePool("unsupported", "1")
+	pool.Spec.Units[0].Limits = corev1.ResourceList{"gpu": resource.MustParse("1")}
+
+	err := store.Create(context.Background(), pool)
+	assert.True(t, apierrors.IsInvalid(err), "want Invalid, got %v", err)
+	assert.Contains(t, err.Error(), `resource "gpu" is not supported`)
+}

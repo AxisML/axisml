@@ -61,6 +61,18 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	cpuLim := patched.Limits["cpu"]
 	require.Equal(t, "8", cpuLim.String())
 
+	// Resource maps are validated before mutating the parent pool.
+	rr = doRequest(t, "POST", "/api/v1/resourcepools/"+poolName+"/units", `{
+	  "name": "bad-resource",
+	  "requests": {"gpu": "1"},
+	  "limits": {"gpu": "1"}
+	}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
+	rr = doRequest(t, "PATCH", "/api/v1/resourcepools/"+poolName+"/units/cpu-medium",
+		`{"limits": {"nvidia.com/gpu": "0.5"}}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
 	// Duplicate add returns 409.
 	rr = doRequest(t, "POST", "/api/v1/resourcepools/"+poolName+"/units", `{
 	  "name": "cpu-medium",

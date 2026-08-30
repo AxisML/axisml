@@ -112,6 +112,19 @@ func TestResourcePool_Create_BadName(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+func TestResourcePool_Create_RejectsInvalidResources(t *testing.T) {
+	rr := doRequest(t, "POST", "/api/v1/resourcepools", `{
+	  "name": "bad-resource-pool",
+	  "units": [{"name": "gpu-1x", "requests": {"gpu": "1"}, "limits": {"gpu": "1"}}]
+	}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
+	var problem srv.Error
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
+	require.Equal(t, "InvalidResources", problem.Code)
+	require.Contains(t, problem.Title, `resource "gpu"`)
+}
+
 // TestResourcePool_Auth_RequiresUser confirms /api/v1 routes 401 without
 // X-Axisml-User.
 func TestResourcePool_Auth_RequiresUser(t *testing.T) {

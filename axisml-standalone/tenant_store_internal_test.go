@@ -126,3 +126,13 @@ func TestPersistentTenantStoreSeedDeletionAndPagination(t *testing.T) {
 	assert.Equal(t, "team-c", second.Items[0].Name)
 	assert.Empty(t, second.Continue)
 }
+
+func TestPersistentTenantStoreRejectsUnsupportedQuotaResources(t *testing.T) {
+	store := newTenantStoreForTest(t)
+	tenant := persistentTenant("team-a", "1")
+	tenant.Spec.Quotas[0].Max = corev1.ResourceList{"gpu": resource.MustParse("1")}
+
+	err := store.Create(context.Background(), tenant)
+	assert.True(t, apierrors.IsInvalid(err), "want Invalid, got %v", err)
+	assert.Contains(t, err.Error(), `resource "gpu" is not supported`)
+}

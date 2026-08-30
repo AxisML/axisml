@@ -3,6 +3,7 @@ package standalone_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,154 @@ func TestLoadStaticConfig_Valid(t *testing.T) {
 	assert.Equal(t, "default", sc.Tenants[0].Name)
 	require.Len(t, sc.Pools[0].Spec.Units, 1)
 	assert.Equal(t, "small", sc.Pools[0].Spec.Units[0].Name)
+}
+
+func TestLoadStaticConfig_ExpandsBracedEnvironmentVariables(t *testing.T) {
+	t.Setenv("AIOSML_DATA_ROOT", "/srv/aios-ml")
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{
+		Name:     "default-datasets",
+		HostPath: "${AIOSML_DATA_ROOT}/tenants/default/datasets",
+	}}
+
+	config, err := standalone.LoadStaticConfig(oneConfig(t, validPool(), tenant))
+	require.NoError(t, err)
+	assert.Equal(t, "/srv/aios-ml/tenants/default/datasets", config.Tenants[0].Spec.InitResources.Volumes[0].HostPath)
+}
+
+func TestLoadStaticConfigWithOptions_UsesProvidedEnvironment(t *testing.T) {
+	t.Setenv("AIOSML_DATA_ROOT", "/from-process")
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{
+		Name:     "default-datasets",
+		HostPath: "${AIOSML_DATA_ROOT}/tenants/default/datasets",
+	}}
+
+	env := map[string]string{"AIOSML_DATA_ROOT": "/from-host"}
+	config, err := standalone.LoadStaticConfigWithOptions(
+		oneConfig(t, validPool(), tenant),
+		standalone.LoadStaticConfigOptions{
+			LookupEnv: func(name string) (string, bool) {
+				value, ok := env[name]
+				return value, ok
+			},
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "/from-host/tenants/default/datasets", config.Tenants[0].Spec.InitResources.Volumes[0].HostPath)
+}
+
+func TestLoadStaticConfigWithOptions_RejectsMissingOrEmptyVariables(t *testing.T) {
+	t.Setenv("AIOSML_DATA_ROOT", "/from-process")
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{
+		Name:     "data",
+		HostPath: "${AIOSML_DATA_ROOT}/data",
+	}}
+
+	tests := []struct {
+		name      string
+		lookupEnv func(string) (string, bool)
+	}{
+		{name: "missing", lookupEnv: func(string) (string, bool) { return "", false }},
+		{name: "empty", lookupEnv: func(string) (string, bool) { return "", true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := standalone.LoadStaticConfigWithOptions(
+				oneConfig(t, validPool(), tenant),
+				standalone.LoadStaticConfigOptions{LookupEnv: tt.lookupEnv},
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "AIOSML_DATA_ROOT")
+			assert.Contains(t, err.Error(), "unset or empty")
+		})
+	}
+}
+
+func TestLoadStaticConfig_RejectsMissingEnvironmentVariables(t *testing.T) {
+	const name = "AXISML_TEST_MISSING_DATA_ROOT"
+	old, existed := os.LookupEnv(name)
+	require.NoError(t, os.Unsetenv(name))
+	t.Cleanup(func() {
+		if existed {
+			require.NoError(t, os.Setenv(name, old))
+			return
+		}
+		require.NoError(t, os.Unsetenv(name))
+	})
+
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data", HostPath: "${" + name + "}/data"}}
+	_, err := standalone.LoadStaticConfig(oneConfig(t, validPool(), tenant))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), name)
+	assert.Contains(t, err.Error(), "unset or empty")
+}
+
+func TestLoadStaticConfig_RejectsEmptyEnvironmentVariables(t *testing.T) {
+	t.Setenv("AXISML_TEST_EMPTY_DATA_ROOT", "")
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data", HostPath: "${AXISML_TEST_EMPTY_DATA_ROOT}/data"}}
+
+	_, err := standalone.LoadStaticConfig(oneConfig(t, validPool(), tenant))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AXISML_TEST_EMPTY_DATA_ROOT")
+	assert.Contains(t, err.Error(), "unset or empty")
+}
+
+func TestLoadStaticConfig_LeavesBareDollarReferencesLiteral(t *testing.T) {
+	t.Setenv("AXISML_TEST_LITERAL", "expanded")
+	pool := validPool()
+	pool.Annotations = map[string]string{"literal": "$AXISML_TEST_LITERAL"}
+
+	config, err := standalone.LoadStaticConfig(oneConfig(t, pool, validTenant()))
+	require.NoError(t, err)
+	assert.Equal(t, "$AXISML_TEST_LITERAL", config.Pools[0].Annotations["literal"])
+}
+
+func TestLoadStaticConfig_StrictDecodeRejectsUnknownFields(t *testing.T) {
+	dir := oneConfig(t, validPool(), validTenant())
+	path := filepath.Join(dir, "resourcepools", "default.yaml")
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+	b = append(b, []byte("misspelledField: true\n")...)
+	require.NoError(t, os.WriteFile(path, b, 0o600))
+
+	_, err = standalone.LoadStaticConfig(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "misspelledField")
+}
+
+func TestLoadStaticConfig_StrictDecodeKeepsCaseInsensitiveJSONFields(t *testing.T) {
+	tenant := validTenant()
+	tenant.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data", HostPath: "/srv/data"}}
+	dir := oneConfig(t, validPool(), tenant)
+	path := filepath.Join(dir, "tenants", "default.yaml")
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+	b = []byte(strings.ReplaceAll(string(b), "hostPath:", "hostpath:"))
+	require.NoError(t, os.WriteFile(path, b, 0o600))
+
+	config, err := standalone.LoadStaticConfig(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "/srv/data", config.Tenants[0].Spec.InitResources.Volumes[0].HostPath)
+}
+
+func TestStaticConfigValidate(t *testing.T) {
+	var nilConfig *standalone.StaticConfig
+	require.EqualError(t, nilConfig.Validate(), "static config must not be nil")
+
+	config := &standalone.StaticConfig{
+		Pools:   []*cmv1alpha1.ResourcePool{validPool()},
+		Tenants: []*tenantv1alpha1.Tenant{validTenant()},
+	}
+	require.NoError(t, config.Validate())
+
+	config.Tenants[0].Spec.Namespace.Name = "wrong"
+	err := config.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must equal the tenant name")
 }
 
 // TestLoadStaticConfig_MultipleValid loads two pools and two tenants, each
@@ -252,6 +401,20 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 			wantSub: "nodeSelector must be empty",
 		},
 		{
+			name: "unit request uses unsupported resource",
+			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
+				p.Spec.Units[0].Requests = corev1.ResourceList{"gpu": resource.MustParse("1")}
+			},
+			wantSub: `resource "gpu" is not supported`,
+		},
+		{
+			name: "unit limit uses fractional GPU",
+			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
+				p.Spec.Units[0].Limits = corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("0.5")}
+			},
+			wantSub: `resource "nvidia.com/gpu" must be a whole number`,
+		},
+		{
 			name:    "no quotas declared",
 			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Quotas = nil },
 			wantSub: "must declare at least one quota",
@@ -260,6 +423,20 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 			name:    "quota references unknown pool",
 			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Quotas[0].Pool = "other" },
 			wantSub: "references unknown pool",
+		},
+		{
+			name: "quota min uses unsupported resource",
+			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
+				tn.Spec.Quotas[0].Min = corev1.ResourceList{"gpu": resource.MustParse("1")}
+			},
+			wantSub: `resource "gpu" is not supported`,
+		},
+		{
+			name: "quota max uses fractional GPU",
+			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
+				tn.Spec.Quotas[0].Max = corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("500m")}
+			},
+			wantSub: `resource "nvidia.com/gpu" must be a whole number`,
 		},
 	}
 	for _, tc := range tests {

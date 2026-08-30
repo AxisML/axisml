@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -31,21 +32,40 @@ type StaticConfig struct {
 	Tenants []*tenantv1alpha1.Tenant
 }
 
+// LoadStaticConfigOptions customizes static-config loading. LookupEnv resolves
+// ${VAR} references; nil uses os.LookupEnv.
+type LoadStaticConfigOptions struct {
+	LookupEnv func(name string) (string, bool)
+}
+
 // LoadStaticConfig reads every ResourcePool under <dir>/resourcepools and every
-// Tenant under <dir>/tenants, decodes them with the AxisML API types and runs
-// the cross-object validation. Any failure leaves axisml-standalone not-ready
-// (design §5.1.1).
+// Tenant under <dir>/tenants, expands ${VAR} references from the process
+// environment, decodes them strictly with the AxisML API types and runs the
+// cross-object validation. Referenced variables must be set and non-empty. Any
+// failure leaves axisml-standalone not-ready (design §5.1.1).
 func LoadStaticConfig(dir string) (*StaticConfig, error) {
-	pools, err := loadDir[cmv1alpha1.ResourcePool](filepath.Join(dir, poolsSubdir), "resource pool")
+	return LoadStaticConfigWithOptions(dir, LoadStaticConfigOptions{LookupEnv: os.LookupEnv})
+}
+
+// LoadStaticConfigWithOptions is LoadStaticConfig with an injectable
+// environment lookup. This lets embedding hosts provide a scoped environment
+// without mutating process-global state.
+func LoadStaticConfigWithOptions(dir string, opts LoadStaticConfigOptions) (*StaticConfig, error) {
+	lookupEnv := opts.LookupEnv
+	if lookupEnv == nil {
+		lookupEnv = os.LookupEnv
+	}
+
+	pools, err := loadDir[cmv1alpha1.ResourcePool](filepath.Join(dir, poolsSubdir), "resource pool", lookupEnv)
 	if err != nil {
 		return nil, err
 	}
-	tenants, err := loadDir[tenantv1alpha1.Tenant](filepath.Join(dir, tenantsSubdir), "tenant")
+	tenants, err := loadDir[tenantv1alpha1.Tenant](filepath.Join(dir, tenantsSubdir), "tenant", lookupEnv)
 	if err != nil {
 		return nil, err
 	}
 	sc := &StaticConfig{Pools: pools, Tenants: tenants}
-	if err := sc.validate(); err != nil {
+	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
 	return sc, nil
@@ -73,7 +93,7 @@ func yamlFiles(dir string) ([]string, error) {
 
 // loadDir decodes every YAML file under dir into a *T. kind names the object for
 // error messages ("resource pool" / "tenant").
-func loadDir[T any](dir, kind string) ([]*T, error) {
+func loadDir[T any](dir, kind string, lookupEnv func(string) (string, bool)) ([]*T, error) {
 	paths, err := yamlFiles(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read %s config dir %s: %w", kind, dir, err)
@@ -83,7 +103,7 @@ func loadDir[T any](dir, kind string) ([]*T, error) {
 	}
 	out := make([]*T, 0, len(paths))
 	for _, p := range paths {
-		obj, err := decodeObject[T](p, kind)
+		obj, err := decodeObject[T](p, kind, lookupEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -95,19 +115,50 @@ func loadDir[T any](dir, kind string) ([]*T, error) {
 // decodeObject reads one CR-YAML file into a *T. Each file must hold exactly one
 // object (design §5.1.1); a file with multiple YAML documents is rejected rather
 // than silently loading only the first.
-func decodeObject[T any](path, kind string) (*T, error) {
+func decodeObject[T any](path, kind string, lookupEnv func(string) (string, bool)) (*T, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s config %s: %w", kind, path, err)
+	}
+	b, err = expandEnvironment(b, lookupEnv)
+	if err != nil {
+		return nil, fmt.Errorf("expand %s config %s: %w", kind, path, err)
 	}
 	if err := singleDocument(b, path, kind); err != nil {
 		return nil, err
 	}
 	var obj T
-	if err := yaml.Unmarshal(b, &obj); err != nil {
+	if err := yaml.UnmarshalStrict(b, &obj); err != nil {
 		return nil, fmt.Errorf("decode %s config %s: %w", kind, path, err)
 	}
 	return &obj, nil
+}
+
+var environmentReference = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// expandEnvironment replaces only braced environment references. Bare $VAR is
+// deliberately left untouched so ordinary dollar signs in YAML values retain
+// their literal meaning.
+func expandEnvironment(b []byte, lookupEnv func(string) (string, bool)) ([]byte, error) {
+	matches := environmentReference.FindAllSubmatchIndex(b, -1)
+	if len(matches) == 0 {
+		return b, nil
+	}
+
+	var out bytes.Buffer
+	last := 0
+	for _, match := range matches {
+		name := string(b[match[2]:match[3]])
+		value, ok := lookupEnv(name)
+		if !ok || value == "" {
+			return nil, fmt.Errorf("environment variable %q is unset or empty", name)
+		}
+		_, _ = out.Write(b[last:match[0]])
+		_, _ = out.WriteString(value)
+		last = match[1]
+	}
+	_, _ = out.Write(b[last:])
+	return out.Bytes(), nil
 }
 
 // singleDocument rejects a config file that packs more than one YAML document,
@@ -126,11 +177,14 @@ func singleDocument(b []byte, path, kind string) error {
 	return nil
 }
 
-// validate enforces the standalone config invariants: unique pool / tenant
+// Validate enforces the standalone config invariants: unique pool / tenant
 // identities, a tenant namespace equal to its name, empty scheduling
 // fields, predefined-volume rules, and every tenant quota referencing an
 // existing pool.
-func (sc *StaticConfig) validate() error {
+func (sc *StaticConfig) Validate() error {
+	if sc == nil {
+		return fmt.Errorf("static config must not be nil")
+	}
 	if len(sc.Pools) == 0 {
 		return fmt.Errorf("at least one resource pool must be defined")
 	}
@@ -150,6 +204,9 @@ func (sc *StaticConfig) validate() error {
 func validatePools(pools []*cmv1alpha1.ResourcePool) (map[string]*cmv1alpha1.ResourcePool, error) {
 	poolByName := make(map[string]*cmv1alpha1.ResourcePool, len(pools))
 	for _, pool := range pools {
+		if pool == nil {
+			return nil, fmt.Errorf("resource pool must not be nil")
+		}
 		if pool.Name == "" {
 			return nil, fmt.Errorf("resource pool name must not be empty")
 		}
@@ -174,6 +231,13 @@ func validatePools(pools []*cmv1alpha1.ResourcePool) (map[string]*cmv1alpha1.Res
 			if len(u.NodeSelector) != 0 {
 				return nil, fmt.Errorf("resource pool %q: resource unit %q nodeSelector must be empty in standalone", pool.Name, u.Name)
 			}
+			field := fmt.Sprintf("resource pool %q resource unit %q", pool.Name, u.Name)
+			if err := validateStandaloneResourceList(field+" requests", u.Requests); err != nil {
+				return nil, err
+			}
+			if err := validateStandaloneResourceList(field+" limits", u.Limits); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return poolByName, nil
@@ -189,6 +253,9 @@ func validateTenants(tenants []*tenantv1alpha1.Tenant, poolByName map[string]*cm
 	tenantNames := map[string]struct{}{}
 	hostPathOwner := map[string]string{}
 	for _, tenant := range tenants {
+		if tenant == nil {
+			return fmt.Errorf("tenant must not be nil")
+		}
 		if tenant.Name == "" {
 			return fmt.Errorf("tenant name must not be empty")
 		}
@@ -221,6 +288,13 @@ func validateTenants(tenants []*tenantv1alpha1.Tenant, poolByName map[string]*cm
 		for _, q := range tenant.Spec.Quotas {
 			if _, ok := poolByName[q.Pool]; !ok {
 				return fmt.Errorf("tenant %q quota references unknown pool %q", tenant.Name, q.Pool)
+			}
+			field := fmt.Sprintf("tenant %q quota for pool %q", tenant.Name, q.Pool)
+			if err := validateStandaloneResourceList(field+" min", q.Min); err != nil {
+				return err
+			}
+			if err := validateStandaloneResourceList(field+" max", q.Max); err != nil {
+				return err
 			}
 		}
 	}

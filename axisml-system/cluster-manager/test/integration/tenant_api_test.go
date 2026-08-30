@@ -191,6 +191,14 @@ func TestTenant_DirectQuotaInput(t *testing.T) {
 		`{"pool": "`+pool+`", "units": [{"unitName": "cpu-small", "quantity": 1}], "quota": {"max": {"cpu": "1"}}}`)
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 
+	rr = doRequest(t, "POST", "/api/v1/tenants/"+name+"/quotas",
+		`{"pool": "`+pool+`", "quota": {"max": {"gpu": "1"}}}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
+	rr = doRequest(t, "PATCH", "/api/v1/tenants/"+name+"/quotas/"+pool,
+		`{"quota": {"max": {"nvidia.com/gpu": "0.5"}}}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
 	_ = doRequest(t, "DELETE", "/api/v1/tenants/"+name, "")
 }
 

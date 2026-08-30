@@ -71,6 +71,8 @@ spec:
 **unit 命名约定**：`<accelerator>[-<count>x]-<tier>[-<variant>]`（`<tier>∈small|medium|large|xlarge`，`cpu` 类省略 `<count>x`）。
 **默认池**：Helm post-install Job 经本服务 REST 创建 `default` pool（带 `cpu-small` / `cpu-medium` 两 unit），`nodeSelector` 空表示整集群可用。
 
+REST create/patch 会在写 CR 前校验 `requests` / `limits` 的资源名：裸名必须是 Kubernetes 原生容器资源（如 `cpu`、`memory`、`ephemeral-storage`、`hugepages-*`），自定义设备必须使用合格的扩展资源名（如 `nvidia.com/gpu`）；NVIDIA GPU 数量必须是整数。外部组合根可进一步收紧集合，例如 standalone 只接受 `cpu`、`memory`、`nvidia.com/gpu`。
+
 ### 3.2 展开合并规则
 
 由 [compute-service §5.4](compute-service.md#54-resourcepool-展开) 在创建时完成（不由本服务或上游完成）：`pool.nodeSelector` 全保留；`unit.nodeSelector` 仅补 pool 未声明的 key；`pool.tolerations` 直作 `spec.scheduling.tolerations`；`unit.requests/limits` 写入 `roles[*].template.resources`。展开结果 snapshot 进 PG，与 CR 解耦——pool/unit 后续修改 / 删除不影响已创建 workload。
@@ -98,7 +100,7 @@ spec:
 
 REST 入参按 quota 二选一：业务形态 `{pool, units:[{unitName, quantity}]}`，或直写形态 `{pool, quota:{min,max}}`。业务形态下 cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`；直写形态直接校验并采用调用方给出的 `min/max`。两种入口最终都写入统一的 `spec.quotas[]`，每个 pool 仅一项，不再保存独立 quota name。折算有损，故业务原始选择 JSON 编码回存到 `tenant.axisml.io/quotas` annotation，GET 时据此还原 `units` 形态；直写形态 GET 则从 `spec.quotas[]` 返回 `quota.min/max`（tenant-operator 不读 annotation，只消费 `spec.quotas[].min/max`）。
 
-**折算与校验**：`quotas[].pool` 必须存在对应 CR（否则 `422 pool-not-found`）；同一 quota 入参只能使用 `units` 或 `quota` 之一（否则 `400 mode-conflict`）；`units[].unitName` 必须存在于该 pool（否则 `422 unit-not-found`）；`quantity ≥ 0`（否则 `400 bad-quantity`）；直写 `quota.max` 必填，`quota.min[k] ≤ quota.max[k]` 且资源量均非负。
+**折算与校验**：`quotas[].pool` 必须存在对应 CR（否则 `422 pool-not-found`）；同一 quota 入参只能使用 `units` 或 `quota` 之一（否则 `400 mode-conflict`）；`units[].unitName` 必须存在于该 pool（否则 `422 unit-not-found`）；`quantity ≥ 0`（否则 `400 bad-quantity`）；直写 `quota.max` 必填，`quota.min[k] ≤ quota.max[k]` 且资源量均非负。直写 `min/max` 使用与 ResourceUnit 相同的资源名规则，`nvidia.com/gpu` 数量必须是整数。
 **字段不变性**：`metadata.name`（= identifier）/ `spec.namespace.name` / `quotas[].pool` 不可变；`quotas[].units[]→min/max`（折算写入）、直写 `quotas[].quota→min/max` 与 `initResources.*` 可变；`status.*` 由 tenant-operator 写、GET 时实时读。
 
 ### 3.4 Volume 形状

@@ -53,12 +53,21 @@ Tenant 的 pool quota，对 MLRun 执行跨运行时的算力准入。Tenant、q
 ResourcePool、ResourceUnit、Artifact 和 MLRun 队列/优先级使用与 Kubernetes 形态
 相同的公共 API，不再通过静态 capability 文档区分。
 
+种子 YAML 使用严格字段解码；未知或拼错的键会让启动失败。字符串中的 `${VAR}`
+在解码前从进程环境展开，变量未设置或值为空时错误会直接指出变量名；裸 `$VAR`
+保持字面值。这样同一份 Tenant 配置可以按宿主设置 `hostPath`，同时避免未配置变量
+静默落到文件系统根目录。嵌入宿主可以调用 `LoadStaticConfigWithOptions` 并通过
+`LoadStaticConfigOptions.LookupEnv` 注入受控环境；原有 `LoadStaticConfig` 默认使用
+`os.LookupEnv`。
+
 Standalone 的部署形态差异限定在运行时语义：
 
 - MLRun 只支持 `(native, job)`；MLService 只支持
   `(native, deployment|statefulset)`；
 - MLService route 的 auth 与 rate limit 不受支持；
 - volume 支持创建、查询与删除，但不支持扩容；
+- ResourceUnit requests/limits 与 Tenant quota min/max 仅支持 `cpu`、`memory`、
+  `nvidia.com/gpu`；GPU 数量必须是整数。启动配置与 REST create/patch 使用同一校验；
 - 不提供 Prometheus workload / ResourcePool 指标查询；
 - 不执行 Kubernetes scheduler 的 ElasticQuota 准入。Tenant pool quota 由 Compute
   的统一 admission 执行：先增量准入 MLService，再准入 MLRun。

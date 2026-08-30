@@ -12,6 +12,7 @@ package tenant
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -33,13 +34,14 @@ import (
 // reads/writes go through the injected stores (Kubernetes CRD or static config).
 // Quota folding reads the ResourcePool store.
 type Handler struct {
-	tenants extensions.TenantProvider
-	pools   extensions.ResourcePoolProvider
+	tenants           extensions.TenantProvider
+	pools             extensions.ResourcePoolProvider
+	validateResources extensions.ResourceListValidator
 }
 
 // NewHandler builds a tenant handler over the given stores.
-func NewHandler(tenants extensions.TenantProvider, pools extensions.ResourcePoolProvider) *Handler {
-	return &Handler{tenants: tenants, pools: pools}
+func NewHandler(tenants extensions.TenantProvider, pools extensions.ResourcePoolProvider, validateResources extensions.ResourceListValidator) *Handler {
+	return &Handler{tenants: tenants, pools: pools, validateResources: validateResources}
 }
 
 // Register attaches all routes to the provided /api/v1 group.
@@ -332,6 +334,30 @@ func (h *Handler) foldQuotas(ctx context.Context, quotas []srv.Quota) ([]tenantv
 	if err != nil {
 		return nil, "", err
 	}
+	if h.validateResources != nil {
+		for i, quota := range quotas {
+			if quota.Quota == nil {
+				continue
+			}
+			if err := h.validateResources(fmt.Sprintf("quotas[%d].quota.min", i), quota.Quota.Min); err != nil {
+				return nil, "", &srv.QuotaError{Reason: srv.QuotaInvalidResource, Pool: quota.Pool, Resource: err.Error()}
+			}
+			if err := h.validateResources(fmt.Sprintf("quotas[%d].quota.max", i), quota.Quota.Max); err != nil {
+				return nil, "", &srv.QuotaError{Reason: srv.QuotaInvalidResource, Pool: quota.Pool, Resource: err.Error()}
+			}
+		}
+		for poolName, pool := range pools {
+			for i, unit := range pool.Spec.Units {
+				field := fmt.Sprintf("resource pool %q units[%d]", poolName, i)
+				if err := h.validateResources(field+".requests", unit.Requests); err != nil {
+					return nil, "", &srv.QuotaError{Reason: srv.QuotaInvalidResource, Pool: poolName, Resource: err.Error()}
+				}
+				if err := h.validateResources(field+".limits", unit.Limits); err != nil {
+					return nil, "", &srv.QuotaError{Reason: srv.QuotaInvalidResource, Pool: poolName, Resource: err.Error()}
+				}
+			}
+		}
+	}
 	folded, err := srv.FoldQuotas(quotas, pools)
 	if err != nil {
 		return nil, "", err
@@ -465,6 +491,7 @@ func isBadQuotaInput(reason srv.QuotaErrorReason) bool {
 		srv.QuotaModeConflict,
 		srv.QuotaModeRequired,
 		srv.QuotaMaxRequired,
+		srv.QuotaInvalidResource,
 		srv.QuotaNegativeResource,
 		srv.QuotaMinWithoutMax,
 		srv.QuotaMinExceedsMax:

@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	cmext "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
@@ -299,6 +300,9 @@ func newTenantRecord(tenant *tenantv1alpha1.Tenant, now time.Time) (*tenantv1alp
 		return nil, nil, apierrors.NewBadRequest("tenant name is required")
 	}
 	prepared := tenant.DeepCopy()
+	if err := validatePersistentTenantResources(prepared); err != nil {
+		return nil, nil, err
+	}
 	prepared.ResourceVersion = "1"
 	if prepared.Generation == 0 {
 		prepared.Generation = 1
@@ -321,6 +325,27 @@ func newTenantRecord(tenant *tenantv1alpha1.Tenant, now time.Time) (*tenantv1alp
 		UpdatedAt:       now,
 	}
 	return prepared, record, nil
+}
+
+func validatePersistentTenantResources(tenant *tenantv1alpha1.Tenant) error {
+	for i, quota := range tenant.Spec.Quotas {
+		base := fmt.Sprintf("spec.quotas[%d]", i)
+		if err := validateStandaloneResourceList(base+".min", quota.Min); err != nil {
+			return apierrors.NewInvalid(
+				tenantv1alpha1.GroupVersion.WithKind("Tenant").GroupKind(),
+				tenant.Name,
+				field.ErrorList{field.Invalid(field.NewPath("spec", "quotas").Index(i).Child("min"), quota.Min, err.Error())},
+			)
+		}
+		if err := validateStandaloneResourceList(base+".max", quota.Max); err != nil {
+			return apierrors.NewInvalid(
+				tenantv1alpha1.GroupVersion.WithKind("Tenant").GroupKind(),
+				tenant.Name,
+				field.ErrorList{field.Invalid(field.NewPath("spec", "quotas").Index(i).Child("max"), quota.Max, err.Error())},
+			)
+		}
+	}
+	return nil
 }
 
 func tenantFromRecord(record *tenantRecord) (*tenantv1alpha1.Tenant, error) {
