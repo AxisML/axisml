@@ -736,7 +736,10 @@ func fits(available, requested corev1.ResourceList) bool {
 
 func exceeds(used, max corev1.ResourceList) bool {
 	for name, quantity := range used {
-		limit := max[name]
+		limit, limited := max[name]
+		if !limited {
+			continue
+		}
 		if quantity.Cmp(limit) > 0 {
 			return true
 		}

@@ -73,8 +73,9 @@ func TestStableRoleOrderPrefersGPUThenMemoryThenCPU(t *testing.T) {
 	assert.Equal(t, []string{"gpu", "memory", "cpu"}, []string{roles[0].name, roles[1].name, roles[2].name})
 }
 
-func TestQuotaComparisonTreatsMissingLimitAsZero(t *testing.T) {
+func TestQuotaComparisonTreatsMissingLimitAsUnlimited(t *testing.T) {
 	used := resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2", "nvidia.com/gpu": "1"})
-	assert.True(t, exceeds(used, resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4"})))
+	assert.False(t, exceeds(used, resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4"})))
+	assert.True(t, exceeds(used, resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"})))
 	assert.False(t, exceeds(used, resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", "nvidia.com/gpu": "1"})))
 }
