@@ -217,11 +217,12 @@ func TestRenderServicePlans_HostPathVolume(t *testing.T) {
 	assert.Nil(t, host.Mounts[0].BindOptions, "the registered workspace root itself must not be auto-created")
 }
 
-// TestServiceRoute_ApplyObserveDelete verifies spec.route renders a Traefik
-// config whose endpoint is readable back, and that delete removes it.
+// TestServiceRoute_ApplyObserveDelete verifies spec.route renders Envoy Gateway
+// Backend + HTTPRoute resources whose endpoint is readable back, and that
+// delete removes them.
 func TestServiceRoute_ApplyObserveDelete(t *testing.T) {
 	dir := t.TempDir()
-	r := New(nil, Config{WorkloadsNetwork: "axisml-workloads", TraefikDir: dir}, logr.Discard())
+	r := New(nil, Config{WorkloadsNetwork: "axisml-workloads", GatewayConfigDir: dir}, logr.Discard())
 
 	svc := &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer"},
@@ -240,14 +241,20 @@ func TestServiceRoute_ApplyObserveDelete(t *testing.T) {
 	}
 	plans, err := r.renderServicePlans(svc)
 	require.NoError(t, err)
+	plans[0].Name = "infer-predictor-abcde"
 
 	require.NoError(t, r.applyServiceRoute(svc, plans))
 	file := r.serviceRouteFileName("default", "infer")
 	body, err := os.ReadFile(file)
 	require.NoError(t, err)
 	content := string(body)
-	assert.Contains(t, content, "PathPrefix(`/app`)")
-	assert.Contains(t, content, ":8080")
+	assert.Contains(t, content, "apiVersion: gateway.envoyproxy.io/v1alpha1")
+	assert.Contains(t, content, "kind: Backend")
+	assert.Contains(t, content, "hostname: infer-predictor-abcde.axisml.local")
+	assert.Contains(t, content, "port: 8080")
+	assert.Contains(t, content, "apiVersion: gateway.networking.k8s.io/v1")
+	assert.Contains(t, content, "kind: HTTPRoute")
+	assert.Contains(t, content, "value: /app")
 	assert.Equal(t, "/app", r.serviceRouteEndpoint("default", "infer"))
 
 	require.NoError(t, r.deleteServiceRoute("default", "infer"))
@@ -260,7 +267,7 @@ func TestServiceRoute_ApplyObserveDelete(t *testing.T) {
 // capability error.
 func TestServiceRoute_AuthUnsupported(t *testing.T) {
 	dir := t.TempDir()
-	r := New(nil, Config{TraefikDir: dir}, logr.Discard())
+	r := New(nil, Config{GatewayConfigDir: dir}, logr.Discard())
 	svc := &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer"},
 		Spec: mlservicev1alpha1.MLServiceSpec{

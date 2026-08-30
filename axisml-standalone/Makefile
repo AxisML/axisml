@@ -4,12 +4,13 @@ REPO_ROOT := $(abspath $(CURDIR)/..)
 
 IMAGE_REPO ?= ghcr.io/axisml/axisml-standalone
 IMAGE_TAG  ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(REPO_ROOT)/axisml-system/deploy/helm/Chart.yaml)
-COMPOSE    := AXISML_VERSION=$(IMAGE_TAG) docker compose -f $(CURDIR)/compose.yaml
+ENVOY_GATEWAY_VERSION ?= v$(shell awk '/alias: envoy-gateway/{found=1;next} found && /version:/{gsub(/"/,"",$$2);print $$2;exit}' $(REPO_ROOT)/axisml-infra/deploy/helm/Chart.yaml)
+COMPOSE    := AXISML_VERSION=$(IMAGE_TAG) ENVOY_GATEWAY_VERSION=$(ENVOY_GATEWAY_VERSION) docker compose -f $(CURDIR)/compose.yaml
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
 .DEFAULT_GOAL := build
 
-.PHONY: build test image image-load coverage coverage-html fmt vet tidy clean doc-gen doc-test up down delete help
+.PHONY: build test image image-load coverage coverage-html fmt vet tidy clean doc-gen doc-test ensure-workloads-network up down delete help
 build: ## Build the axisml-standalone binary
 	@CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/axisml-standalone ./cmd/axisml-standalone
 test: ## Run standalone unit tests
@@ -41,7 +42,9 @@ doc-test: doc-gen ## Verify the aggregate OpenAPI spec is in sync
 	  echo "ERROR: standalone OpenAPI artifacts are out of date. Run 'make -C axisml-standalone doc-gen' and commit."; \
 	  git -C $(REPO_ROOT) --no-pager diff -- \
 	    axisml-standalone/docs/apis/standalone.yaml axisml-standalone/openapi.gen.yaml; exit 1; fi
-up: ## Build and start the standalone distribution
+ensure-workloads-network:
+	@docker network inspect axisml-workloads >/dev/null 2>&1 || docker network create axisml-workloads >/dev/null
+up: ensure-workloads-network ## Build and start the standalone distribution
 	@$(COMPOSE) $(PROFILE_FLAGS) up -d --build --remove-orphans
 down: ## Stop the stack; CLEAN=1 also removes data volumes
 	@$(COMPOSE) $(PROFILE_FLAGS) down $(if $(CLEAN),--volumes)

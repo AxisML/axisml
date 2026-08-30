@@ -52,7 +52,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/etc/axisml/pools:ro
-      - traefik-dynamic:/var/lib/axisml/traefik
+      - gateway-resources:/var/lib/axisml/gateway
       - axisml-configmaps:/var/lib/axisml/configmaps
     networks: [axisml-control]
 
@@ -71,18 +71,41 @@ services:
       - rustfsdata:/data
     networks: [axisml-control]
 
-  traefik:
+  envoy-gateway-permissions:
     profiles: ["gateway"]
-    image: traefik:v3.1
-    command:
-      - "--entrypoints.web.address=:80"
-      - "--providers.file.directory=/etc/traefik/dynamic"
-      - "--providers.file.watch=true"
-      - "--api.dashboard=false"
-    ports:
-      - "80:80"
+    image: busybox:1.37
+    command: ["sh", "-c", "chown -R 65532:65532 /var/lib/envoy-gateway && chmod -R u+rwX /var/lib/envoy-gateway"]
+    restart: "no"
     volumes:
-      - traefik-dynamic:/etc/traefik/dynamic:ro
+      - envoy-gateway-data:/var/lib/envoy-gateway
+    networks: [axisml-control]
+
+  envoy-gateway-certgen:
+    profiles: ["gateway"]
+    image: envoyproxy/gateway:${ENVOY_GATEWAY_VERSION:-v1.7.2}
+    command: ["certgen", "--local", "--config-home", "/var/lib/envoy-gateway"]
+    restart: "no"
+    depends_on:
+      envoy-gateway-permissions:
+        condition: service_completed_successfully
+    volumes:
+      - envoy-gateway-data:/var/lib/envoy-gateway
+    networks: [axisml-control]
+
+  envoy-gateway:
+    profiles: ["gateway"]
+    image: envoyproxy/gateway:${ENVOY_GATEWAY_VERSION:-v1.7.2}
+    command: ["server", "--config-path", "/etc/envoy-gateway/config.yaml"]
+    depends_on:
+      envoy-gateway-certgen:
+        condition: service_completed_successfully
+    ports:
+      - "80:8888"
+    volumes:
+      - ./envoy-gateway/config.yaml:/etc/envoy-gateway/config.yaml:ro
+      - ./envoy-gateway/resources.yaml:/etc/envoy-gateway/resources.yaml:ro
+      - gateway-resources:/var/lib/axisml/gateway:ro
+      - envoy-gateway-data:/var/lib/envoy-gateway
     networks: [axisml-control, axisml-workloads]
 
   axisml-platform-bootstrap:
@@ -127,11 +150,13 @@ networks:
     name: axisml-control
   axisml-workloads:
     name: axisml-workloads
+    external: true
 
 volumes:
   pgdata:
   zotdata:
   rustfsdata:
-  traefik-dynamic:
+  gateway-resources:
+  envoy-gateway-data:
   axisml-configmaps:
     name: axisml-configmaps

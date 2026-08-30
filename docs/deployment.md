@@ -24,7 +24,7 @@
 | 形态 | 入口 | System 落地 | 适用范围 |
 | --- | --- | --- | --- |
 | `kubernetes` | Platform + Envoy Gateway | 三个 REST service + 两个 operator；workload 落为 K8s/网关资源 | 多租户、弹性配额、集群调度与完整 backend |
-| `standalone` | Platform `:8080` | 一个 `axisml-standalone` 进程；workload 落为 Docker/Traefik 资源 | 单机开发、评估和边缘部署 |
+| `standalone` | Platform `:8080` | 一个 `axisml-standalone` 进程；workload 落为 Docker/Envoy Gateway 资源 | 单机开发、评估和边缘部署 |
 
 Kubernetes 形态按 Platform / System / Infra 三层各打包为一个 Helm chart，
 按 **infra → system → platform** 顺序安装、反向卸载：
@@ -58,8 +58,13 @@ curl -fsS http://localhost:8080/readyz
 make standalone-down
 ```
 
-`PROFILES="storage gateway" make standalone-up` 启用 RustFS 与 Traefik；
+`PROFILES="storage gateway" make standalone-up` 启用 RustFS 与 Envoy Gateway；
 `CLEAN=1 make standalone-down` 同时删除 Compose 数据卷。
+
+Standalone 使用 Envoy Gateway 的 file resource provider + host infrastructure
+provider；其版本由 Infra chart 的 `gateway-helm` 依赖统一决定。上游目前仍将该
+运行模式标记为 experimental，生产启用前必须完成路由更新、网关重启与后端故障
+恢复验证。
 
 Kubernetes 本地全栈：
 

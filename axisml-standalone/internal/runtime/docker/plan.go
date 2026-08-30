@@ -194,8 +194,15 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 		host.Mounts = append(host.Mounts, dm)
 	}
 
+	endpoint := &network.EndpointSettings{}
+	if p.Name != "" {
+		// Envoy Gateway v1.7 validates Backend FQDNs and rejects single-label
+		// Docker container names. Keep the ordinary container-name DNS entry and
+		// add a stable multi-label alias for Gateway Backend endpoints.
+		endpoint.Aliases = []string{gatewayBackendHostname(p.Name)}
+	}
 	netCfg := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{net: {}},
+		EndpointsConfig: map[string]*network.EndpointSettings{net: endpoint},
 	}
 	return cfg, host, netCfg
 }

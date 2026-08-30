@@ -3,7 +3,7 @@
 // AxisML standalone. It lives under internal/runtime/ — the home for runtime
 // backends. It receives the same MLRun / MLService / MLTrafficPolicy desired
 // objects the Kubernetes runtime does and maps them onto Docker containers,
-// volumes, networks and Traefik dynamic config, then reports status back as the
+// volumes, networks and Envoy Gateway resources, then reports status back as the
 // corresponding CR Status.
 //
 // This adapter is the only code in axisml-standalone that touches the Docker socket.
@@ -53,13 +53,13 @@ const (
 
 // Config configures the Standalone runtime adapter.
 type Config struct {
-	// Network dynamic workloads join (Traefik also joins it to route them).
+	// Network dynamic workloads join (Envoy Gateway also joins it to route them).
 	WorkloadsNetwork string
 	// DockerConfigFile is a Docker CLI config.json whose credentials are used
 	// when pulling workload images. Empty leaves pulls anonymous.
 	DockerConfigFile string
-	// TraefikDir is the Traefik file-provider dynamic config directory.
-	TraefikDir string
+	// GatewayConfigDir is the Envoy Gateway file-provider resource directory.
+	GatewayConfigDir string
 	// ConfigMapsDir is the filesystem root where workload ConfigMap volume
 	// projections are materialized. In the standalone image it is the mount point of
 	// ConfigMapsVolume, so both axisml-standalone and workload containers see the same

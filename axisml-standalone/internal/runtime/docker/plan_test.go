@@ -259,6 +259,15 @@ func TestContainerNameSanitized(t *testing.T) {
 	assert.Regexp(t, `^weird-name-here-worker-[a-z0-9]{5}$`, name)
 }
 
+func TestToDockerAddsGatewayFQDNAlias(t *testing.T) {
+	p := ContainerPlan{Name: "hello-world-predictor-0", Image: "busybox"}
+	_, _, netCfg := p.toDocker("axisml-workloads")
+
+	endpoint := netCfg.EndpointsConfig["axisml-workloads"]
+	require.NotNil(t, endpoint)
+	assert.Equal(t, []string{"hello-world-predictor-0.axisml.local"}, endpoint.Aliases)
+}
+
 func TestStatefulSetInstanceUsesOrdinal(t *testing.T) {
 	assert.Equal(t, "hello-world-predictor-0", instanceName("hello-world-predictor", 0, true))
 }

@@ -13,8 +13,13 @@ contract；与 Kubernetes 形态的差异只位于资源目录、运行时 adapt
 Service 与 Artifact Hub；Platform 的三个 downstream endpoint 均指向该地址。
 System 进程是唯一挂载 Docker socket 的容器。
 
-可选 `storage` profile 启动 RustFS，`gateway` profile 启动 Traefik。所有镜像
-使用同一个 `AXISML_VERSION`，默认由根 Makefile 的 `IMAGE_TAG` 注入。
+可选 `storage` profile 启动 RustFS，`gateway` profile 以 standalone/file-provider
+模式启动 Envoy Gateway。Envoy Gateway 版本从 Kubernetes Infra chart 的
+`gateway-helm` 依赖读取，保证两种部署形态使用同一版本；其他镜像使用同一个
+`AXISML_VERSION`，默认由根 Makefile 的 `IMAGE_TAG` 注入。
+
+Envoy Gateway standalone 模式当前仍是上游 experimental 功能；该 profile 适合
+开发、评估和受控的单机环境，生产采用前需完成实际流量与故障恢复验证。
 
 ## 3. 装配边界
 
@@ -74,19 +79,21 @@ Compute Service 仍以 PostgreSQL 为 workload desired-state 权威。reconciler
   因此排队期不创建 container；
 - `(native, job)` 映射为一次性 container；
 - `(native, deployment|statefulset)` 映射为受管 container 集合；
-- 流量策略写入 Traefik 动态配置；
+- 服务路由与流量策略写入 Envoy Gateway `Backend` / `HTTPRoute` 资源；
 - container、volume 和 network 使用 `io.axisml.managed=true` 等 label 标记归属；
 - observe、日志和事件投影回与 Kubernetes runtime 相同的公共 DTO 与状态枚举。
 
 adapter 只依赖公共 AxisML API 类型和 Kubernetes 标准投影类型。Docker SDK、
-container plan 与 Traefik 配置不进入服务接口或数据库。
+container plan 与 Envoy Gateway 文件资源不进入服务接口或数据库。
 
 ## 6. 配置与持久化
 
 Standalone 只读取 `AXISML_` 环境变量；秘密字段同时支持 `_FILE`。端口、目录、
 Docker network 与后台周期是 `DefaultSettings`，嵌入宿主可通过 `WithSettings`
 覆盖。Tenant desired state 与 workload/artifact 元数据一并持久化到 PostgreSQL；
-zot 数据、Traefik 配置与 workload ConfigMap 投影分别使用 Compose volume 持久化。
+zot 数据、Envoy Gateway 资源与 workload ConfigMap 投影分别使用 Compose volume
+持久化。动态 workload endpoint 使用 `<container>.axisml.local` Docker network
+alias，供 Envoy Gateway `Backend` 的 FQDN endpoint 解析。
 
 队列容量从 Docker host 总量扣除 `workload.system_reserved_cpu`（默认 `0`）和
 `workload.system_reserved_memory`（默认 `0`），用于保留 OS 与控制面开销。生产部署应按宿主机

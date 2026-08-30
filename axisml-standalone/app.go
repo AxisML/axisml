@@ -149,7 +149,7 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	rt := dockerruntime.New(dcli, dockerruntime.Config{
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
 		DockerConfigFile: cfg.Docker.ConfigFile,
-		TraefikDir:       o.settings.GatewayConfigDir,
+		GatewayConfigDir: o.settings.GatewayConfigDir,
 		ConfigMapsDir:    o.settings.WorkloadConfigDir,
 		ConfigMapsVolume: o.settings.WorkloadConfigVolume,
 		HostPathVolumes:  tenantsHostPathVolumes(static.Tenants),

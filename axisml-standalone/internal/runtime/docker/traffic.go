@@ -6,40 +6,37 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/yaml"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 )
 
-// ApplyMLTrafficPolicy renders a Traefik file-provider dynamic config for the
-// policy: an HTTP router for the endpoint pointing at a weighted service whose
-// members are the per-MLService load balancers (design §6.3). The file is
-// written atomically (temp + rename). Only native/httproute is supported.
+// ApplyMLTrafficPolicy renders Envoy Gateway file-provider resources for the
+// policy: one Backend per member MLService and a weighted HTTPRoute over those
+// Backends (design §6.3). Only native/httproute is supported.
 func (r *Runtime) ApplyMLTrafficPolicy(ctx context.Context, desired *mltp.MLTrafficPolicy) error {
 	if desired.Spec.Backend.Name != "native" || desired.Spec.Backend.Engine != "httproute" {
 		return capabilityError("MLTrafficPolicy backend %s/%s is unsupported in standalone (only native/httproute)",
 			desired.Spec.Backend.Name, desired.Spec.Backend.Engine)
 	}
-	cfg, err := r.renderTraefik(ctx, desired)
+	resources, err := r.renderGatewayTraffic(ctx, desired)
 	if err != nil {
 		return err
 	}
-	b, err := yaml.Marshal(cfg)
+	b, err := marshalGatewayResources(resources...)
 	if err != nil {
-		return fmt.Errorf("marshal traefik config: %w", err)
+		return fmt.Errorf("marshal traffic gateway resources: %w", err)
 	}
-	if err := r.writeTraefikFile(r.trafficFileName(desired.Namespace, desired.Name), b); err != nil {
+	if err := r.writeGatewayFile(r.trafficFileName(desired.Namespace, desired.Name), b); err != nil {
 		return err
 	}
 	r.events.record(KindTraffic, desired.Namespace, desired.Name, "", "Applied", "traffic policy config written")
 	return nil
 }
 
-// ObserveMLTrafficPolicy reports the policy status from the Traefik file
+// ObserveMLTrafficPolicy reports the policy status from the gateway resource file
 // presence and the member services' readiness. A missing file is NotFound.
 func (r *Runtime) ObserveMLTrafficPolicy(ctx context.Context, key types.NamespacedName) (mltp.MLTrafficPolicyStatus, error) {
 	path := r.trafficFileName(key.Namespace, key.Name)
@@ -82,7 +79,7 @@ func (r *Runtime) ObserveMLTrafficPolicy(ctx context.Context, key types.Namespac
 	return status, nil
 }
 
-// DeleteMLTrafficPolicy removes the policy's Traefik config file. Idempotent.
+// DeleteMLTrafficPolicy removes the policy's gateway resource file. Idempotent.
 func (r *Runtime) DeleteMLTrafficPolicy(_ context.Context, key types.NamespacedName) error {
 	path := r.trafficFileName(key.Namespace, key.Name)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -97,7 +94,7 @@ func (r *Runtime) GetMLTrafficPolicyEvents(_ context.Context, key types.Namespac
 	return r.events.list(KindTraffic, key.Namespace, key.Name, ""), nil
 }
 
-// --- Traefik rendering helpers ---
+// --- Envoy Gateway rendering helpers ---
 
 type trafficMember struct {
 	service string
@@ -106,98 +103,80 @@ type trafficMember struct {
 	host    string
 }
 
-func (r *Runtime) renderTraefik(ctx context.Context, p *mltp.MLTrafficPolicy) (map[string]any, error) {
-	ns := p.Namespace
-	routerName := r.trafficResourceName(ns, p.Name)
-	weightedName := routerName
+type trafficBackend struct {
+	serviceName  string
+	resourceName string
+	endpoints    []gatewayEndpoint
+	weight       int32
+}
 
-	services := map[string]any{}
-	var weightedServices []map[string]any
+func (r *Runtime) renderGatewayTraffic(ctx context.Context, p *mltp.MLTrafficPolicy) ([]gatewayResource, error) {
+	ns := p.Namespace
+	backends := make([]trafficBackend, 0, len(p.Spec.Backends))
 	for _, m := range p.Spec.Backends {
-		svcName := r.trafficResourceName(ns, m.ServiceName)
-		servers, err := r.memberServers(ctx, ns, m.ServiceName)
+		endpoints, err := r.memberEndpoints(ctx, ns, m.ServiceName)
 		if err != nil {
 			return nil, err
 		}
-		services[svcName] = map[string]any{
-			"loadBalancer": map[string]any{"servers": servers},
-		}
-		weightedServices = append(weightedServices, map[string]any{
-			"name":   svcName,
-			"weight": m.Weight,
+		backends = append(backends, trafficBackend{
+			serviceName:  m.ServiceName,
+			resourceName: r.trafficMemberResourceName(ns, p.Name, m.ServiceName),
+			endpoints:    endpoints,
+			weight:       m.Weight,
 		})
 	}
-	services[weightedName] = map[string]any{
-		"weighted": map[string]any{"services": weightedServices},
-	}
-
-	router := map[string]any{
-		"service":     weightedName,
-		"entryPoints": []string{"web"},
-		"rule":        trafficRule(p.Spec.Endpoint),
-	}
-	return map[string]any{
-		"http": map[string]any{
-			"routers":  map[string]any{routerName: router},
-			"services": services,
-		},
-		// Annotation comment for member→weight readback on Observe.
-		"x-axisml-members": trafficMembersAnnotation(p),
-	}, nil
+	return r.gatewayTrafficResources(p, backends), nil
 }
 
-func trafficRule(ep mltp.Endpoint) string {
-	var parts []string
-	if ep.Hostname != "" {
-		parts = append(parts, fmt.Sprintf("Host(`%s`)", ep.Hostname))
-	}
-	path := ep.Path
-	if path == "" {
-		path = "/"
-	}
-	parts = append(parts, fmt.Sprintf("PathPrefix(`%s`)", path))
-	return strings.Join(parts, " && ")
-}
-
-func trafficMembersAnnotation(p *mltp.MLTrafficPolicy) []map[string]any {
-	out := make([]map[string]any, 0, len(p.Spec.Backends))
-	for _, m := range p.Spec.Backends {
-		out = append(out, map[string]any{
-			"service": m.ServiceName,
-			"weight":  m.Weight,
-			"path":    p.Spec.Endpoint.Path,
-			"host":    p.Spec.Endpoint.Hostname,
+func (r *Runtime) gatewayTrafficResources(p *mltp.MLTrafficPolicy, backends []trafficBackend) []gatewayResource {
+	resources := make([]gatewayResource, 0, len(backends)+1)
+	refs := make([]gatewayBackendRef, 0, len(backends))
+	for _, backend := range backends {
+		resources = append(resources, gatewayBackend(
+			backend.resourceName, backend.serviceName, backend.endpoints,
+		))
+		weight := backend.weight
+		refs = append(refs, gatewayBackendRef{
+			Group:  gatewayBackendGroup,
+			Kind:   "Backend",
+			Name:   backend.resourceName,
+			Weight: &weight,
 		})
 	}
-	return out
+	resources = append(resources, gatewayHTTPRoute(
+		r.trafficResourceName(p.Namespace, p.Name),
+		p.Spec.Endpoint.Hostname,
+		p.Spec.Endpoint.Path,
+		refs,
+	))
+	return resources
 }
 
-// memberServers builds Traefik loadBalancer server URLs for a member service's
-// running replicas (DNS = container name on the workloads network).
-func (r *Runtime) memberServers(ctx context.Context, namespace, serviceName string) ([]map[string]any, error) {
+// memberEndpoints builds Envoy Gateway Backend FQDN endpoints for a member
+// service's running replicas. Each FQDN is the multi-label Docker network alias
+// installed by ContainerPlan.toDocker.
+func (r *Runtime) memberEndpoints(ctx context.Context, namespace, serviceName string) ([]gatewayEndpoint, error) {
 	conts, err := r.listContainers(ctx, KindService, namespace, serviceName)
 	if err != nil {
 		return nil, err
 	}
-	var servers []map[string]any
+	var endpoints []gatewayEndpoint
 	for _, c := range conts {
 		// listContainers returns All:true, including stopped/exited replicas.
 		// Only route to running ones — a backend URL pointing at a stopped
-		// container would make Traefik forward requests to a dead backend during
+		// container would make Envoy forward requests to a dead backend during
 		// a replica restart or rolling replace.
 		if c.State != "running" {
 			continue
 		}
 		name := summaryName(c)
 		port := r.firstExposedPort(ctx, c.ID)
-		servers = append(servers, map[string]any{
-			"url": fmt.Sprintf("http://%s:%d", name, port),
-		})
+		endpoints = append(endpoints, gatewayContainerEndpoint(name, port))
 	}
-	if servers == nil {
-		servers = []map[string]any{}
+	if endpoints == nil {
+		endpoints = []gatewayEndpoint{}
 	}
-	return servers, nil
+	return endpoints, nil
 }
 
 func (r *Runtime) firstExposedPort(ctx context.Context, id string) int {
@@ -234,24 +213,44 @@ func (r *Runtime) serviceHasReady(ctx context.Context, namespace, serviceName st
 }
 
 func (r *Runtime) readTrafficMembers(path string) ([]trafficMember, error) {
-	b, err := os.ReadFile(path)
+	docs, err := readGatewayDocuments(path)
 	if err != nil {
 		return nil, err
 	}
-	var doc struct {
-		Members []struct {
-			Service string `json:"service"`
-			Weight  int32  `json:"weight"`
-			Path    string `json:"path"`
-			Host    string `json:"host"`
-		} `json:"x-axisml-members"`
+	services := map[string]string{}
+	var route *gatewayFileDocument
+	for i := range docs {
+		doc := &docs[i]
+		switch doc.Kind {
+		case "Backend":
+			services[doc.Metadata.Name] = doc.Metadata.Annotations[gatewayServiceAnnotation]
+		case "HTTPRoute":
+			route = doc
+		}
 	}
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return nil, err
+	if route == nil || len(route.Spec.Rules) == 0 {
+		return nil, nil
 	}
-	out := make([]trafficMember, 0, len(doc.Members))
-	for _, m := range doc.Members {
-		out = append(out, trafficMember{service: m.Service, weight: m.Weight, path: m.Path, host: m.Host})
+	routePath := "/"
+	if len(route.Spec.Rules[0].Matches) > 0 && route.Spec.Rules[0].Matches[0].Path.Value != "" {
+		routePath = route.Spec.Rules[0].Matches[0].Path.Value
+	}
+	host := ""
+	if len(route.Spec.Hostnames) > 0 {
+		host = route.Spec.Hostnames[0]
+	}
+	out := make([]trafficMember, 0, len(route.Spec.Rules[0].BackendRefs))
+	for _, ref := range route.Spec.Rules[0].BackendRefs {
+		weight := int32(1)
+		if ref.Weight != nil {
+			weight = *ref.Weight
+		}
+		out = append(out, trafficMember{
+			service: services[ref.Name],
+			weight:  weight,
+			path:    routePath,
+			host:    host,
+		})
 	}
 	return out, nil
 }
@@ -275,17 +274,15 @@ func (r *Runtime) trafficResourceName(namespace, name string) string {
 	return fmt.Sprintf("axisml-tp-%s", shortHash(raw))
 }
 
-func (r *Runtime) trafficFileName(namespace, name string) string {
-	return filepath.Join(r.cfg.TraefikDir, fmt.Sprintf("tp-%s-%s.yaml", namespace, name))
+func (r *Runtime) trafficMemberResourceName(namespace, policyName, serviceName string) string {
+	raw := fmt.Sprintf("axisml-tp-%s-%s-%s", namespace, policyName, serviceName)
+	clean := nameSanitizer.ReplaceAllString(raw, "-")
+	if clean == raw && len(clean) <= 100 {
+		return clean
+	}
+	return fmt.Sprintf("axisml-tp-backend-%s", shortHash(raw))
 }
 
-func (r *Runtime) writeTraefikFile(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+func (r *Runtime) trafficFileName(namespace, name string) string {
+	return filepath.Join(r.cfg.GatewayConfigDir, fmt.Sprintf("traffic-policy-%s-%s.yaml", namespace, name))
 }

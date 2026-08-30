@@ -6,7 +6,8 @@
 
 AxisML 发布两种部署形态：`kubernetes` 由 operator 把 `MLRun` / `MLService` /
 `MLTrafficPolicy` 映射为集群资源；`standalone` 在单 Docker host 上把同一
-workload contract 映射为 container、volume、network 和 Traefik route。两种
+workload contract 映射为 container、volume、network 和 Envoy Gateway
+`Backend` / `HTTPRoute`。两种
 形态共用 Platform、System API、数据库 schema、migration 与版本号。
 
 ## 2. 核心概念

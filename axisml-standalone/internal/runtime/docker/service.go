@@ -286,7 +286,7 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 		}
 	}
 
-	// Service-level routing: a spec.route exposes the service through Traefik
+	// Service-level routing: a spec.route exposes the service through Envoy Gateway
 	// (the mechanism workspace / tensorboard and any routed service rely on).
 	if err := r.applyServiceRoute(desired, plans); err != nil {
 		r.events.record(KindService, ns, name, "", "RouteFailed", err.Error())

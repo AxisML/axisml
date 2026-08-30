@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"sigs.k8s.io/yaml"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 )
 
-// applyServiceRoute renders (or removes) the Traefik file-provider config for an
-// MLService's own spec.route: an HTTP router for the endpoint pointing at a
-// loadBalancer over the service's replica containers. This is how a single
+// applyServiceRoute renders (or removes) Envoy Gateway file-provider resources
+// for an MLService's own spec.route: a Backend over the service's replica
+// containers plus an HTTPRoute for the endpoint. This is how a single
 // service — including kind=workspace / kind=tensorboard — is exposed through the
 // gateway (design §6.3). MLTrafficPolicy handles the multi-service weighted case
 // separately. Unsupported route features (auth, rate limit — Gateway API
@@ -32,37 +29,27 @@ func (r *Runtime) applyServiceRoute(svc *mlservicev1alpha1.MLService, plans []Co
 	}
 
 	port := resolveServicePort(svc, route)
-	servers := make([]map[string]any, 0, len(plans))
+	endpoints := make([]gatewayEndpoint, 0, len(plans))
 	for i := range plans {
-		servers = append(servers, map[string]any{"url": fmt.Sprintf("http://%s:%d", plans[i].Name, port)})
+		endpoints = append(endpoints, gatewayContainerEndpoint(plans[i].Name, port))
 	}
 
 	name := r.serviceResourceName(svc.Namespace, svc.Name)
-	cfg := map[string]any{
-		"http": map[string]any{
-			"routers": map[string]any{
-				name: map[string]any{
-					"service":     name,
-					"entryPoints": []string{"web"},
-					"rule":        serviceRouteRule(route),
-				},
-			},
-			"services": map[string]any{
-				name: map[string]any{
-					"loadBalancer": map[string]any{"servers": servers},
-				},
-			},
-		},
-		"x-axisml-endpoint": serviceRouteEndpointValue(route),
-	}
-	b, err := yaml.Marshal(cfg)
+	b, err := marshalGatewayResources(
+		gatewayBackend(name, svc.Name, endpoints),
+		gatewayHTTPRoute(name, route.Hostname, route.Path, []gatewayBackendRef{{
+			Group: gatewayBackendGroup,
+			Kind:  "Backend",
+			Name:  name,
+		}}),
+	)
 	if err != nil {
-		return fmt.Errorf("marshal service route config: %w", err)
+		return fmt.Errorf("marshal service gateway resources: %w", err)
 	}
-	return r.writeTraefikFile(r.serviceRouteFileName(svc.Namespace, svc.Name), b)
+	return r.writeGatewayFile(r.serviceRouteFileName(svc.Namespace, svc.Name), b)
 }
 
-// deleteServiceRoute removes the service's Traefik route config. Idempotent.
+// deleteServiceRoute removes the service's gateway resources. Idempotent.
 func (r *Runtime) deleteServiceRoute(namespace, name string) error {
 	if err := os.Remove(r.serviceRouteFileName(namespace, name)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -70,21 +57,20 @@ func (r *Runtime) deleteServiceRoute(namespace, name string) error {
 	return nil
 }
 
-// serviceRouteEndpoint returns the configured endpoint for a service's route, or
-// "" when no route is configured. Read back from the route file so Observe can
-// surface it without the spec.
+// serviceRouteEndpoint returns the configured endpoint for a service's HTTPRoute,
+// or "" when no route is configured. Read back from the route file so Observe
+// can surface it without the spec.
 func (r *Runtime) serviceRouteEndpoint(namespace, name string) string {
-	b, err := os.ReadFile(r.serviceRouteFileName(namespace, name))
+	docs, err := readGatewayDocuments(r.serviceRouteFileName(namespace, name))
 	if err != nil {
 		return ""
 	}
-	var doc struct {
-		Endpoint string `json:"x-axisml-endpoint"`
+	for _, doc := range docs {
+		if doc.Kind == "HTTPRoute" {
+			return gatewayRouteEndpoint(doc)
+		}
 	}
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return ""
-	}
-	return doc.Endpoint
+	return ""
 }
 
 // resolveServicePort picks the container port the route targets: the named port
@@ -107,30 +93,6 @@ func resolveServicePort(svc *mlservicev1alpha1.MLService, route *mlservicev1alph
 	return 80
 }
 
-func serviceRouteRule(route *mlservicev1alpha1.Route) string {
-	var parts []string
-	if route.Hostname != "" {
-		parts = append(parts, fmt.Sprintf("Host(`%s`)", route.Hostname))
-	}
-	path := route.Path
-	if path == "" {
-		path = "/"
-	}
-	parts = append(parts, fmt.Sprintf("PathPrefix(`%s`)", path))
-	return strings.Join(parts, " && ")
-}
-
-func serviceRouteEndpointValue(route *mlservicev1alpha1.Route) string {
-	path := route.Path
-	if path == "" {
-		path = "/"
-	}
-	if route.Hostname != "" {
-		return "http://" + route.Hostname + path
-	}
-	return path
-}
-
 func (r *Runtime) serviceResourceName(namespace, name string) string {
 	raw := fmt.Sprintf("axisml-svc-%s-%s", namespace, name)
 	clean := nameSanitizer.ReplaceAllString(raw, "-")
@@ -141,5 +103,5 @@ func (r *Runtime) serviceResourceName(namespace, name string) string {
 }
 
 func (r *Runtime) serviceRouteFileName(namespace, name string) string {
-	return filepath.Join(r.cfg.TraefikDir, fmt.Sprintf("svc-%s-%s.yaml", namespace, name))
+	return filepath.Join(r.cfg.GatewayConfigDir, fmt.Sprintf("service-%s-%s.yaml", namespace, name))
 }

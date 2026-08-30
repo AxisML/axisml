@@ -25,11 +25,11 @@ const (
 
 	// Filesystem layout (fixed by the image / Compose mounts).
 	DefaultPoolConfigDir        = "/etc/axisml/pools"          // Cluster Manager pool + tenant YAML (resourcepools/ + tenants/ subdirs)
-	DefaultGatewayConfigDir     = "/var/lib/axisml/traefik"    // Traefik file-provider dynamic config
+	DefaultGatewayConfigDir     = "/var/lib/axisml/gateway"    // Envoy Gateway file-provider resources
 	DefaultWorkloadConfigDir    = "/var/lib/axisml/configmaps" // workload-owned ConfigMap volume projections
 	DefaultWorkloadConfigVolume = "axisml-configmaps"          // shared Docker volume mounted at DefaultWorkloadConfigDir
 
-	// Docker network dynamic workloads join (Traefik also joins it). Shared
+	// Docker network dynamic workloads join (Envoy Gateway also joins it). Shared
 	// with the Compose networks: block and the binary's idempotent EnsureNetwork.
 	DefaultWorkloadsNetwork = "axisml-workloads"
 )
@@ -62,8 +62,8 @@ type Settings struct {
 	// WithStaticConfig.
 	PoolConfigDir string
 
-	// GatewayConfigDir is the Traefik file-provider config dir on the host
-	// filesystem, written per service / traffic policy.
+	// GatewayConfigDir is the Envoy Gateway file-provider resource directory on
+	// the host filesystem, written per service / traffic policy.
 	GatewayConfigDir string
 
 	// WorkloadConfigDir is where the Standalone runtime materializes files for
@@ -74,7 +74,7 @@ type Settings struct {
 	WorkloadConfigDir    string
 	WorkloadConfigVolume string
 
-	// WorkloadsNetwork is the Docker network dynamic workloads (and Traefik) join.
+	// WorkloadsNetwork is the Docker network dynamic workloads (and Envoy Gateway) join.
 	WorkloadsNetwork string
 }
 

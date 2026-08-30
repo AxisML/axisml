@@ -1,0 +1,25 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyGateway
+gateway:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+provider:
+  type: Custom
+  custom:
+    resource:
+      type: File
+      file:
+        paths:
+          - /etc/envoy-gateway/resources.yaml
+          - /var/lib/axisml/gateway
+    infrastructure:
+      type: Host
+      host:
+        configHome: /var/lib/envoy-gateway
+        dataHome: /var/lib/envoy-gateway
+        stateHome: /var/lib/envoy-gateway/state
+        runtimeDir: /tmp/envoy-gateway
+logging:
+  level:
+    default: info
+extensionApis:
+  enableBackend: true

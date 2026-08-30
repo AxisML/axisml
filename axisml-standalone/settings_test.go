@@ -18,7 +18,7 @@ func TestDefaultSettings(t *testing.T) {
 	assert.Equal(t, time.Hour, s.UploadTokenTTL)
 	assert.Equal(t, "axisml-artifact-hub", s.DatasetBucket)
 	assert.Equal(t, "/etc/axisml/pools", s.PoolConfigDir)
-	assert.Equal(t, "/var/lib/axisml/traefik", s.GatewayConfigDir)
+	assert.Equal(t, "/var/lib/axisml/gateway", s.GatewayConfigDir)
 	assert.Equal(t, "/var/lib/axisml/configmaps", s.WorkloadConfigDir)
 	assert.Equal(t, "axisml-configmaps", s.WorkloadConfigVolume)
 	assert.Equal(t, "axisml-workloads", s.WorkloadsNetwork)
