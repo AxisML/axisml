@@ -8,6 +8,7 @@ class WorkspacePhase(str, Enum):
     DELETING = "Deleting"
     FAILED = "Failed"
     PENDING = "Pending"
+    QUEUED = "Queued"
     RUNNING = "Running"
     STARTING = "Starting"
     STOPPED = "Stopped"

@@ -10,7 +10,7 @@ export default {
     // list columns
     colName: "Name",
     colStatus: "Status",
-    colReplicas: "Replicas",
+    colReplicas: "Ready / admitted / desired",
     colUnit: "Resource unit",
     colAccess: "Access URL",
     total: "{{count}} services total",
@@ -90,11 +90,13 @@ export default {
     dPool: "Resource pool",
     dUnit: "Resource unit",
     dReplicas: "Replicas",
+    dAdmission: "Admission",
     dPorts: "Ports",
     dAccess: "Access URL",
     dCreator: "Creator",
     dCreatedAt: "Created",
     replicasReady: "{{ready}} / {{total}} ready",
+    replicasState: "{{ready}} ready / {{admitted}} admitted / {{desired}} desired",
     copyAccess: "Copy access URL",
     accessCopied: "Access URL copied",
     // monitoring

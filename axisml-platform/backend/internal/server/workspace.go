@@ -72,10 +72,13 @@ type Workspace struct {
 	Volumes           []WorkspaceVolume     `json:"volumes,omitempty" desc:"Data volumes mounted into the workspace."`
 	Lifecycle         WorkspaceLifecycle    `json:"lifecycle,omitempty" desc:"Lifecycle policy (e.g. idle auto-stop)."`
 	Replicas          int                   `json:"replicas,omitempty" binding:"min=0" desc:"Desired pod count (0 when stopped)."`
+	AdmittedReplicas  int                   `json:"admittedReplicas,omitempty" binding:"min=0" desc:"Pods holding durable capacity and tenant-quota admission."`
 	ReadyReplicas     int                   `json:"readyReplicas,omitempty" binding:"min=0" desc:"Pods that have passed readiness."`
 	DesiredState      WorkspaceDesiredState `json:"desiredState,omitempty" desc:"User-requested run state (Running, Stopped)."`
 	Phase             WorkspacePhase        `json:"phase,omitempty" desc:"Current workspace lifecycle phase."`
 	Message           string                `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	AdmissionReason   string                `json:"admissionReason,omitempty" desc:"Stable reason why the workspace is still waiting for admission."`
+	AdmissionMessage  string                `json:"admissionMessage,omitempty" desc:"Human-readable detail for the current admission wait."`
 	Endpoint          WorkspaceEndpoint     `json:"endpoint,omitempty" desc:"Reachable URLs for the workspace."`
 	LastStartedAt     *time.Time            `json:"lastStartedAt,omitempty" desc:"Time the workspace was last started."`
 	LastStoppedAt     *time.Time            `json:"lastStoppedAt,omitempty" desc:"Time the workspace was last stopped."`

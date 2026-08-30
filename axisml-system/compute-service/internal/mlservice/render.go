@@ -8,6 +8,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/serviceadmission"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
 
@@ -23,6 +24,9 @@ func ToCR(s *store.MLService, tenantPrefix bool) (*mlservicev1alpha1.MLService, 
 			return nil, err
 		}
 	}
+	desired := serviceadmission.Desired(spec)
+	admitted := serviceadmission.Decode(s.AdmittedReplicas, len(spec.Roles), desired)
+	spec = serviceadmission.Apply(spec, admitted)
 	kind := s.Kind
 	if kind == "" {
 		kind = mlservicev1alpha1.ServiceKindService

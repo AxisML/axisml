@@ -15,23 +15,33 @@ T = TypeVar("T", bound="MLServicePhase")
 class MLServicePhase:
     """
     Attributes:
+        admitted_replicas (int): Primary-role replicas holding a durable capacity and quota reservation.
         generation (int): Desired-state generation, bumped on every spec-affecting change (scale).
         name (str): MLService name, unique within the namespace.
         observed_generation (int): Generation the operator last reconciled; equals generation when in sync.
-        phase (str): Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
+        phase (str): Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting,
+            Deleted.
         ready_replicas (int): Number of replicas that have passed readiness.
-        message (str | Unset): Human-readable status detail for the current phase.
+        admission_message (str | Unset): Human-readable detail for the current admission wait.
+        admission_reason (str | Unset): Stable reason why desired service replicas are still waiting for admission:
+            InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources.
+        message (str | Unset): Human-readable runtime status detail for the current phase.
     """
 
+    admitted_replicas: int
     generation: int
     name: str
     observed_generation: int
     phase: str
     ready_replicas: int
+    admission_message: str | Unset = UNSET
+    admission_reason: str | Unset = UNSET
     message: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        admitted_replicas = self.admitted_replicas
+
         generation = self.generation
 
         name = self.name
@@ -42,12 +52,17 @@ class MLServicePhase:
 
         ready_replicas = self.ready_replicas
 
+        admission_message = self.admission_message
+
+        admission_reason = self.admission_reason
+
         message = self.message
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "admittedReplicas": admitted_replicas,
                 "generation": generation,
                 "name": name,
                 "observedGeneration": observed_generation,
@@ -55,6 +70,10 @@ class MLServicePhase:
                 "readyReplicas": ready_replicas,
             }
         )
+        if admission_message is not UNSET:
+            field_dict["admissionMessage"] = admission_message
+        if admission_reason is not UNSET:
+            field_dict["admissionReason"] = admission_reason
         if message is not UNSET:
             field_dict["message"] = message
 
@@ -63,6 +82,8 @@ class MLServicePhase:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        admitted_replicas = d.pop("admittedReplicas")
+
         generation = d.pop("generation")
 
         name = d.pop("name")
@@ -73,14 +94,21 @@ class MLServicePhase:
 
         ready_replicas = d.pop("readyReplicas")
 
+        admission_message = d.pop("admissionMessage", UNSET)
+
+        admission_reason = d.pop("admissionReason", UNSET)
+
         message = d.pop("message", UNSET)
 
         ml_service_phase = cls(
+            admitted_replicas=admitted_replicas,
             generation=generation,
             name=name,
             observed_generation=observed_generation,
             phase=phase,
             ready_replicas=ready_replicas,
+            admission_message=admission_message,
+            admission_reason=admission_reason,
             message=message,
         )
 

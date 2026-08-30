@@ -38,10 +38,10 @@ export const RUN_PHASES = [
   "Queued", "Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
 ];
 export const WORKSPACE_PHASES = [
-  "Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",
+  "Queued", "Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",
 ];
 export const MLSERVICE_PHASES = [
-  "Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
+  "Queued", "Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
 ];
 export const TRAFFIC_PHASES = [
   "Creating", "Ready", "Pending", "Degraded", "Failed", "Deleting", "Deleted",

@@ -77,13 +77,15 @@ func reflectGone(ctx context.Context, repo *Repository, row *store.MLService) {
 	}
 }
 
-// desiredReplicas reads role[0].replicas off the row's stored spec.
+// desiredReplicas reads role[0].replicas off the row's desired spec. It must
+// not use ToCR because runtime rendering is intentionally capped at admitted
+// replicas while phase/readiness is measured against the user's desired count.
 func desiredReplicas(row *store.MLService) int32 {
-	cr, err := ToCR(row, false)
-	if err != nil || len(cr.Spec.Roles) == 0 {
+	var spec mlservicev1alpha1.MLServiceSpec
+	if err := json.Unmarshal(row.Spec, &spec); err != nil || len(spec.Roles) == 0 {
 		return 0
 	}
-	return cr.Spec.Roles[0].Replicas
+	return spec.Roles[0].Replicas
 }
 
 func serviceIDFromLabels(cr *mlservicev1alpha1.MLService) (uuid.UUID, error) {

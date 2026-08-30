@@ -4,7 +4,7 @@ import "testing"
 
 func TestStatus_Constants(t *testing.T) {
 	for _, s := range []Status{
-		StatusCreating, StatusPending, StatusReady,
+		StatusQueued, StatusCreating, StatusPending, StatusReady,
 		StatusDegraded, StatusFailed, StatusDeleting, StatusDeleted,
 	} {
 		if string(s) == "" {

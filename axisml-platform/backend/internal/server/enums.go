@@ -26,7 +26,7 @@ type WorkspacePhase string
 
 // WorkspacePhaseValues enumerates WorkspacePhase.
 var WorkspacePhaseValues = []string{
-	"Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",
+	"Queued", "Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",
 }
 
 // WorkspaceDesiredState is the user-requested run state of a Workspace.
@@ -48,7 +48,7 @@ type MLServicePhase string
 
 // MLServicePhaseValues enumerates MLServicePhase.
 var MLServicePhaseValues = []string{
-	"Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
+	"Queued", "Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
 }
 
 // MLServiceDesiredState is the user-requested run state of an MLService.

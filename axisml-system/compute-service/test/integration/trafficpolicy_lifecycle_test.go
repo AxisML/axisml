@@ -27,16 +27,18 @@ import (
 func seedReadyMLService(t *testing.T, ctx context.Context, ns, name string) {
 	t.Helper()
 	row := &store.MLService{
-		ID:          uuid.New(),
-		Namespace:   ns,
-		Name:        name,
-		Kind:        "service",
-		Phase:       "Ready",
-		Spec:        datatypes.JSON(`{"backend":{"name":"native","engine":"deployment"}}`),
-		Labels:      datatypes.JSON(`{}`),
-		Annotations: datatypes.JSON(`{}`),
-		StatusJSON:  datatypes.JSON(`{}`),
-		Generation:  1,
+		ID:                 uuid.New(),
+		Namespace:          ns,
+		Name:               name,
+		Kind:               "service",
+		Phase:              "Ready",
+		Spec:               datatypes.JSON(`{"backend":{"name":"native","engine":"deployment"}}`),
+		AdmittedReplicas:   datatypes.JSON(`[]`),
+		DispatchedReplicas: datatypes.JSON(`[]`),
+		Labels:             datatypes.JSON(`{}`),
+		Annotations:        datatypes.JSON(`{}`),
+		StatusJSON:         datatypes.JSON(`{}`),
+		Generation:         1,
 		// observed == generation so the service reconciler treats the seed as
 		// already in sync and doesn't try to emit an MLService CR for it.
 		ObservedGeneration: 1,

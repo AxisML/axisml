@@ -36,6 +36,7 @@ func TestWorkspace_ReferencesPreProvisionedVolume(t *testing.T) {
 	seedResourcePool(t, ctx, "ws-pool", "small")
 	const ns = "ws-ns"
 	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, "ws-pool", resourceList("100", "1Ti"))
 
 	const wsName = "demo-ws"
 	const claimName = "axisml-ws-demo-ws-data" // pre-provisioned by Platform

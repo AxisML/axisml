@@ -54,6 +54,9 @@ class Workspace:
         owner (str): Username of the workspace owner.
         tenant_name (str): Tenant identifier owning the workspace.
         updated_at (datetime.datetime): Time the workspace was last updated.
+        admission_message (str | Unset): Human-readable detail for the current admission wait.
+        admission_reason (str | Unset): Stable reason why the workspace is still waiting for admission.
+        admitted_replicas (int | Unset): Pods holding durable capacity and tenant-quota admission.
         args (list[str] | Unset): Container args override.
         command (list[str] | Unset): Container entrypoint override.
         compute_namespace (str | Unset): Underlying compute (Kubernetes) namespace hosting the workspace.
@@ -92,6 +95,9 @@ class Workspace:
     owner: str
     tenant_name: str
     updated_at: datetime.datetime
+    admission_message: str | Unset = UNSET
+    admission_reason: str | Unset = UNSET
+    admitted_replicas: int | Unset = UNSET
     args: list[str] | Unset = UNSET
     command: list[str] | Unset = UNSET
     compute_namespace: str | Unset = UNSET
@@ -133,6 +139,12 @@ class Workspace:
         tenant_name = self.tenant_name
 
         updated_at = self.updated_at.isoformat()
+
+        admission_message = self.admission_message
+
+        admission_reason = self.admission_reason
+
+        admitted_replicas = self.admitted_replicas
 
         args: list[str] | Unset = UNSET
         if not isinstance(self.args, Unset):
@@ -229,6 +241,12 @@ class Workspace:
                 "updatedAt": updated_at,
             }
         )
+        if admission_message is not UNSET:
+            field_dict["admissionMessage"] = admission_message
+        if admission_reason is not UNSET:
+            field_dict["admissionReason"] = admission_reason
+        if admitted_replicas is not UNSET:
+            field_dict["admittedReplicas"] = admitted_replicas
         if args is not UNSET:
             field_dict["args"] = args
         if command is not UNSET:
@@ -300,6 +318,12 @@ class Workspace:
         tenant_name = d.pop("tenantName")
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
+
+        admission_message = d.pop("admissionMessage", UNSET)
+
+        admission_reason = d.pop("admissionReason", UNSET)
+
+        admitted_replicas = d.pop("admittedReplicas", UNSET)
 
         args = cast(list[str], d.pop("args", UNSET))
 
@@ -427,6 +451,9 @@ class Workspace:
             owner=owner,
             tenant_name=tenant_name,
             updated_at=updated_at,
+            admission_message=admission_message,
+            admission_reason=admission_reason,
+            admitted_replicas=admitted_replicas,
             args=args,
             command=command,
             compute_namespace=compute_namespace,

@@ -37,9 +37,12 @@ type decodedSpec struct {
 }
 
 type decodedStatus struct {
-	ReadyReplicas int    `json:"readyReplicas"`
-	Endpoint      string `json:"endpoint"`
-	Message       string `json:"message"`
+	AdmittedReplicas int    `json:"admittedReplicas"`
+	ReadyReplicas    int    `json:"readyReplicas"`
+	Endpoint         string `json:"endpoint"`
+	Message          string `json:"message"`
+	AdmissionReason  string `json:"admissionReason"`
+	AdmissionMessage string `json:"admissionMessage"`
 }
 
 func decode(s *computeservice.MLService) (decodedSpec, decodedStatus) {
@@ -225,20 +228,23 @@ func marshalInput(m map[string]any) (computeservice.MLServiceCreate, error) {
 func ServiceToView(s *computeservice.MLService, tenant string) server.MLService {
 	spec, st := decode(s)
 	v := server.MLService{
-		ID:            server.UUID(s.Id.String()),
-		Namespace:     s.Namespace,
-		TenantName:    tenant,
-		Name:          s.Name,
-		DisplayName:   strv(s.DisplayName),
-		Description:   strv(s.Description),
-		Owner:         strv(s.Owner),
-		ReadyReplicas: st.ReadyReplicas,
-		Phase:         server.MLServicePhase(s.Phase),
-		Message:       st.Message,
-		AccessURL:     st.Endpoint,
-		CreatedAt:     s.CreatedAt,
-		UpdatedAt:     s.UpdatedAt,
-		ConfigMaps:    spec.ConfigMaps,
+		ID:               server.UUID(s.Id.String()),
+		Namespace:        s.Namespace,
+		TenantName:       tenant,
+		Name:             s.Name,
+		DisplayName:      strv(s.DisplayName),
+		Description:      strv(s.Description),
+		Owner:            strv(s.Owner),
+		AdmittedReplicas: st.AdmittedReplicas,
+		ReadyReplicas:    st.ReadyReplicas,
+		Phase:            server.MLServicePhase(s.Phase),
+		Message:          st.Message,
+		AdmissionReason:  st.AdmissionReason,
+		AdmissionMessage: st.AdmissionMessage,
+		AccessURL:        st.Endpoint,
+		CreatedAt:        s.CreatedAt,
+		UpdatedAt:        s.UpdatedAt,
+		ConfigMaps:       spec.ConfigMaps,
 	}
 	annos := derefMap(s.Annotations)
 	v.ModelName = annos["platform.axisml.io/model-name"]
@@ -266,19 +272,22 @@ func ServiceToView(s *computeservice.MLService, tenant string) server.MLService 
 func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspace {
 	spec, st := decode(s)
 	v := server.Workspace{
-		ID:            server.UUID(s.Id.String()),
-		Namespace:     s.Namespace,
-		TenantName:    tenant,
-		Name:          s.Name,
-		DisplayName:   strv(s.DisplayName),
-		Description:   strv(s.Description),
-		Owner:         strv(s.Owner),
-		ReadyReplicas: st.ReadyReplicas,
-		Phase:         server.WorkspacePhase(s.Phase),
-		Message:       st.Message,
-		Endpoint:      server.WorkspaceEndpoint{AccessURL: st.Endpoint},
-		CreatedAt:     s.CreatedAt,
-		UpdatedAt:     s.UpdatedAt,
+		ID:               server.UUID(s.Id.String()),
+		Namespace:        s.Namespace,
+		TenantName:       tenant,
+		Name:             s.Name,
+		DisplayName:      strv(s.DisplayName),
+		Description:      strv(s.Description),
+		Owner:            strv(s.Owner),
+		AdmittedReplicas: st.AdmittedReplicas,
+		ReadyReplicas:    st.ReadyReplicas,
+		Phase:            server.WorkspacePhase(s.Phase),
+		Message:          st.Message,
+		AdmissionReason:  st.AdmissionReason,
+		AdmissionMessage: st.AdmissionMessage,
+		Endpoint:         server.WorkspaceEndpoint{AccessURL: st.Endpoint},
+		CreatedAt:        s.CreatedAt,
+		UpdatedAt:        s.UpdatedAt,
 	}
 	annos := derefMap(s.Annotations)
 	v.PoolName = annos["resource.axisml.io/pool"]

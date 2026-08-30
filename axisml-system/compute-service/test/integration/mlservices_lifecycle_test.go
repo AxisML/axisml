@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +34,7 @@ func TestMLServiceCreateRoundTrip(t *testing.T) {
 	require.NoError(t, c.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: ns},
 	}))
+	mustSetTenantQuota(t, ctx, ns, "services-e2e-pool", resourceList("100", "1Ti"))
 
 	body := map[string]any{
 		"name":     "predictor",
@@ -101,6 +103,73 @@ func TestMLServiceCreateRoundTrip(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "predictor"}, &mlservicev1alpha1.MLService{}) != nil
 	}, 10*time.Second, 200*time.Millisecond, "MLService CR was not reaped")
+}
+
+// TestMLServiceIncrementalAdmission verifies that one replica is enough to
+// leave Queued, while the runtime receives only the admitted count. Expanding
+// tenant quota later admits and dispatches the remaining desired replicas.
+func TestMLServiceIncrementalAdmission(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	const (
+		ns   = "services-incremental-ns"
+		pool = "services-incremental-pool"
+	)
+	seedResourcePool(t, ctx, pool, "small")
+	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, pool, corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("100m"),
+		corev1.ResourceMemory: resource.MustParse("128Mi"),
+	})
+
+	body := map[string]any{
+		"name": "incremental", "poolName": pool, "unitName": "small",
+		"backend": map[string]string{"name": "native", "engine": "deployment"},
+		"roles": []map[string]any{{
+			"name": mlservicev1alpha1.DefaultRoleName, "replicas": 3,
+			"template": map[string]any{
+				"image": "nginx:1.27",
+				"ports": []map[string]any{{"name": "http", "containerPort": 8080, "protocol": string(corev1.ProtocolTCP)}},
+			},
+		}},
+	}
+	var created map[string]any
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, &created)
+	requireStatus(t, rr, http.StatusCreated)
+	require.Equal(t, "Queued", created["phase"])
+
+	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var cr mlservicev1alpha1.MLService
+		if err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "incremental"}, &cr); err != nil {
+			return false
+		}
+		return len(cr.Spec.Roles) == 1 && cr.Spec.Roles[0].Replicas == 1
+	}, 15*time.Second, 200*time.Millisecond, "runtime must receive only the first admitted replica")
+
+	require.Eventually(t, func() bool {
+		var got map[string]any
+		rr := doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlservices/incremental", nil, &got)
+		if rr.Code != http.StatusOK {
+			return false
+		}
+		status, _ := got["status"].(map[string]any)
+		return status["admittedReplicas"] == float64(1) && status["admissionReason"] == "QuotaExceeded"
+	}, 15*time.Second, 200*time.Millisecond, "remaining replicas must report a stable quota admission reason")
+
+	mustSetTenantQuota(t, ctx, ns, pool, corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("300m"),
+		corev1.ResourceMemory: resource.MustParse("384Mi"),
+	})
+	require.Eventually(t, func() bool {
+		var cr mlservicev1alpha1.MLService
+		if err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "incremental"}, &cr); err != nil {
+			return false
+		}
+		return len(cr.Spec.Roles) == 1 && cr.Spec.Roles[0].Replicas == 3
+	}, 15*time.Second, 200*time.Millisecond, "remaining replicas were not admitted after quota expansion")
 }
 
 func TestMLServiceValidation(t *testing.T) {

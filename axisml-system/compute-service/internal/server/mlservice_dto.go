@@ -55,7 +55,7 @@ type MLService struct {
 	Annotations        map[string]string               `json:"annotations,omitempty" desc:"User-defined annotations."`
 	Generation         int64                           `json:"generation" desc:"Desired-state generation, bumped on every spec-affecting change (scale)."`
 	ObservedGeneration int64                           `json:"observedGeneration" desc:"Generation the operator last reconciled; equals generation when in sync."`
-	Phase              string                          `json:"phase" desc:"Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
+	Phase              string                          `json:"phase" desc:"Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
 	Spec               mlservicev1alpha1.MLServiceSpec `json:"spec" desc:"Resolved MLService spec sub-tree (backend, scheduling, roles, route)."`
 	Status             MLServiceStatus                 `json:"status" desc:"Operator-reported status sub-tree."`
 	CreatedAt          time.Time                       `json:"createdAt" desc:"Time the service was created."`
@@ -77,9 +77,12 @@ type MLServicePatchRequest struct {
 // MLServiceStatus mirrors the CR status sub-tree compute persists for
 // MLServices.
 type MLServiceStatus struct {
-	Message       string `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	ReadyReplicas int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
-	Endpoint      string `json:"endpoint,omitempty" desc:"Resolved external endpoint URL when a route is enabled."`
+	Message          string `json:"message,omitempty" desc:"Human-readable runtime status detail for the current phase."`
+	AdmissionReason  string `json:"admissionReason,omitempty" desc:"Stable reason why desired service replicas are still waiting for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources."`
+	AdmissionMessage string `json:"admissionMessage,omitempty" desc:"Human-readable detail for the current admission wait."`
+	AdmittedReplicas int32  `json:"admittedReplicas" desc:"Primary-role replicas holding a durable capacity and quota reservation."`
+	ReadyReplicas    int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
+	Endpoint         string `json:"endpoint,omitempty" desc:"Resolved external endpoint URL when a route is enabled."`
 }
 
 // MLServicePhase is the lightweight response for the phase probes — GET
@@ -91,8 +94,11 @@ type MLServiceStatus struct {
 // generation). `name` identifies the service in batch responses.
 type MLServicePhase struct {
 	Name               string `json:"name" desc:"MLService name, unique within the namespace."`
-	Phase              string `json:"phase" desc:"Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
-	Message            string `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	Phase              string `json:"phase" desc:"Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
+	Message            string `json:"message,omitempty" desc:"Human-readable runtime status detail for the current phase."`
+	AdmissionReason    string `json:"admissionReason,omitempty" desc:"Stable reason why desired service replicas are still waiting for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources."`
+	AdmissionMessage   string `json:"admissionMessage,omitempty" desc:"Human-readable detail for the current admission wait."`
+	AdmittedReplicas   int32  `json:"admittedReplicas" desc:"Primary-role replicas holding a durable capacity and quota reservation."`
 	ReadyReplicas      int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
 	Generation         int64  `json:"generation" desc:"Desired-state generation, bumped on every spec-affecting change (scale)."`
 	ObservedGeneration int64  `json:"observedGeneration" desc:"Generation the operator last reconciled; equals generation when in sync."`

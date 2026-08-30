@@ -45,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime, fmtDateTimeSec } from "@/lib/format";
 
 const INVALIDATE = [["mlservices"]];
-const RUNNING_PHASES = new Set(["Ready", "Degraded", "Creating", "Pending"]);
+const RUNNING_PHASES = new Set(["Queued", "Ready", "Degraded", "Creating", "Pending"]);
 
 export default function ServiceDetail() {
   const { name = "" } = useParams<{ name: string }>();
@@ -204,9 +204,21 @@ function InfoPane({ svc }: { svc: sdk.MlService }) {
           <Desc label={t("services.dUnit")}>{chip(svc.unitName)}</Desc>
           <Desc label={t("services.dReplicas")}>
             <span className="font-mono">
-              {t("services.replicasReady", { ready: svc.readyReplicas ?? 0, total: svc.replicas ?? 0 })}
+              {t("services.replicasState", {
+                ready: svc.readyReplicas ?? 0,
+                admitted: svc.admittedReplicas ?? 0,
+                desired: svc.replicas ?? 0,
+              })}
             </span>
           </Desc>
+          {svc.admissionReason && (
+            <Desc label={t("services.dAdmission")}>
+              <span>
+                <span className="font-mono">{svc.admissionReason}</span>
+                {svc.admissionMessage ? ` · ${svc.admissionMessage}` : ""}
+              </span>
+            </Desc>
+          )}
           <Desc label={t("services.dPorts")}>
             {svc.ports && svc.ports.length > 0 ? (
               <span className="flex flex-wrap gap-1.5">
@@ -715,7 +727,7 @@ function ScaleDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => void
           />
           <FieldDescription>
             {t("services.scaleHint", {
-              ready: `${svc.readyReplicas ?? 0} / ${svc.replicas ?? 0}`,
+              ready: `${svc.readyReplicas ?? 0} / ${svc.admittedReplicas ?? 0} / ${svc.replicas ?? 0}`,
               unit,
             })}
           </FieldDescription>

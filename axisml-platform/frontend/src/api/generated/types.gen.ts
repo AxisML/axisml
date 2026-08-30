@@ -1158,6 +1158,18 @@ export type MlService = {
      */
     accessUrl?: string;
     /**
+     * Human-readable detail for the current admission wait.
+     */
+    admissionMessage?: string;
+    /**
+     * Stable reason why desired replicas are still waiting for admission.
+     */
+    admissionReason?: string;
+    /**
+     * Replicas holding durable capacity and tenant-quota admission.
+     */
+    admittedReplicas?: number;
+    /**
      * Container args override.
      */
     args?: Array<string>;
@@ -1404,7 +1416,7 @@ export type MlServicePatchRequest = {
     displayName?: string;
 };
 
-export type MlServicePhase = 'Creating' | 'Pending' | 'Ready' | 'Degraded' | 'Failed' | 'Stopped' | 'Deleting' | 'Deleted';
+export type MlServicePhase = 'Queued' | 'Creating' | 'Pending' | 'Ready' | 'Degraded' | 'Failed' | 'Stopped' | 'Deleting' | 'Deleted';
 
 export type MlServiceRoute = {
     /**
@@ -3101,6 +3113,18 @@ export type WorkloadMetricName = 'cpu_util' | 'mem_util' | 'gpu_util';
 
 export type Workspace = {
     /**
+     * Human-readable detail for the current admission wait.
+     */
+    admissionMessage?: string;
+    /**
+     * Stable reason why the workspace is still waiting for admission.
+     */
+    admissionReason?: string;
+    /**
+     * Pods holding durable capacity and tenant-quota admission.
+     */
+    admittedReplicas?: number;
+    /**
      * Container args override.
      */
     args?: Array<string>;
@@ -3372,7 +3396,7 @@ export type WorkspacePatchRequest = {
 /**
  * Derived from compute service phase + replicas. Hoisted to the top of Workspace for B-tree filtering.
  */
-export type WorkspacePhase = 'Creating' | 'Starting' | 'Running' | 'Degraded' | 'Failed' | 'Stopped' | 'Deleting' | 'Deleted' | 'Pending';
+export type WorkspacePhase = 'Queued' | 'Creating' | 'Starting' | 'Running' | 'Degraded' | 'Failed' | 'Stopped' | 'Deleting' | 'Deleted' | 'Pending';
 
 export type WorkspaceTool = {
     /**

@@ -1,6 +1,7 @@
-// Package admission implements durable, priority-ordered MLRun admission.
-// It owns only the Queued -> Creating transition; runtime submission remains
-// the MLRun outbox reconciler's responsibility.
+// Package admission implements durable workload admission. MLService creation
+// and scale-up are checked first and admitted incrementally; the remaining
+// capacity is then offered to priority-ordered MLRuns. Runtime submission stays
+// in each workload's outbox reconciler.
 package admission
 
 import (
@@ -13,12 +14,14 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/metrics"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/serviceadmission"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
@@ -42,9 +45,9 @@ type quotaResult struct {
 	err error
 }
 
-// Controller periodically admits every currently fit-capable run in priority
-// DESC, created_at ASC, id ASC order. A blocked high-priority run does not stop
-// backfill candidates later in the ordered work set.
+// Controller first admits fit-capable service increments in FIFO order, then
+// admits fit-capable runs in priority DESC, created_at ASC, id ASC order. A
+// blocked service or high-priority run does not stop later backfill candidates.
 type Controller struct {
 	db        *gorm.DB
 	inventory extensions.ResourceInventory
@@ -77,29 +80,38 @@ func (c *Controller) Start(ctx context.Context) error {
 }
 
 func (c *Controller) runOnce(ctx context.Context) {
-	var depth int64
+	var runDepth int64
 	if err := c.db.WithContext(ctx).Model(&store.MLRun{}).
-		Where("phase = ? AND deleted_at IS NULL", "Queued").Count(&depth).Error; err != nil {
+		Where("phase = ? AND deleted_at IS NULL", "Queued").Count(&runDepth).Error; err != nil {
 		c.log.Error(err, "count queued MLRuns")
 		return
 	}
-	metrics.MLRunQueueDepth.Set(float64(depth))
-	if depth == 0 {
-		return
-	}
+	metrics.MLRunQueueDepth.Set(float64(runDepth))
 
 	var queued []store.MLRun
-	if err := c.db.WithContext(ctx).
-		Where("phase = ? AND deleted_at IS NULL", "Queued").
-		Order("priority DESC, created_at ASC, id ASC").
-		Find(&queued).Error; err != nil {
-		c.log.Error(err, "list queued MLRuns")
+	if runDepth > 0 {
+		if err := c.db.WithContext(ctx).
+			Where("phase = ? AND deleted_at IS NULL", "Queued").
+			Order("priority DESC, created_at ASC, id ASC").
+			Find(&queued).Error; err != nil {
+			c.log.Error(err, "list queued MLRuns")
+			return
+		}
+	}
+	services, err := c.pendingServices(c.db.WithContext(ctx))
+	if err != nil {
+		c.log.Error(err, "list MLServices pending admission")
+		return
+	}
+	metrics.MLServiceAdmissionPending.Set(float64(len(services)))
+	if runDepth == 0 && len(services) == 0 {
 		return
 	}
 	snapshot, err := c.inventory.Snapshot(ctx)
 	if err != nil {
 		c.log.Error(err, "read resource inventory")
 		c.setAllQueueReason(ctx, queued, ReasonInventoryUnavailable, err.Error())
+		c.setAllServiceAdmissionReason(ctx, services, ReasonInventoryUnavailable, err.Error())
 		return
 	}
 
@@ -107,6 +119,14 @@ func (c *Controller) runOnce(ctx context.Context) {
 	// before taking the database lock, then consume this immutable map inside
 	// the admission transaction.
 	quotaResults := map[quotaKey]quotaResult{}
+	for i := range services {
+		key := quotaKey{tenant: services[i].Namespace, pool: poolFromLabels(services[i].Labels)}
+		if _, ok := quotaResults[key]; ok {
+			continue
+		}
+		max, qerr := c.quotas.ResolveQuota(ctx, key.tenant, key.pool)
+		quotaResults[key] = quotaResult{max: max, err: qerr}
+	}
 	for i := range queued {
 		key := quotaKey{tenant: queued[i].Namespace, pool: poolFromLabels(queued[i].Labels)}
 		if _, ok := quotaResults[key]; ok {
@@ -123,7 +143,7 @@ func (c *Controller) runOnce(ctx context.Context) {
 		return c.admitLocked(ctx, tx, snapshot, quotaResults)
 	})
 	if err != nil {
-		c.log.Error(err, "admit queued MLRuns")
+		c.log.Error(err, "admit queued workloads")
 	}
 }
 
@@ -150,6 +170,9 @@ func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot exte
 				break
 			}
 		}
+	}
+	if err := c.admitServicesLocked(tx, nodes, usage, quotaResults); err != nil {
+		return err
 	}
 
 	var queued []store.MLRun
@@ -231,10 +254,169 @@ func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot exte
 	return nil
 }
 
+func (c *Controller) pendingServices(db *gorm.DB) ([]store.MLService, error) {
+	var rows []store.MLService
+	if err := db.Where("phase NOT IN ? AND deleted_at IS NULL", []string{"Deleting", "Deleted"}).
+		Order("created_at ASC, id ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := rows[:0]
+	for i := range rows {
+		var spec mlservicev1alpha1.MLServiceSpec
+		if err := json.Unmarshal(rows[i].Spec, &spec); err != nil {
+			return nil, fmt.Errorf("decode MLService %s/%s: %w", rows[i].Namespace, rows[i].Name, err)
+		}
+		desired := serviceadmission.Desired(spec)
+		admitted := serviceadmission.Decode(rows[i].AdmittedReplicas, len(spec.Roles), desired)
+		if rows[i].Phase == "Queued" || !serviceadmission.Equal(admitted, desired) {
+			out = append(out, rows[i])
+		}
+	}
+	return out, nil
+}
+
+// admitServicesLocked gives service creation/scale increments first use of the
+// current snapshot. Each step is atomic: the minimum serving set is one replica
+// of every non-empty role; subsequent replicas are admitted one at a time.
+func (c *Controller) admitServicesLocked(
+	tx *gorm.DB,
+	nodes *nodeState,
+	usage map[quotaKey]corev1.ResourceList,
+	quotaResults map[quotaKey]quotaResult,
+) error {
+	var rows []store.MLService
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("phase NOT IN ? AND deleted_at IS NULL", []string{"Deleting", "Deleted"}).
+		Order("created_at ASC, id ASC").Find(&rows).Error; err != nil {
+		return err
+	}
+	for i := range rows {
+		row := &rows[i]
+		var spec mlservicev1alpha1.MLServiceSpec
+		if err := json.Unmarshal(row.Spec, &spec); err != nil {
+			return fmt.Errorf("decode MLService %s/%s: %w", row.Namespace, row.Name, err)
+		}
+		desired := serviceadmission.Desired(spec)
+		admitted := serviceadmission.Decode(row.AdmittedReplicas, len(spec.Roles), desired)
+		if row.Phase != "Queued" && serviceadmission.Equal(admitted, desired) {
+			continue
+		}
+		// replicas=0 requires no capacity or quota but still needs a runtime
+		// object so the desired stopped service can be observed and scaled later.
+		if serviceadmission.Equal(admitted, desired) {
+			status := serviceStatusWithAdmission(row.StatusJSON, "", "")
+			if err := tx.Model(&store.MLService{}).Where("id = ?", row.ID).Updates(map[string]any{
+				"phase":  "Creating",
+				"status": datatypes.JSON(status),
+			}).Error; err != nil {
+				return err
+			}
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "admission", "admitted").Inc()
+			continue
+		}
+		key := quotaKey{tenant: row.Namespace, pool: poolFromLabels(row.Labels)}
+		quota, ok := quotaResults[key]
+		if !ok || quota.err != nil {
+			message := "tenant quota is not available"
+			if ok && quota.err != nil {
+				message = quota.err.Error()
+			}
+			if err := setServiceAdmissionReason(tx, row, ReasonQuotaUnavailable, message); err != nil {
+				return err
+			}
+			continue
+		}
+		targetWorkload, err := serviceWorkloadFor(row, spec, desired)
+		if err != nil {
+			return err
+		}
+		desiredExceedsQuota := exceeds(targetWorkload.totalRequests(), quota.max)
+		for !serviceadmission.Equal(admitted, desired) {
+			next, increased := serviceadmission.Next(admitted, desired)
+			if len(increased) == 0 {
+				break
+			}
+			delta := make([]roleRequest, 0, len(increased))
+			for _, roleIndex := range increased {
+				role := spec.Roles[roleIndex]
+				delta = append(delta, roleRequest{
+					name: role.Name, replicas: 1, requests: copyList(role.Template.Resources.Requests),
+				})
+			}
+			stableRoleOrder(delta)
+			requested := desiredWorkload{roles: delta}.totalRequests()
+			if exceeds(requested, quota.max) || exceeds(sumLists(usage[key], requested), quota.max) {
+				reason := ReasonQuotaUnavailable
+				message := "tenant pool quota is currently in use"
+				if desiredExceedsQuota {
+					reason = ReasonQuotaExceeded
+					message = "desired service replicas exceed the tenant pool quota"
+				}
+				if err := setServiceAdmissionReason(tx, row, reason, message); err != nil {
+					return err
+				}
+				break
+			}
+
+			trial := nodes.clone()
+			placed := true
+			reason := ReasonInsufficientResources
+			for _, role := range delta {
+				var why string
+				if placed, why = trial.place(role.requests, 1, targetWorkload.nodeSelector, targetWorkload.tolerations); !placed {
+					reason = why
+					break
+				}
+			}
+			if !placed {
+				message := "no node has enough currently available resources for the next service replica"
+				if reason == ReasonNoMatchingNode {
+					message = "no schedulable node matches the service selector and tolerations"
+				}
+				if err := setServiceAdmissionReason(tx, row, reason, message); err != nil {
+					return err
+				}
+				break
+			}
+
+			admittedJSON := serviceadmission.Encode(next)
+			status := serviceStatusWithAdmission(row.StatusJSON, "", "")
+			updates := map[string]any{
+				"admitted_replicas": datatypes.JSON(admittedJSON),
+				"status":            datatypes.JSON(status),
+			}
+			if row.Phase == "Queued" {
+				updates["phase"] = "Creating"
+				row.Phase = "Creating"
+			}
+			if err := tx.Model(&store.MLService{}).Where("id = ?", row.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+			row.AdmittedReplicas = datatypes.JSON(admittedJSON)
+			row.StatusJSON = datatypes.JSON(status)
+			admitted = next
+			nodes.nodes = trial.nodes
+			usage[key] = sumLists(usage[key], requested)
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "admission", "admitted").Inc()
+			c.log.V(1).Info("admitted MLService replicas", "namespace", row.Namespace, "name", row.Name,
+				"admitted", serviceadmission.Primary(admitted), "desired", serviceadmission.Primary(desired))
+		}
+	}
+	return nil
+}
+
 func (c *Controller) setAllQueueReason(ctx context.Context, rows []store.MLRun, reason, message string) {
 	for i := range rows {
 		if err := setQueueReason(c.db.WithContext(ctx), &rows[i], reason, message); err != nil {
 			c.log.Error(err, "set MLRun queue reason", "name", rows[i].Name)
+		}
+	}
+}
+
+func (c *Controller) setAllServiceAdmissionReason(ctx context.Context, rows []store.MLService, reason, message string) {
+	for i := range rows {
+		if err := setServiceAdmissionReason(c.db.WithContext(ctx), &rows[i], reason, message); err != nil {
+			c.log.Error(err, "set MLService admission reason", "name", rows[i].Name)
 		}
 	}
 }
@@ -256,6 +438,32 @@ func statusWithQueue(raw []byte, reason, message string) []byte {
 	}
 	status.QueueReason = reason
 	status.Message = message
+	b, _ := json.Marshal(status)
+	return b
+}
+
+func setServiceAdmissionReason(db *gorm.DB, service *store.MLService, reason, message string) error {
+	next := serviceStatusWithAdmission(service.StatusJSON, reason, message)
+	if string(next) == string(service.StatusJSON) {
+		return nil
+	}
+	if err := db.Model(&store.MLService{}).
+		Where("id = ? AND deleted_at IS NULL", service.ID).
+		Update("status", datatypes.JSON(next)).Error; err != nil {
+		return err
+	}
+	service.StatusJSON = datatypes.JSON(next)
+	return nil
+}
+
+func serviceStatusWithAdmission(raw []byte, reason, message string) []byte {
+	var status server.MLServiceStatus
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &status)
+	}
+	status.AdmissionReason = reason
+	status.AdmissionMessage = message
+	status.AdmittedReplicas = 0 // derived from admitted_replicas on API reads.
 	b, _ := json.Marshal(status)
 	return b
 }
@@ -310,14 +518,20 @@ func serviceWorkload(row *store.MLService) (desiredWorkload, error) {
 	if err := json.Unmarshal(row.Spec, &spec); err != nil {
 		return desiredWorkload{}, err
 	}
+	desired := serviceadmission.Desired(spec)
+	admitted := serviceadmission.Decode(row.AdmittedReplicas, len(spec.Roles), desired)
+	return serviceWorkloadFor(row, spec, admitted)
+}
+
+func serviceWorkloadFor(row *store.MLService, spec mlservicev1alpha1.MLServiceSpec, replicas []int32) (desiredWorkload, error) {
 	w := desiredWorkload{
 		id: row.ID.String(), tenant: row.Namespace, pool: poolFromLabels(row.Labels),
 		nodeSelector: spec.Scheduling.NodeSelector, tolerations: spec.Scheduling.Tolerations,
 		reserveMissing: row.Phase != "Deleting",
 	}
-	for _, role := range spec.Roles {
-		if role.Replicas > 0 {
-			w.roles = append(w.roles, roleRequest{name: role.Name, replicas: int(role.Replicas), requests: copyList(role.Template.Resources.Requests)})
+	for i, role := range spec.Roles {
+		if i < len(replicas) && replicas[i] > 0 {
+			w.roles = append(w.roles, roleRequest{name: role.Name, replicas: int(replicas[i]), requests: copyList(role.Template.Resources.Requests)})
 		}
 	}
 	stableRoleOrder(w.roles)
@@ -334,15 +548,12 @@ func loadActive(db *gorm.DB, allocations []extensions.ResourceAllocation) ([]des
 		return nil, nil, nil, err
 	}
 	workloads := make([]desiredWorkload, 0, len(runs)+len(services))
-	usage := map[quotaKey]corev1.ResourceList{}
 	for i := range runs {
 		w, err := runWorkload(&runs[i])
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		workloads = append(workloads, w)
-		key := quotaKey{tenant: w.tenant, pool: w.pool}
-		usage[key] = sumLists(usage[key], w.totalRequests())
 	}
 	for i := range services {
 		w, err := serviceWorkload(&services[i])
@@ -350,16 +561,35 @@ func loadActive(db *gorm.DB, allocations []extensions.ResourceAllocation) ([]des
 			return nil, nil, nil, err
 		}
 		workloads = append(workloads, w)
-		key := quotaKey{tenant: w.tenant, pool: w.pool}
-		usage[key] = sumLists(usage[key], w.totalRequests())
 	}
+	usage := map[quotaKey]corev1.ResourceList{}
 	actual := map[string]map[string]int{}
+	byID := map[string]desiredWorkload{}
 	for _, w := range workloads {
 		actual[w.id] = map[string]int{}
+		byID[w.id] = w
 	}
 	for _, allocation := range allocations {
 		if roles, ok := actual[allocation.WorkloadID]; ok {
 			roles[allocation.Role]++
+			w := byID[allocation.WorkloadID]
+			key := quotaKey{tenant: w.tenant, pool: w.pool}
+			usage[key] = sumLists(usage[key], allocation.Requests)
+		}
+	}
+	// Runtime allocations count directly. Add only the admitted replicas that
+	// have not materialised yet, keeping scale-down safe until old instances
+	// actually disappear while avoiding double-counting reservations.
+	for _, w := range workloads {
+		if !w.reserveMissing {
+			continue
+		}
+		key := quotaKey{tenant: w.tenant, pool: w.pool}
+		for _, role := range w.roles {
+			missing := role.replicas - actual[w.id][role.name]
+			for replica := 0; replica < missing; replica++ {
+				usage[key] = sumLists(usage[key], role.requests)
+			}
 		}
 	}
 	return workloads, usage, actual, nil

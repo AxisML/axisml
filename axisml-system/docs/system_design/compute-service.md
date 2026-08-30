@@ -82,7 +82,7 @@ Queued ─(容量 + quota admission)─▶ Creating ─(runtime Apply)─▶ Pen
 
 **队列与优先级**：`scheduling.axisml.io/priority` 是十进制有符号 int32，缺省 `0`，值越大越先检查；同优先级按 `created_at ASC, id ASC`。排序只定义检查顺序，高优先级任务暂时不可放置时允许后续可放置任务 backfill，不做抢占，也不设排队超时。稳定 `status.queueReason` 为 `InventoryUnavailable`、`QuotaUnavailable`、`QuotaExceeded`、`NoMatchingNode` 或 `InsufficientResources`，`message` 仅承载人类可读细节。priority 创建后不可修改。
 
-**资源 admission**：Kubernetes 读取 Ready、可调度 Node 的 allocatable/labels/taints 与非终态 Pod requests；standalone 把 Docker host 建模为单虚拟节点，读取 Engine CPU/内存、受管 GPU 以及活跃 container cgroup/GPU 预留。已 admission 的 MLRun 和活跃 MLService 是 durable reservation。每轮先在数据库事务外读取 inventory 和 Tenant quota，再在 transaction-scoped PostgreSQL advisory lock 内重读 active/Queued 行、按 priority/FIFO 做节点级试放置并写 `Creating`；锁不覆盖 Kubernetes/Docker 调用。
+**资源 admission**：Kubernetes 读取 Ready、可调度 Node 的 allocatable/labels/taints 与非终态 Pod requests；standalone 把 Docker host 建模为单虚拟节点，读取 Engine CPU/内存、受管 GPU 以及活跃 container cgroup/GPU 预留。已 admission 的 MLRun 和 MLService admitted replicas 是 durable reservation。每轮先在数据库事务外读取 inventory 和 Tenant quota，再在 transaction-scoped PostgreSQL advisory lock 内重读 active/Queued 行，先增量处理 Service、再按 priority/FIFO 处理 Run；锁不覆盖 Kubernetes/Docker 调用。
 
 **Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)）；Run 软删时按对象存储约定前缀一并 GC（与工作区卷 GC 同档）。
 
@@ -91,8 +91,12 @@ Queued ─(容量 + quota admission)─▶ Creating ─(runtime Apply)─▶ Pen
 ### 4.2 Service
 
 ```
-Creating ─(Informer ADD)─▶ Pending ─(ready=desired>0)─▶ Ready ⇄ Degraded ─▶ Failed
-                                                          ▲ ──── 自愈 ──── │
+Queued ─(至少一个最小服务单元准入)─▶ Creating ─(runtime Apply)─▶ Pending
+                                                                  │
+                                      ready=desired ───────────────┤──▶ Ready
+                                      0<ready<desired ─────────────┤──▶ Degraded
+                                                                  ▲     ⇅ 自愈
+                                                                  └──── Failed
 任一非 Deleting/Deleted ─[DELETE]─▶ Deleting ─(CR 清理 + deleted_at)─▶ Deleted
 ```
 
@@ -100,13 +104,18 @@ Creating ─(Informer ADD)─▶ Pending ─(ready=desired>0)─▶ Ready ⇄ De
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `compute.axisml.io/service-{id,kind}` label）；需持久存储的工作负载由 Platform 以既有数据卷的 PVC 引用写在 `roles[0].template.volumes[]`，compute 原样下发 |
-| scale | `spec.roles[0].replicas` + `generation += 1` | `generation>observed_generation` 触发 patch replicas |
+| 创建 | insert `Queued` + desired spec + admitted/dispatched 全 0 | 至少一个最小服务单元通过容量、节点约束和 tenant pool quota 后写 `Creating`；只把 admitted 副本 `Create()` 到 runtime |
+| scale up | desired `spec.roles[0].replicas` + `generation += 1` | admission 先于 MLRun 逐副本扩张 reservation；runtime 只 patch admitted 数量 |
+| scale down | desired 与 admitted 同步下调 + `generation += 1` | 立即 patch runtime；退出中的实际实例在 inventory 消失前仍计入容量/quota |
 | 更新 PG 元数据 | update 行 | 不影响 CR、不 `+generation` |
 | 软删 | 在线服务先检查是否被活跃 TrafficPolicy 引用，命中则 `409 service-in-use`；通过后写 `phase='Deleting'` + `deleted_at` | `Delete()` CR；数据卷为独立受管对象，其生命周期由 Platform 经 cluster-manager 处理，compute 不删卷 |
 | Pod 列表 / 日志 / 事件 / 指标 | — | 同 Job；指标按 `spec.backend` 选 PromQL 查 Prometheus，返 `MetricSeries`（QPS / 延迟 / 错误率 / CPU·内存·GPU） |
 
 Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变。
+
+**增量 admission**：Service 与 Run 共用 inventory、quota resolver 和 PG advisory lock，但每轮先处理 Service，再处理 MLRun，因而创建/扩容具有隐式优先权且不抢占已经准入的 Run。初次从 0 开始时，一个最小服务单元（当前 native 单 role 即一个 replica；多 role backend 为每个非空 role 各一个）整体可放置即可离开 `Queued`；之后按 role 顺序逐副本准入。暂时不能放置的剩余 desired replicas 不占 reservation，允许后续 Run backfill，并以稳定 `status.admissionReason`（`InventoryUnavailable`、`QuotaUnavailable`、`QuotaExceeded`、`NoMatchingNode`、`InsufficientResources`）及 `status.admissionMessage` 暴露原因。
+
+API 同时返回 `desired / admitted / ready` 三层：desired 在 `spec.roles[0].replicas`，admitted 在 `status.admittedReplicas`，ready 在 `status.readyReplicas`。部分已服务但未满足 desired 时为 `Degraded`；entity 级 `Queued` 只用于尚无 runtime 对象的初次创建，扩容等待不把已有 Service 退回 `Queued`。
 
 **持久卷（数据卷）**：持久卷不是 compute 的职责，任何工作负载（工作区 / 任务 / 实验等）一视同仁。卷由 Platform 经 cluster-manager Volume REST 管理（[cluster-manager.md §4.5](cluster-manager.md#45-volume)），并由 Platform 以 PVC 引用（`persistentVolumeClaim.claimName`）写进 `roles[0].template.{volumes,volumeMounts}`。compute 只把该 Pod 模板原样下发到 CR，不创建、不删除、不感知卷，也不持有 PVC 写权限。
 
@@ -161,11 +170,13 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 | 谓词 | 动作 | 适用 |
 | --- | --- | --- |
-| `phase='Queued' AND deleted_at IS NULL` | 按 priority/FIFO 做资源与 quota admission；成功写 `Creating` | Job |
+| Service desired > admitted 或 `phase='Queued'` | 先于 Run 按 FIFO 做增量容量/quota admission；首个服务单元成功写 `Creating` | Service |
+| Run `phase='Queued' AND deleted_at IS NULL` | 在 Service 后按 priority/FIFO 做资源与 quota admission；成功写 `Creating` | Job |
 | `phase='Creating' AND deleted_at IS NULL` | `Create()` CR（带 id label；409 视为成功） | Job / Service / TrafficPolicy |
 | `phase='Canceling'` | patch `MLRun.spec.runPolicy.suspend=true` | Job |
 | `phase='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | 三者 |
-| `generation <> observed_generation AND deleted_at IS NULL` | `Patch()` CR；成功后 `observed_generation = generation` | Service / TrafficPolicy |
+| Service `admitted_replicas <> dispatched_replicas` | 用 admitted 数量 `Patch()` CR；desired 全部 dispatched 后推进 `observed_generation` | Service |
+| TrafficPolicy `generation <> observed_generation` | `Patch()` CR；成功后 `observed_generation = generation` | TrafficPolicy |
 
 失败指数退避重试，错误写入 `message`。Job 的 `Creating` / `Pending` 若超过 2 分钟没有更新，
 reconciler 会先 Observe runtime：对象存在时修复 dispatch 状态，对象不存在时退回 `Queued`；
@@ -174,7 +185,7 @@ reconciler 会先 Observe runtime：对象存在时修复 dispatch 状态，对�
 
 ### 5.2 generation spec 同步
 
-API mutation 在事务内 spec 写入 + `generation += 1`；partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 触发 reconciler patch CR → `observed_generation = generation`。语义对齐 K8s（[database.md §1.4](database.md#14-generation--observed_generation)）。允许变更字段：Service `spec.roles[0].replicas`；TrafficPolicy `spec.backends[*].{weight,role}`；Job 不可变（cancel 走 `Canceling` 谓词单独 patch suspend）。
+API mutation 在事务内 spec 写入 + `generation += 1`。TrafficPolicy 仍以 `generation <> observed_generation` 触发 patch；Service 则先由 admission 推进 `admitted_replicas`，再以 `admitted_replicas <> dispatched_replicas` 触发 patch，只有 admitted 达到 desired 且 runtime 接受后才写 `observed_generation = generation`。语义对齐 K8s（[database.md §1.4](database.md#14-generation--observed_generation)）。允许变更字段：Service `spec.roles[0].replicas`；TrafficPolicy `spec.backends[*].{weight,role}`；Job 不可变（cancel 走 `Canceling` 谓词单独 patch suspend）。
 
 ### 5.3 状态回流（Informer）
 

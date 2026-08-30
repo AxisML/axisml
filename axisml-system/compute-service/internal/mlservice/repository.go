@@ -56,7 +56,7 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string
 
 // phaseColumns are the only columns the batch/single phase probes read — the
 // heavy spec jsonb is never selected.
-var phaseColumns = []string{"namespace", "name", "phase", "status", "generation", "observed_generation"}
+var phaseColumns = []string{"namespace", "name", "phase", "status", "admitted_replicas", "generation", "observed_generation"}
 
 // ListPhasesByNames returns the phase columns for the given service names in
 // the namespace (soft-deleted excluded). Missing names are simply absent from
@@ -115,6 +115,13 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	}).Error
 }
 
+func (r *Repository) MarkDeleted(ctx context.Context, id uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&store.MLService{}).Where("id = ?", id).Updates(map[string]any{
+		"phase":      string(StatusDeleted),
+		"deleted_at": time.Now().UTC(),
+	}).Error
+}
+
 // FindObservable returns the live rows whose underlying workload may still
 // change state and therefore need a runtime Observe poll. Used by the standalone
 // status poller (the Kubernetes form reflows via informer events instead).
@@ -134,9 +141,9 @@ func (r *Repository) FindObservable(ctx context.Context) ([]store.MLService, err
 }
 
 type WorkSet struct {
-	Creating  []store.MLService
-	Deleting  []store.MLService
-	SpecDirty []store.MLService
+	Creating      []store.MLService
+	Deleting      []store.MLService
+	DispatchDirty []store.MLService
 }
 
 const workSetBatch = 100
@@ -156,9 +163,10 @@ func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("generation <> observed_generation AND deleted_at IS NULL").
+		Where("phase NOT IN ? AND admitted_replicas <> dispatched_replicas AND deleted_at IS NULL",
+			[]string{string(StatusQueued), string(StatusCreating), string(StatusDeleting), string(StatusDeleted)}).
 		Order("updated_at ASC").Limit(workSetBatch).
-		Find(&ws.SpecDirty).Error; err != nil {
+		Find(&ws.DispatchDirty).Error; err != nil {
 		return ws, err
 	}
 	return ws, nil

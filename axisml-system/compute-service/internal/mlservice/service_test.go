@@ -4,12 +4,25 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"gorm.io/datatypes"
+
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 type fakePolicyReferenceChecker struct {
 	name string
 	err  error
+}
+
+func TestPhaseViewProjectsAdmittedReplicasWithoutLoadingSpec(t *testing.T) {
+	view := phaseView(&store.MLService{
+		Name: "predictor", Phase: string(StatusDegraded),
+		AdmittedReplicas: datatypes.JSON(`[2]`), StatusJSON: datatypes.JSON(`{"readyReplicas":1}`),
+	})
+	assert.Equal(t, int32(2), view.AdmittedReplicas)
+	assert.Equal(t, int32(1), view.ReadyReplicas)
 }
 
 func (f fakePolicyReferenceChecker) ActiveReferenceName(context.Context, string, string) (string, error) {

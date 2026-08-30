@@ -54,7 +54,7 @@ interface SvcRow {
 
 // Phases that mean the service is up enough to offer a "stop" action; the rest
 // offer "start". The display label itself comes from the shared PhaseTag catalog.
-const RUNNING_PHASES = new Set(["Ready", "Degraded", "Creating", "Pending"]);
+const RUNNING_PHASES = new Set(["Queued", "Ready", "Degraded", "Creating", "Pending"]);
 
 type DrawerMode = "new" | "edit" | "scale";
 const INVALIDATE = [["mlservices"]];
@@ -99,7 +99,7 @@ export default function Services() {
         name: s.name,
         desc: s.description ?? s.displayName ?? "",
         phase: s.phase,
-        replicas: `${s.readyReplicas ?? 0} / ${s.replicas ?? 0}`,
+        replicas: `${s.readyReplicas ?? 0} / ${s.admittedReplicas ?? 0} / ${s.replicas ?? 0}`,
         replicaCount: s.replicas ?? 0,
         poolName: s.poolName,
         unitName: s.unitName,
@@ -150,7 +150,7 @@ export default function Services() {
     {
       key: "replicas",
       title: t("services.colReplicas"),
-      width: 100,
+      width: 180,
       align: "right",
       render: (r) => <span className="font-mono">{r.replicas}</span>,
     },

@@ -67,7 +67,7 @@ interface WsRow {
 }
 
 const isRunning = (phase?: string) =>
-  phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
+  phase === "Queued" || phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
 const isStopped = (phase?: string) => !isRunning(phase);
 
 export default function Workspaces() {

@@ -44,8 +44,9 @@
 ### 2.2 非目标
 
 - 本阶段不对运行中的任务做抢占；高优先级只影响尚未提交的 Run。
-- 本阶段不把 MLService / Workspace / TensorBoard 纳入优先级队列；它们沿用现有创建路径，
-  但其 desired resources 是 MLRun 准入的既有占用。
+- MLService / Workspace / TensorBoard 的后续增量 admission 见
+  [mlservice-incremental-admission.md](mlservice-incremental-admission.md)；它们不使用 Run priority annotation，
+  但在同一 admission 临界区内先于 MLRun 处理。
 - 不实现队列超时、预约开始时间、用户级并发上限或 DRF 等公平调度。
 - 不替代 `axisml-scheduler`。Kubernetes scheduler 仍是 Pod 级最终安全边界，并继续处理
   Kubernetes 原生约束。
@@ -166,7 +167,7 @@ Platform 的 `Run` 返回有效 annotations，使调用方能够看到本次 Run
 
 在 `compute-service/internal/admission` 增加 leader-only `RunQueueController`。它负责：
 
-- 从 PG 读取 `Queued` Run 和所有仍占资源的 Run / Service desired spec；
+- 从 PG 读取 `Queued` Run 和所有仍占资源的 Run / Service admitted replica reservation；
 - 读取租户对各 pool 的 quota max；
 - 读取部署形态提供的资源库存快照；
 - 执行节点匹配、资源预留、排序和准入；
@@ -242,7 +243,7 @@ admission 模拟放置。无法归属到当前 PG workload 的 allocation 一律
 占用阶段：
 
 - MLRun：`Creating`、`Pending`、`Running`、`Canceling`、`Deleting`；
-- MLService：所有未 `Deleted` 且 desired replicas 大于 0 的记录，包括正在创建、降级或自愈者；
+- MLService：所有未 `Deleted` 且 admitted replicas 大于 0 的记录，包括正在创建、降级或自愈者；
 - 已结束且不再持有执行资源的 Run 不计入 reservation。
 
 `Queued` 不占资源。`Queued → Creating` 的 PG 更新本身就是 durable reservation，不增加独立
@@ -449,7 +450,7 @@ WHERE phase = 'Queued' AND deleted_at IS NULL;
 - 高优先级后提交但先准入；同优先级且都可放置时按 FIFO 准入；
 - cancel / delete Queued 不调用 runtime；
 - leader 重启、Creating 超时和 `ResourceUnavailable` 回队不重复预留；
-- MLService desired replicas 会减少 MLRun 可用容量。
+- MLService admitted replicas 会减少 MLRun 可用容量。
 
 ### 11.3 Kubernetes 集成测试
 

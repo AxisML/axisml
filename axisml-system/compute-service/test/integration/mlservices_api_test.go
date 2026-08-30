@@ -71,13 +71,17 @@ func TestMLService_Phase(t *testing.T) {
 			},
 		},
 	}
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, nil)
+	var created map[string]any
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, &created)
 	requireStatus(t, rr, http.StatusCreated)
+	assert.Equal(t, "Queued", created["phase"])
+	status, _ := created["status"].(map[string]any)
+	assert.Equal(t, float64(0), status["admittedReplicas"])
 
 	var got map[string]any
 	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlservices/phase-svc/phase", nil, &got)
 	requireStatus(t, rr, http.StatusOK)
-	assert.Equal(t, "Creating", got["phase"])
+	assert.Contains(t, []any{"Queued", "Creating"}, got["phase"])
 	assert.Equal(t, "phase-svc", got["name"])
 	assert.Contains(t, got, "generation")
 	assert.Contains(t, got, "observedGeneration")
@@ -137,7 +141,8 @@ func TestMLService_BatchPhase(t *testing.T) {
 		for _, it := range items {
 			name, _ := it["name"].(string)
 			out[name] = true
-			assert.Equal(t, "Creating", it["phase"])
+			assert.Equal(t, "Queued", it["phase"])
+			assert.Equal(t, float64(0), it["admittedReplicas"])
 			assert.Contains(t, it, "observedGeneration")
 			assert.NotContains(t, it, "spec")
 		}

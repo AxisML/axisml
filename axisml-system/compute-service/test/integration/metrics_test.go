@@ -107,6 +107,7 @@ func TestMLServiceMetrics(t *testing.T) {
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
 	require.NoError(t, c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))
+	mustSetTenantQuota(t, ctx, ns, "svc-metrics-pool", resourceList("100", "1Ti"))
 
 	body := map[string]any{
 		"name": "predictor", "poolName": "svc-metrics-pool", "unitName": "small",

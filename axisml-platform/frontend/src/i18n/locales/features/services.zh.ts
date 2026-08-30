@@ -10,7 +10,7 @@ export default {
     // list columns
     colName: "名称",
     colStatus: "状态",
-    colReplicas: "副本",
+    colReplicas: "就绪 / 准入 / 期望",
     colUnit: "资源单元",
     colAccess: "访问地址",
     total: "共 {{count}} 个服务",
@@ -90,11 +90,13 @@ export default {
     dPool: "资源池",
     dUnit: "资源单元",
     dReplicas: "副本",
+    dAdmission: "资源准入",
     dPorts: "端口",
     dAccess: "访问地址",
     dCreator: "创建人",
     dCreatedAt: "创建时间",
     replicasReady: "{{ready}} / {{total}} 就绪",
+    replicasState: "{{ready}} 就绪 / {{admitted}} 已准入 / {{desired}} 期望",
     copyAccess: "复制访问地址",
     accessCopied: "访问地址已复制",
     // monitoring

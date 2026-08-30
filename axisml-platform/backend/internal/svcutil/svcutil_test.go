@@ -278,7 +278,10 @@ func serviceFixture() *computeservice.MLService {
 			}},
 			Route: &gen.MLServiceRoute{Enabled: true, Path: sp("/svc")},
 		},
-		Status: gen.MLServiceStatus{ReadyReplicas: 1, Endpoint: &endpoint, Message: &msg},
+		Status: gen.MLServiceStatus{
+			AdmittedReplicas: 2, ReadyReplicas: 1, Endpoint: &endpoint, Message: &msg,
+			AdmissionReason: sp("InsufficientResources"), AdmissionMessage: sp("waiting for one replica"),
+		},
 	}
 }
 
@@ -294,8 +297,11 @@ func TestServiceToView_Full(t *testing.T) {
 	assert.Equal(t, "A desc", v.Description)
 	assert.Equal(t, "alice", v.Owner)
 	assert.Equal(t, 1, v.ReadyReplicas)
+	assert.Equal(t, 2, v.AdmittedReplicas)
 	assert.Equal(t, server.MLServicePhase("Ready"), v.Phase)
 	assert.Equal(t, "ready", v.Message)
+	assert.Equal(t, "InsufficientResources", v.AdmissionReason)
+	assert.Equal(t, "waiting for one replica", v.AdmissionMessage)
 	assert.Equal(t, "https://svc.example", v.AccessURL)
 
 	assert.Equal(t, "resnet", v.ModelName)

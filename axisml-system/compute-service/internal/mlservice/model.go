@@ -4,6 +4,7 @@ package mlservice
 type Status string
 
 const (
+	StatusQueued   Status = "Queued"
 	StatusCreating Status = "Creating"
 	StatusPending  Status = "Pending"
 	StatusReady    Status = "Ready"

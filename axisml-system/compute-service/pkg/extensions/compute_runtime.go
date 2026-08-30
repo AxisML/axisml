@@ -68,7 +68,10 @@ var ErrInstanceNotOwned = errors.New("instance does not belong to this workload"
 // retry. ApplyMLRun may return TerminalApplyError when retrying the unchanged
 // desired Run is not useful; Compute Service records the message and transitions
 // that Run to Failed. ResourceUnavailableError with no created instance instead
-// releases the durable reservation and returns the Run to Queued.
+// releases the durable reservation and returns the Run to Queued. MLService
+// applies have the same atomicity for newly requested instances: on
+// ResourceUnavailable, Compute releases only the undispatched replica increment;
+// a first dispatch returns to Queued while existing service instances remain.
 //
 // An instance is the runtime's unified term for a single running unit: a Pod in
 // the Kubernetes implementation, a Docker container in the Standalone one.

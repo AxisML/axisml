@@ -48,7 +48,8 @@ class MLService:
         name (str): MLService name, unique within the namespace.
         namespace (str): Namespace (= tenant identifier) the service belongs to.
         observed_generation (int): Generation the operator last reconciled; equals generation when in sync.
-        phase (str): Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
+        phase (str): Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting,
+            Deleted.
         spec (MLServiceSpec):
         status (MLServiceStatus):
         updated_at (datetime.datetime): Time the service was last updated.

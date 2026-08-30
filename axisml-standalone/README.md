@@ -60,8 +60,8 @@ Standalone 的部署形态差异限定在运行时语义：
 - MLService route 的 auth 与 rate limit 不受支持；
 - volume 支持创建、查询与删除，但不支持扩容；
 - 不提供 Prometheus workload / ResourcePool 指标查询；
-- 不执行 Kubernetes scheduler 的 ElasticQuota 准入。Tenant pool quota 仍由 MLRun
-  队列执行，MLService 不经过该队列。
+- 不执行 Kubernetes scheduler 的 ElasticQuota 准入。Tenant pool quota 由 Compute
+  的统一 admission 执行：先增量准入 MLService，再准入 MLRun。
 
 请求触发不受支持的运行时语义时，API 返回稳定的 `CapabilityUnavailable`（HTTP
 409），由具体操作给出原因；客户端无需预先读取全局能力矩阵。
@@ -77,6 +77,8 @@ Compute Service 仍以 PostgreSQL 为 workload desired-state 权威。reconciler
 - MLRun 先停留在 `Queued`；Compute 读取 Docker Engine CPU/内存、受管 GPU、
   活跃 container 预留和静态 Tenant pool quota，admission 成功后才调用 adapter，
   因此排队期不创建 container；
+- MLService 同样先以 `Queued` 持久化；至少一个服务副本可放置后才创建 container，
+  后续只把 admitted 副本增量提交到 adapter；
 - `(native, job)` 映射为一次性 container；
 - `(native, deployment|statefulset)` 映射为受管 container 集合；
 - 服务路由与流量策略写入 Envoy Gateway `Backend` / `HTTPRoute` 资源；

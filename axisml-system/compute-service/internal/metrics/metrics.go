@@ -65,6 +65,14 @@ var (
 		Name: "axisml_compute_mlrun_queue_depth",
 		Help: "Number of MLRuns waiting for capacity and quota admission.",
 	})
+
+	// MLServiceAdmissionPending is the number of services whose desired replica
+	// vector is ahead of its durable admission reservation (including initial
+	// Queued creation).
+	MLServiceAdmissionPending = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "axisml_compute_mlservice_admission_pending",
+		Help: "Number of MLServices waiting for initial or incremental replica admission.",
+	})
 )
 
 // Register installs all collectors into the controller-runtime metrics
@@ -80,6 +88,7 @@ func Register() {
 		CRDriftRepair,
 		InformerWorkqueueDepth,
 		MLRunQueueDepth,
+		MLServiceAdmissionPending,
 	)
 }
 

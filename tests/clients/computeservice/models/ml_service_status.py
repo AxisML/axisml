@@ -15,18 +15,31 @@ T = TypeVar("T", bound="MLServiceStatus")
 class MLServiceStatus:
     """
     Attributes:
+        admitted_replicas (int): Primary-role replicas holding a durable capacity and quota reservation.
         ready_replicas (int): Number of replicas that have passed readiness.
+        admission_message (str | Unset): Human-readable detail for the current admission wait.
+        admission_reason (str | Unset): Stable reason why desired service replicas are still waiting for admission:
+            InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources.
         endpoint (str | Unset): Resolved external endpoint URL when a route is enabled.
-        message (str | Unset): Human-readable status detail for the current phase.
+        message (str | Unset): Human-readable runtime status detail for the current phase.
     """
 
+    admitted_replicas: int
     ready_replicas: int
+    admission_message: str | Unset = UNSET
+    admission_reason: str | Unset = UNSET
     endpoint: str | Unset = UNSET
     message: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        admitted_replicas = self.admitted_replicas
+
         ready_replicas = self.ready_replicas
+
+        admission_message = self.admission_message
+
+        admission_reason = self.admission_reason
 
         endpoint = self.endpoint
 
@@ -36,9 +49,14 @@ class MLServiceStatus:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "admittedReplicas": admitted_replicas,
                 "readyReplicas": ready_replicas,
             }
         )
+        if admission_message is not UNSET:
+            field_dict["admissionMessage"] = admission_message
+        if admission_reason is not UNSET:
+            field_dict["admissionReason"] = admission_reason
         if endpoint is not UNSET:
             field_dict["endpoint"] = endpoint
         if message is not UNSET:
@@ -49,14 +67,23 @@ class MLServiceStatus:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        admitted_replicas = d.pop("admittedReplicas")
+
         ready_replicas = d.pop("readyReplicas")
+
+        admission_message = d.pop("admissionMessage", UNSET)
+
+        admission_reason = d.pop("admissionReason", UNSET)
 
         endpoint = d.pop("endpoint", UNSET)
 
         message = d.pop("message", UNSET)
 
         ml_service_status = cls(
+            admitted_replicas=admitted_replicas,
             ready_replicas=ready_replicas,
+            admission_message=admission_message,
+            admission_reason=admission_reason,
             endpoint=endpoint,
             message=message,
         )

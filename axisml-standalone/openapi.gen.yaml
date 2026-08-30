@@ -2392,8 +2392,8 @@ components:
           description: Username of the service owner.
           type: string
         phase:
-          description: 'Current service lifecycle phase: Creating, Pending, Ready,
-            Degraded, Failed, Deleting, Deleted.'
+          description: 'Current service lifecycle phase: Queued, Creating, Pending,
+            Ready, Degraded, Failed, Deleting, Deleted.'
           type: string
         spec:
           allOf:
@@ -2683,13 +2683,26 @@ components:
       type: object
     MLServicePhase:
       properties:
+        admissionMessage:
+          description: Human-readable detail for the current admission wait.
+          type: string
+        admissionReason:
+          description: 'Stable reason why desired service replicas are still waiting
+            for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded,
+            NoMatchingNode, or InsufficientResources.'
+          type: string
+        admittedReplicas:
+          description: Primary-role replicas holding a durable capacity and quota
+            reservation.
+          format: int32
+          type: integer
         generation:
           description: Desired-state generation, bumped on every spec-affecting change
             (scale).
           format: int64
           type: integer
         message:
-          description: Human-readable status detail for the current phase.
+          description: Human-readable runtime status detail for the current phase.
           type: string
         name:
           description: MLService name, unique within the namespace.
@@ -2700,14 +2713,15 @@ components:
           format: int64
           type: integer
         phase:
-          description: 'Current service lifecycle phase: Creating, Pending, Ready,
-            Degraded, Failed, Deleting, Deleted.'
+          description: 'Current service lifecycle phase: Queued, Creating, Pending,
+            Ready, Degraded, Failed, Deleting, Deleted.'
           type: string
         readyReplicas:
           description: Number of replicas that have passed readiness.
           format: int32
           type: integer
       required:
+      - admittedReplicas
       - generation
       - name
       - observedGeneration
@@ -2934,17 +2948,31 @@ components:
       type: object
     MLServiceStatus:
       properties:
+        admissionMessage:
+          description: Human-readable detail for the current admission wait.
+          type: string
+        admissionReason:
+          description: 'Stable reason why desired service replicas are still waiting
+            for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded,
+            NoMatchingNode, or InsufficientResources.'
+          type: string
+        admittedReplicas:
+          description: Primary-role replicas holding a durable capacity and quota
+            reservation.
+          format: int32
+          type: integer
         endpoint:
           description: Resolved external endpoint URL when a route is enabled.
           type: string
         message:
-          description: Human-readable status detail for the current phase.
+          description: Human-readable runtime status detail for the current phase.
           type: string
         readyReplicas:
           description: Number of replicas that have passed readiness.
           format: int32
           type: integer
       required:
+      - admittedReplicas
       - readyReplicas
       type: object
     MLTrafficPolicyBackend:

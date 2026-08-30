@@ -56,6 +56,9 @@ class MLService:
         tenant_name (str): Tenant identifier owning the service.
         updated_at (datetime.datetime): Time the service was last updated.
         access_url (str | Unset): Resolved URL clients use to reach the service.
+        admission_message (str | Unset): Human-readable detail for the current admission wait.
+        admission_reason (str | Unset): Stable reason why desired replicas are still waiting for admission.
+        admitted_replicas (int | Unset): Replicas holding durable capacity and tenant-quota admission.
         args (list[str] | Unset): Container args override.
         backend (Backend | Unset):  Example: {'engine': 'pytorchjob', 'name': 'native'}.
         command (list[str] | Unset): Container entrypoint override.
@@ -96,6 +99,9 @@ class MLService:
     tenant_name: str
     updated_at: datetime.datetime
     access_url: str | Unset = UNSET
+    admission_message: str | Unset = UNSET
+    admission_reason: str | Unset = UNSET
+    admitted_replicas: int | Unset = UNSET
     args: list[str] | Unset = UNSET
     backend: Backend | Unset = UNSET
     command: list[str] | Unset = UNSET
@@ -140,6 +146,12 @@ class MLService:
         updated_at = self.updated_at.isoformat()
 
         access_url = self.access_url
+
+        admission_message = self.admission_message
+
+        admission_reason = self.admission_reason
+
+        admitted_replicas = self.admitted_replicas
 
         args: list[str] | Unset = UNSET
         if not isinstance(self.args, Unset):
@@ -254,6 +266,12 @@ class MLService:
         )
         if access_url is not UNSET:
             field_dict["accessUrl"] = access_url
+        if admission_message is not UNSET:
+            field_dict["admissionMessage"] = admission_message
+        if admission_reason is not UNSET:
+            field_dict["admissionReason"] = admission_reason
+        if admitted_replicas is not UNSET:
+            field_dict["admittedReplicas"] = admitted_replicas
         if args is not UNSET:
             field_dict["args"] = args
         if backend is not UNSET:
@@ -337,6 +355,12 @@ class MLService:
         updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
 
         access_url = d.pop("accessUrl", UNSET)
+
+        admission_message = d.pop("admissionMessage", UNSET)
+
+        admission_reason = d.pop("admissionReason", UNSET)
+
+        admitted_replicas = d.pop("admittedReplicas", UNSET)
 
         args = cast(list[str], d.pop("args", UNSET))
 
@@ -473,6 +497,9 @@ class MLService:
             tenant_name=tenant_name,
             updated_at=updated_at,
             access_url=access_url,
+            admission_message=admission_message,
+            admission_reason=admission_reason,
+            admitted_replicas=admitted_replicas,
             args=args,
             backend=backend,
             command=command,

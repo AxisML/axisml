@@ -8,6 +8,7 @@ class MLServicePhase(str, Enum):
     DELETING = "Deleting"
     FAILED = "Failed"
     PENDING = "Pending"
+    QUEUED = "Queued"
     READY = "Ready"
     STOPPED = "Stopped"
 

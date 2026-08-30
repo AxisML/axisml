@@ -54,3 +54,20 @@ func TestMLServiceToCR_BadJSON_ReturnsError(t *testing.T) {
 	_, err := ToCR(row, false)
 	assert.Error(t, err)
 }
+
+func TestMLServiceToCR_LimitsRuntimeToAdmittedReplicas(t *testing.T) {
+	spec := mlservicev1alpha1.MLServiceSpec{Roles: []mlservicev1alpha1.RoleSpec{{
+		Name: mlservicev1alpha1.DefaultRoleName, Replicas: 3,
+	}}}
+	specJSON, err := json.Marshal(spec)
+	require.NoError(t, err)
+	row := &store.MLService{
+		ID: uuid.New(), Namespace: "team-c", Name: "incremental",
+		Spec: specJSON, AdmittedReplicas: datatypes.JSON(`[1]`),
+	}
+
+	cr, err := ToCR(row, false)
+	require.NoError(t, err)
+	require.Len(t, cr.Spec.Roles, 1)
+	assert.Equal(t, int32(1), cr.Spec.Roles[0].Replicas)
+}

@@ -6,12 +6,17 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/metrics"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/serviceadmission"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
@@ -61,42 +66,35 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	for i := range ws.Deleting {
 		r.handleDelete(ctx, &ws.Deleting[i])
 	}
-	for i := range ws.SpecDirty {
-		r.handleSpecSync(ctx, &ws.SpecDirty[i])
+	for i := range ws.DispatchDirty {
+		r.handleAdmissionSync(ctx, &ws.DispatchDirty[i])
 	}
 }
 
-// handleCreate applies the desired MLService. ApplyMLService is idempotent:
-// it creates the CR when absent and is a no-op when present, so observed_-
-// generation advances on first success.
+// handleCreate submits the already-admitted minimum serving set. Queued rows
+// never reach this reconciler; the admission controller first reserves one
+// complete serving unit and atomically advances the row to Creating.
 func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
 	cr, err := ToCR(s, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return
 	}
-	// Pickup: a Creating row is now being placed → Pending (pull / create /
-	// wait-for-resources all happen in Pending, never in Creating).
-	if Status(s.Phase) == StatusCreating {
-		if err := r.repo.Update(ctx, s.ID, map[string]any{"phase": string(StatusPending)}); err == nil {
-			s.Phase = string(StatusPending)
-		}
-	}
 	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
-		// The message surfaces via status.message (a jsonb field); there is no
-		// top-level `message` column.
-		r.setStatusMessage(ctx, s, err.Error())
 		if extensions.IsResourceUnavailable(err) {
-			// No free GPU: stay Pending and retry quietly (retries flow through
-			// handleSpecSync since observed_generation stays behind generation).
-			metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "pending").Inc()
+			// Capacity changed after the admission snapshot. The runtime contract
+			// guarantees no instance was created, so release this reservation and
+			// return a first dispatch to Queued.
+			r.rollbackAdmission(ctx, s, err.Error())
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "queued").Inc()
 			return
 		}
+		r.setStatusMessage(ctx, s, err.Error())
 		r.log.Error(err, "apply MLService")
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "error").Inc()
 		return
 	}
-	_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
+	r.markDispatched(ctx, s, true)
 	metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "success").Inc()
 }
 
@@ -131,9 +129,10 @@ func (r *Reconciler) handleDelete(ctx context.Context, s *store.MLService) {
 	metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "success").Inc()
 }
 
-// handleSpecSync converges the CR onto the PG spec snapshot (only
-// roles[0].replicas changes after create) and records observed_generation.
-func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
+// handleAdmissionSync converges the runtime onto the admitted replica vector.
+// Desired scale-up never reaches the runtime until the admission controller has
+// reserved its incremental capacity and quota.
+func (r *Reconciler) handleAdmissionSync(ctx context.Context, s *store.MLService) {
 	cr, err := ToCR(s, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render service CR")
@@ -141,17 +140,95 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
 	}
 	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
 		if extensions.IsResourceUnavailable(err) {
-			// No free GPU for the (re)placement: leave the phase alone and retry
-			// quietly. This is the retry path for a Pending service waiting on a
-			// card (generation stays ahead of observed_generation until placed).
-			r.setStatusMessage(ctx, s, err.Error())
-			metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "pending").Inc()
+			// Keep already-dispatched replicas serving and release only the
+			// unmaterialised increment.
+			r.rollbackAdmission(ctx, s, err.Error())
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "admission_sync", "pending").Inc()
 			return
 		}
 		r.log.Error(err, "apply MLService spec")
-		metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "error").Inc()
+		metrics.ReconcilerActions.WithLabelValues("mlservice", "admission_sync", "error").Inc()
 		return
 	}
-	_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
-	metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "success").Inc()
+	r.markDispatched(ctx, s, false)
+	metrics.ReconcilerActions.WithLabelValues("mlservice", "admission_sync", "success").Inc()
+}
+
+func (r *Reconciler) markDispatched(ctx context.Context, s *store.MLService, initial bool) {
+	updates := map[string]any{"dispatched_replicas": datatypes.JSON(s.AdmittedReplicas)}
+	q := r.db.WithContext(ctx).Model(&store.MLService{}).
+		Where("id = ? AND deleted_at IS NULL AND phase NOT IN ?", s.ID, []string{string(StatusDeleting), string(StatusDeleted)})
+	if initial {
+		updates["phase"] = string(StatusPending)
+		q = q.Where("phase = ?", string(StatusCreating))
+	}
+	result := q.Updates(updates)
+	if result.Error != nil || result.RowsAffected == 0 {
+		return
+	}
+	if fullyAdmitted(s) {
+		// A concurrent Scale bumps generation, so this condition cannot falsely
+		// report that a newer desired generation was fully dispatched.
+		_ = r.db.WithContext(ctx).Model(&store.MLService{}).
+			Where("id = ? AND generation = ?", s.ID, s.Generation).
+			Update("observed_generation", s.Generation).Error
+	}
+}
+
+func (r *Reconciler) rollbackAdmission(ctx context.Context, snapshot *store.MLService, message string) {
+	_ = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current store.MLService
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", snapshot.ID).First(&current).Error; err != nil {
+			return err
+		}
+		if Status(current.Phase) == StatusDeleting || Status(current.Phase) == StatusDeleted || current.DeletedAt != nil {
+			return nil
+		}
+		var spec mlservicev1alpha1.MLServiceSpec
+		if err := json.Unmarshal(current.Spec, &spec); err != nil {
+			return err
+		}
+		desired := serviceadmission.Desired(spec)
+		currentAdmitted := serviceadmission.Decode(current.AdmittedReplicas, len(spec.Roles), desired)
+		snapshotAdmitted := serviceadmission.Decode(snapshot.AdmittedReplicas, len(spec.Roles), desired)
+		if !serviceadmission.Equal(currentAdmitted, snapshotAdmitted) {
+			// Admission advanced while Apply was in flight; let the newer snapshot
+			// take its own dispatch attempt instead of rolling it back blindly.
+			return nil
+		}
+		dispatched := serviceadmission.Decode(current.DispatchedReplicas, len(spec.Roles), serviceadmission.Zero(spec))
+		var status server.MLServiceStatus
+		_ = json.Unmarshal(current.StatusJSON, &status)
+		status.AdmissionReason = "InsufficientResources"
+		status.AdmissionMessage = message
+		status.AdmittedReplicas = 0
+		statusJSON, _ := json.Marshal(status)
+		updates := map[string]any{
+			"admitted_replicas": datatypes.JSON(serviceadmission.Encode(dispatched)),
+			"status":            datatypes.JSON(statusJSON),
+		}
+		if allZero(dispatched) {
+			updates["phase"] = string(StatusQueued)
+		}
+		return tx.Model(&store.MLService{}).Where("id = ?", current.ID).Updates(updates).Error
+	})
+}
+
+func fullyAdmitted(s *store.MLService) bool {
+	var spec mlservicev1alpha1.MLServiceSpec
+	if err := json.Unmarshal(s.Spec, &spec); err != nil {
+		return false
+	}
+	desired := serviceadmission.Desired(spec)
+	admitted := serviceadmission.Decode(s.AdmittedReplicas, len(spec.Roles), desired)
+	return serviceadmission.Equal(admitted, desired)
+}
+
+func allZero(values []int32) bool {
+	for _, value := range values {
+		if value != 0 {
+			return false
+		}
+	}
+	return true
 }

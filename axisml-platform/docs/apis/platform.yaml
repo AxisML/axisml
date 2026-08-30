@@ -2383,6 +2383,16 @@ components:
         accessUrl:
           description: Resolved URL clients use to reach the service.
           type: string
+        admissionMessage:
+          description: Human-readable detail for the current admission wait.
+          type: string
+        admissionReason:
+          description: Stable reason why desired replicas are still waiting for admission.
+          type: string
+        admittedReplicas:
+          description: Replicas holding durable capacity and tenant-quota admission.
+          minimum: 0
+          type: integer
         args:
           description: Container args override.
           items:
@@ -2792,6 +2802,7 @@ components:
       type: object
     MLServicePhase:
       enum:
+      - Queued
       - Creating
       - Pending
       - Ready
@@ -5858,6 +5869,16 @@ components:
           name: notebook-data
           used: 12Gi
       properties:
+        admissionMessage:
+          description: Human-readable detail for the current admission wait.
+          type: string
+        admissionReason:
+          description: Stable reason why the workspace is still waiting for admission.
+          type: string
+        admittedReplicas:
+          description: Pods holding durable capacity and tenant-quota admission.
+          minimum: 0
+          type: integer
         args:
           description: Container args override.
           items:
@@ -6278,6 +6299,7 @@ components:
       description: Derived from compute service phase + replicas. Hoisted to the top
         of Workspace for B-tree filtering.
       enum:
+      - Queued
       - Creating
       - Starting
       - Running

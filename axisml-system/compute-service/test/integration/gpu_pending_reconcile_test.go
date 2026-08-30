@@ -259,10 +259,10 @@ func TestMLRun_TerminalApplyErrorFails(t *testing.T) {
 	})
 }
 
-// TestMLService_WaitingNotSilentlyDeleted guards the reflectGone regression: a
-// GPU-waiting Service (Pending, no containers) must NOT be pushed to
-// Deleting/Deleted by the poller, and must reach Ready once a card frees.
-func TestMLService_WaitingNotSilentlyDeleted(t *testing.T) {
+// TestMLService_ResourceRaceReturnsToQueued verifies that a runtime capacity
+// race releases the admitted replica and restores the pre-runtime Queued
+// invariant. A later durable re-admission can then reach Ready.
+func TestMLService_ResourceRaceReturnsToQueued(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -274,36 +274,42 @@ func TestMLService_WaitingNotSilentlyDeleted(t *testing.T) {
 
 	id := uuid.New()
 	require.NoError(t, gormDB.WithContext(ctx).Create(&store.MLService{
-		ID:          id,
-		Namespace:   "gpu-pending-it-svc",
-		Name:        "waiter-" + id.String()[:8],
-		Kind:        "service",
-		Spec:        datatypes.JSON(`{"roles":[{"replicas":1}]}`),
-		Phase:       string(mlservice.StatusCreating),
-		Labels:      datatypes.JSON(`{}`),
-		Annotations: datatypes.JSON(`{}`),
-		StatusJSON:  datatypes.JSON(`{}`),
-		Generation:  1,
+		ID:                 id,
+		Namespace:          "gpu-pending-it-svc",
+		Name:               "waiter-" + id.String()[:8],
+		Kind:               "service",
+		Spec:               datatypes.JSON(`{"roles":[{"replicas":1}]}`),
+		AdmittedReplicas:   datatypes.JSON(`[1]`),
+		DispatchedReplicas: datatypes.JSON(`[0]`),
+		Phase:              string(mlservice.StatusCreating),
+		Labels:             datatypes.JSON(`{}`),
+		Annotations:        datatypes.JSON(`{}`),
+		StatusJSON:         datatypes.JSON(`{}`),
+		Generation:         1,
 	}).Error)
 
 	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
-		if p := servicePhase(t, ctx, id); p != string(mlservice.StatusPending) {
-			return fmt.Errorf("phase=%s, want Pending", p)
+		if p := servicePhase(t, ctx, id); p != string(mlservice.StatusQueued) {
+			return fmt.Errorf("phase=%s, want Queued", p)
 		}
 		return nil
 	})
 
-	// STAYS Pending — never silently deleted (reflectGone must skip Pending).
+	// STAYS Queued — the poller must not observe or delete pre-runtime rows.
 	deadline := time.Now().Add(600 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		p := servicePhase(t, ctx, id)
 		require.NotContains(t, []string{string(mlservice.StatusDeleting), string(mlservice.StatusDeleted)}, p,
-			"a Service waiting for a GPU must not be silently deleted")
-		require.Equal(t, string(mlservice.StatusPending), p)
+			"a queued Service must not be silently deleted")
+		require.Equal(t, string(mlservice.StatusQueued), p)
 		time.Sleep(60 * time.Millisecond)
 	}
 
 	fake.setPlaced()
+	require.NoError(t, gormDB.WithContext(ctx).Model(&store.MLService{}).Where("id = ?", id).Updates(map[string]any{
+		"phase":             string(mlservice.StatusCreating),
+		"admitted_replicas": datatypes.JSON(`[1]`),
+	}).Error)
 	testutil.Eventually(t, 5*time.Second, 50*time.Millisecond, func() error {
 		if p := servicePhase(t, ctx, id); p != string(mlservice.StatusReady) {
 			return fmt.Errorf("phase=%s, want Ready", p)

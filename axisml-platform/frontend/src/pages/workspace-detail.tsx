@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 
 const isRunning = (phase?: string) =>
-  phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
+  phase === "Queued" || phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
 
 function useWorkspace(name: string) {
   const { tenant } = useApp();

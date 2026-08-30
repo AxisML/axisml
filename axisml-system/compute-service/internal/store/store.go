@@ -38,11 +38,12 @@ type MLRun struct {
 
 func (MLRun) TableName() string { return "mlruns" }
 
-// MLService is the GORM-backed `mlservices` row. Phase column = high-frequency
-// CR status.phase mirror; the rest of the status sub-tree {message,
-// readyReplicas, endpoint} lives in `status jsonb`. Pool /
-// unit names live on labels (resource.axisml.io/pool / -unit) for
-// provenance, not in dedicated columns.
+// MLService is the GORM-backed `mlservices` row. Desired replicas live in Spec;
+// AdmittedReplicas is the durable capacity/quota reservation and
+// DispatchedReplicas is the last replica vector accepted by the runtime. Phase
+// mirrors CR status only after the pre-runtime Queued/Creating states. The rest
+// of the status sub-tree lives in status jsonb. Pool/unit names live on labels
+// (resource.axisml.io/pool / -unit) for provenance, not in dedicated columns.
 type MLService struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`
@@ -54,9 +55,11 @@ type MLService struct {
 	Labels             datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Annotations        datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Spec               datatypes.JSON `gorm:"type:jsonb;not null"`
+	AdmittedReplicas   datatypes.JSON `gorm:"type:jsonb;not null;default:'[]';column:admitted_replicas"`
+	DispatchedReplicas datatypes.JSON `gorm:"type:jsonb;not null;default:'[]';column:dispatched_replicas"`
 	Generation         int64          `gorm:"not null;default:1"`
 	ObservedGeneration int64          `gorm:"not null;default:0;column:observed_generation"`
-	Phase              string         `gorm:"size:16;not null;default:'Creating'"`
+	Phase              string         `gorm:"size:16;not null;default:'Queued'"`
 	StatusJSON         datatypes.JSON `gorm:"type:jsonb;not null;default:'{}';column:status"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
@@ -14,6 +15,7 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/resource"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/serviceadmission"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
@@ -140,19 +142,21 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	// in spec.roles[0].replicas (no separate `replicas` column anymore).
 	_ = replicas
 	row := &store.MLService{
-		ID:          uuid.New(),
-		Namespace:   namespace,
-		Kind:        kind,
-		Name:        in.Name,
-		DisplayName: in.DisplayName,
-		Description: in.Description,
-		Owner:       auth.User(ctx),
-		Labels:      svcMapBytes(mergedLabels),
-		Annotations: svcMapBytes(in.Annotations),
-		Spec:        datatypes.JSON(specJSON),
-		Generation:  1,
-		Phase:       string(StatusCreating),
-		StatusJSON:  []byte("{}"),
+		ID:                 uuid.New(),
+		Namespace:          namespace,
+		Kind:               kind,
+		Name:               in.Name,
+		DisplayName:        in.DisplayName,
+		Description:        in.Description,
+		Owner:              auth.User(ctx),
+		Labels:             svcMapBytes(mergedLabels),
+		Annotations:        svcMapBytes(in.Annotations),
+		Spec:               datatypes.JSON(specJSON),
+		AdmittedReplicas:   datatypes.JSON(serviceadmission.Encode(serviceadmission.Zero(spec))),
+		DispatchedReplicas: datatypes.JSON(serviceadmission.Encode(serviceadmission.Zero(spec))),
+		Generation:         1,
+		Phase:              string(StatusQueued),
+		StatusJSON:         []byte("{}"),
 	}
 	if err := m.repo.Create(ctx, row); err != nil {
 		return nil, err
@@ -214,10 +218,14 @@ func phaseView(s *store.MLService) server.MLServicePhase {
 	if len(s.StatusJSON) > 0 {
 		_ = json.Unmarshal(s.StatusJSON, &status)
 	}
+	status.AdmittedReplicas = admittedPrimary(s)
 	return server.MLServicePhase{
 		Name:               s.Name,
 		Phase:              s.Phase,
 		Message:            status.Message,
+		AdmissionReason:    status.AdmissionReason,
+		AdmissionMessage:   status.AdmissionMessage,
+		AdmittedReplicas:   status.AdmittedReplicas,
 		ReadyReplicas:      status.ReadyReplicas,
 		Generation:         s.Generation,
 		ObservedGeneration: s.ObservedGeneration,
@@ -249,37 +257,53 @@ func (m *Module) List(ctx context.Context, namespace, kind string, limit, offset
 }
 
 func (m *Module) Scale(ctx context.Context, namespace, name string, in server.MLServiceScaleRequest) (*server.MLService, error) {
-	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
+	var id uuid.UUID
+	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row store.MLService
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
+			First(&row).Error; err != nil {
+			return err
+		}
+		id = row.ID
+		var spec mlservicev1alpha1.MLServiceSpec
+		if err := json.Unmarshal(row.Spec, &spec); err != nil {
+			return err
+		}
+		if len(spec.Roles) == 0 {
+			return apperrors.New(apperrors.CodePrecondition, "service has no roles")
+		}
+		desiredBefore := serviceadmission.Desired(spec)
+		admitted := serviceadmission.Decode(row.AdmittedReplicas, len(spec.Roles), desiredBefore)
+		spec.Roles[0].Replicas = in.Replicas
+		desiredAfter := serviceadmission.Desired(spec)
+		admitted = serviceadmission.ClampToDesired(admitted, desiredAfter)
+		specJSON, err := json.Marshal(spec)
+		if err != nil {
+			return err
+		}
+		var status server.MLServiceStatus
+		_ = json.Unmarshal(row.StatusJSON, &status)
+		status.AdmissionReason = ""
+		status.AdmissionMessage = ""
+		status.AdmittedReplicas = 0 // API reads derive the authoritative value from admitted_replicas.
+		statusJSON, _ := json.Marshal(status)
+		return tx.Model(&store.MLService{}).Where("id = ?", row.ID).Updates(map[string]any{
+			"spec":              datatypes.JSON(specJSON),
+			"admitted_replicas": datatypes.JSON(serviceadmission.Encode(admitted)),
+			"status":            datatypes.JSON(statusJSON),
+			"generation":        gorm.Expr("generation + 1"),
+		}).Error
+	})
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.CodeNotFound, "service not found")
 		}
 		return nil, err
 	}
-	var spec mlservicev1alpha1.MLServiceSpec
-	if err := json.Unmarshal(row.Spec, &spec); err != nil {
-		return nil, err
-	}
-	if len(spec.Roles) == 0 {
-		return nil, apperrors.New(apperrors.CodePrecondition, "service has no roles")
-	}
-	spec.Roles[0].Replicas = in.Replicas
-
-	specJSON, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-	// Bump generation so the reconciler's `generation <> observed_generation`
-	// predicate picks the row up; observed_generation lands when the patch
-	// hits the CR (per design §5.2).
-	if err := m.repo.Update(ctx, row.ID, map[string]any{
-		"spec":       datatypes.JSON(specJSON),
-		"generation": gorm.Expr("generation + 1"),
-	}); err != nil {
-		return nil, err
-	}
-	// Re-read so the returned view reflects the bumped generation.
-	fresh, err := m.repo.Get(ctx, row.ID)
+	// Re-read so the returned view reflects the bumped generation and any
+	// immediate scale-down release.
+	fresh, err := m.repo.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -339,6 +363,12 @@ func (m *Module) Delete(ctx context.Context, namespace, name string) error {
 			return err
 		}
 	}
+	if Status(row.Phase) == StatusQueued {
+		// Queued guarantees that no runtime object exists, so deletion is a
+		// database-only terminal transition. Policy references are still checked
+		// above because admission state does not weaken referential integrity.
+		return m.repo.MarkDeleted(ctx, row.ID)
+	}
 	// A workspace's durable volume is reclaimed by Platform via cluster-manager,
 	// not here — compute only soft-deletes the row and tears down the CR.
 	return m.repo.MarkDeleting(ctx, row.ID)
@@ -392,6 +422,7 @@ func (m *Module) toView(s *store.MLService) (*server.MLService, error) {
 	if len(s.StatusJSON) > 0 {
 		_ = json.Unmarshal(s.StatusJSON, &status)
 	}
+	status.AdmittedReplicas = admittedPrimary(s)
 	return &server.MLService{
 		ID:                 s.ID,
 		Namespace:          s.Namespace,
@@ -411,4 +442,11 @@ func (m *Module) toView(s *store.MLService) (*server.MLService, error) {
 		UpdatedAt:          s.UpdatedAt,
 		DeletedAt:          s.DeletedAt,
 	}, nil
+}
+
+func admittedPrimary(s *store.MLService) int32 {
+	// The lightweight phase query deliberately does not select the desired spec;
+	// primary admission is the first element of the independently persisted
+	// replica vector.
+	return serviceadmission.Primary(serviceadmission.Decode(s.AdmittedReplicas, 1, nil))
 }

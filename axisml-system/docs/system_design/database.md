@@ -90,9 +90,11 @@ CREATE TABLE mlservices (
   labels       jsonb NOT NULL DEFAULT '{}',
   annotations  jsonb NOT NULL DEFAULT '{}',
   spec         jsonb NOT NULL,                   -- MLService spec 快照；仅 spec.roles[0].replicas 可变
+  admitted_replicas   jsonb NOT NULL DEFAULT '[]', -- 按 spec.roles 顺序；已通过容量/quota 准入
+  dispatched_replicas jsonb NOT NULL DEFAULT '[]', -- runtime 最后成功接受的副本向量
   generation          bigint NOT NULL DEFAULT 1,
   observed_generation bigint NOT NULL DEFAULT 0,
-  phase        text NOT NULL DEFAULT 'Creating',
+  phase        text NOT NULL DEFAULT 'Queued',
   status       jsonb NOT NULL DEFAULT '{}',
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now(),
@@ -102,13 +104,14 @@ CREATE UNIQUE INDEX mlservices_namespace_name_active_uniq ON mlservices (namespa
 CREATE INDEX mlservices_namespace_kind ON mlservices (namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX mlservices_phase          ON mlservices (phase) WHERE deleted_at IS NULL;
 CREATE INDEX mlservices_created_at     ON mlservices (created_at DESC);
-CREATE INDEX mlservices_sync_pending   ON mlservices (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
+CREATE INDEX mlservices_sync_pending   ON mlservices (id) WHERE admitted_replicas <> dispatched_replicas AND deleted_at IS NULL;
+CREATE INDEX mlservices_admission_order ON mlservices (created_at ASC, id ASC) WHERE phase = 'Queued' AND deleted_at IS NULL;
 CREATE INDEX mlservices_labels_gin     ON mlservices USING GIN (labels jsonb_path_ops);
 CREATE INDEX mlservices_namespace_project_created
   ON mlservices (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 顶层冗余 CR `status.phase`，`status` jsonb 持 `{message, readyReplicas, endpoint}`。`spec` 仅 `roles[0].replicas` 可变（`/scale` 写入并 `+generation`）；`spec.backend` 缺省补 `{native, deployment}`。
+`phase=Queued` 时不存在 runtime 对象且不占 reservation；`Creating` 表示至少一个最小服务单元已准入、正在提交，之后才镜像 CR `status.phase`。`spec.roles[*].replicas` 是 desired，`admitted_replicas` 是 durable capacity/quota reservation，`dispatched_replicas` 是 runtime 已接受值；三者按不可变的 roles 顺序对齐。`status` jsonb 持 `{message, admissionReason, admissionMessage, readyReplicas, endpoint}`，API 从 `admitted_replicas[0]` 派生 `status.admittedReplicas`。`/scale` 写 desired 并 `+generation`；只有 desired 全部准入且成功提交后才推进 `observed_generation`。`spec.backend` 缺省补 `{native, deployment}`。
 
 ### 2.3 `traffic_policies`
 

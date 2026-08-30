@@ -44,12 +44,15 @@ type MLService struct {
 	UnitName          string                `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
 	Resources         ResourceMap           `json:"resources,omitempty" desc:"Per-replica resource requests/limits."`
 	Replicas          int                   `json:"replicas,omitempty" binding:"min=0" desc:"Desired replica count."`
+	AdmittedReplicas  int                   `json:"admittedReplicas,omitempty" binding:"min=0" desc:"Replicas holding durable capacity and tenant-quota admission."`
 	ReadyReplicas     int                   `json:"readyReplicas,omitempty" binding:"min=0" desc:"Replicas that have passed readiness."`
 	DesiredState      MLServiceDesiredState `json:"desiredState,omitempty" desc:"User-requested run state (Running, Stopped); drives the Start/Stop control without inferring from phase."`
 	Route             MLServiceRoute        `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
 	AccessURL         string                `json:"accessUrl,omitempty" desc:"Resolved URL clients use to reach the service."`
 	Phase             MLServicePhase        `json:"phase,omitempty" desc:"Current service lifecycle phase."`
 	Message           string                `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	AdmissionReason   string                `json:"admissionReason,omitempty" desc:"Stable reason why desired replicas are still waiting for admission."`
+	AdmissionMessage  string                `json:"admissionMessage,omitempty" desc:"Human-readable detail for the current admission wait."`
 	CreatedAt         time.Time             `json:"createdAt" desc:"Time the service was created."`
 	UpdatedAt         time.Time             `json:"updatedAt" desc:"Time the service was last updated."`
 }

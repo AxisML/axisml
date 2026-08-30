@@ -861,7 +861,7 @@ type MLService struct {
 	// Owner Username of the service owner.
 	Owner *string `json:"owner,omitempty"`
 
-	// Phase Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
+	// Phase Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
 	Phase string `json:"phase"`
 
 	// Spec Resolved MLService spec sub-tree (backend, scheduling, roles, route).
@@ -959,10 +959,19 @@ type MLServicePatchRequest struct {
 
 // MLServicePhase defines model for MLServicePhase.
 type MLServicePhase struct {
+	// AdmissionMessage Human-readable detail for the current admission wait.
+	AdmissionMessage *string `json:"admissionMessage,omitempty"`
+
+	// AdmissionReason Stable reason why desired service replicas are still waiting for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources.
+	AdmissionReason *string `json:"admissionReason,omitempty"`
+
+	// AdmittedReplicas Primary-role replicas holding a durable capacity and quota reservation.
+	AdmittedReplicas int32 `json:"admittedReplicas"`
+
 	// Generation Desired-state generation, bumped on every spec-affecting change (scale).
 	Generation int64 `json:"generation"`
 
-	// Message Human-readable status detail for the current phase.
+	// Message Human-readable runtime status detail for the current phase.
 	Message *string `json:"message,omitempty"`
 
 	// Name MLService name, unique within the namespace.
@@ -971,7 +980,7 @@ type MLServicePhase struct {
 	// ObservedGeneration Generation the operator last reconciled; equals generation when in sync.
 	ObservedGeneration int64 `json:"observedGeneration"`
 
-	// Phase Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
+	// Phase Current service lifecycle phase: Queued, Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
 	Phase string `json:"phase"`
 
 	// ReadyReplicas Number of replicas that have passed readiness.
@@ -1089,10 +1098,19 @@ type MLServiceSpec struct {
 
 // MLServiceStatus defines model for MLServiceStatus.
 type MLServiceStatus struct {
+	// AdmissionMessage Human-readable detail for the current admission wait.
+	AdmissionMessage *string `json:"admissionMessage,omitempty"`
+
+	// AdmissionReason Stable reason why desired service replicas are still waiting for admission: InventoryUnavailable, QuotaUnavailable, QuotaExceeded, NoMatchingNode, or InsufficientResources.
+	AdmissionReason *string `json:"admissionReason,omitempty"`
+
+	// AdmittedReplicas Primary-role replicas holding a durable capacity and quota reservation.
+	AdmittedReplicas int32 `json:"admittedReplicas"`
+
 	// Endpoint Resolved external endpoint URL when a route is enabled.
 	Endpoint *string `json:"endpoint,omitempty"`
 
-	// Message Human-readable status detail for the current phase.
+	// Message Human-readable runtime status detail for the current phase.
 	Message *string `json:"message,omitempty"`
 
 	// ReadyReplicas Number of replicas that have passed readiness.
