@@ -102,8 +102,8 @@ services:
     ports:
       - "80:8888"
     volumes:
-      - ./envoy-gateway/config.yaml:/etc/envoy-gateway/config.yaml:ro
-      - ./envoy-gateway/resources.yaml:/etc/envoy-gateway/resources.yaml:ro
+      - ./config/envoy-gateway/config.yaml:/etc/envoy-gateway/config.yaml:ro
+      - ./config/envoy-gateway/resources.yaml:/etc/envoy-gateway/resources.yaml:ro
       - gateway-resources:/var/lib/axisml/gateway:ro
       - envoy-gateway-data:/var/lib/envoy-gateway
     networks: [axisml-control, axisml-workloads]
