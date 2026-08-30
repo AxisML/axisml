@@ -39,7 +39,7 @@ func ValidateResourceList(field string, resources corev1.ResourceList) error {
 
 	for _, raw := range names {
 		name := corev1.ResourceName(raw)
-		if problems := content.IsQualifiedName(raw); len(problems) > 0 {
+		if problems := content.IsLabelKey(raw); len(problems) > 0 {
 			return fmt.Errorf("%s resource %q is invalid: %s", field, raw, strings.Join(problems, "; "))
 		}
 		if !strings.Contains(raw, "/") &&
