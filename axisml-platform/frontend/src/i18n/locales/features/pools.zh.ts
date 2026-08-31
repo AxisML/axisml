@@ -29,7 +29,7 @@ export default {
     saved: "资源池已保存",
     // sections
     fsBasic: "基本信息",
-    fsSchedule: "节点调度",
+    fsSchedule: "容量与节点调度",
     fsUnits: "资源单元",
     fName: "名称",
     fNamePlaceholder: "gpu-a100",
@@ -42,16 +42,11 @@ export default {
     selectorValue: "值",
     selectorAdd: "添加",
     selectorEmpty: "未设置节点选择器",
-    // tolerations
-    fTolerations: "容忍配置（tolerations）",
-    tolKey: "key",
-    tolOp: "operator",
-    tolVal: "value",
-    tolEffect: "effect",
-    tolKeyPlaceholder: "污点键，如 nvidia.com/gpu",
-    tolValPlaceholder: "如 true",
-    addToleration: "添加容忍",
-    noTolerations: "暂无容忍配置",
+    // capacity override
+    fCapacity: "覆盖计算出的容量",
+    fCapacityHelp: "关闭时，Kubernetes 按匹配节点计算容量，Standalone 使用宿主机资源清单。",
+    capacityResource: "资源名，如 cpu",
+    capacityQuantity: "资源量，如 64 或 256Gi",
     // units grid
     unitsEmpty: "暂无资源单元，点击下方按钮添加",
     newUnit: "新建资源单元",

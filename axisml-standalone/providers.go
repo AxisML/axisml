@@ -100,7 +100,7 @@ func (c *ConfigResourceCatalog) ResolveResourcePool(_ context.Context, name stri
 }
 
 // ResolveResourceUnit returns the named unit from the named pool. Standalone keeps
-// nodeSelector/tolerations empty (validated at load); only requests/limits
+// nodeSelector empty (validated at load); only requests/limits
 // carry through to Docker limits when the business layer expands the snapshot.
 func (c *ConfigResourceCatalog) ResolveResourceUnit(ctx context.Context, poolName, unitName string) (*cmv1alpha1.ResourceUnit, error) {
 	if unitName == "" {

@@ -23,30 +23,15 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FormDrawer } from "@/components/form-drawer";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
-// ── Node-selector / toleration value helpers ──────────────────────────────────
-// nodeSelector is a flat StringMap; we edit it as an ordered list of [k,v] pairs
-// so empty values and ordering survive a round-trip. Toleration is opaque in the
-// generated SDK ({} — the backend mirrors corev1.Toleration without exposing the
-// schema), so we model the standard K8s fields locally and pass them through.
+// ── Node-selector / resource-map value helpers ────────────────────────────────
+// Both nodeSelector and capacity are flat string maps. Edit them as ordered
+// [key,value] pairs so values remain easy to enter and duplicate keys replace
+// deterministically.
 type Pair = [string, string];
-
-interface TolRow {
-  key: string;
-  operator: "Equal" | "Exists";
-  value: string;
-  effect: "" | "NoSchedule" | "PreferNoSchedule" | "NoExecute";
-}
 
 function toPairs(sel?: sdk.StringMap): Pair[] {
   return Object.entries(sel ?? {});
@@ -61,28 +46,13 @@ function pairsToSelector(pairs: Pair[]): sdk.StringMap | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-function tolFromApi(arr?: Array<sdk.Toleration>): TolRow[] {
-  return (arr ?? []).map((t) => {
-    const o = t as Record<string, string>;
-    return {
-      key: o.key ?? "",
-      operator: o.operator === "Exists" ? "Exists" : "Equal",
-      value: o.value ?? "",
-      effect: (o.effect as TolRow["effect"]) ?? "",
-    };
-  });
-}
-
-function tolToApi(rows: TolRow[]): Array<sdk.Toleration> | undefined {
-  const out = rows
-    .filter((r) => r.key.trim())
-    .map((r) => {
-      const o: Record<string, string> = { key: r.key.trim(), operator: r.operator };
-      if (r.operator === "Equal" && r.value.trim()) o.value = r.value.trim();
-      if (r.effect) o.effect = r.effect;
-      return o as sdk.Toleration;
-    });
-  return out.length ? out : undefined;
+function pairsToResources(pairs: Pair[]): sdk.ResourceMap {
+  const out: sdk.ResourceMap = {};
+  for (const [k, v] of pairs) {
+    const key = k.trim();
+    if (key) out[key] = v.trim();
+  }
+  return out;
 }
 
 const num = (m: sdk.ResourceMap | undefined, k: string): number | undefined => {
@@ -246,13 +216,19 @@ export default function ResourcePools() {
   );
 }
 
-// ── Node-selector chip editor ─────────────────────────────────────────────────
-function SelectorChips({
+// ── Key/value chip editor ─────────────────────────────────────────────────────
+function KeyValueChips({
   pairs,
   onChange,
+  keyPlaceholder,
+  valuePlaceholder,
+  addLabel,
 }: {
   pairs: Pair[];
   onChange: (next: Pair[]) => void;
+  keyPlaceholder: string;
+  valuePlaceholder: string;
+  addLabel: string;
 }) {
   const { t } = useTranslation();
   const [k, setK] = useState("");
@@ -288,7 +264,7 @@ function SelectorChips({
       <div className="flex items-center gap-2">
         <Input
           className="font-mono"
-          placeholder={t("pools.selectorKey")}
+          placeholder={keyPlaceholder}
           value={k}
           onChange={(e) => setK(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
@@ -296,103 +272,15 @@ function SelectorChips({
         <span className="text-muted-foreground">=</span>
         <Input
           className="font-mono"
-          placeholder={t("pools.selectorValue")}
+          placeholder={valuePlaceholder}
           value={v}
           onChange={(e) => setV(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
         />
         <Button type="button" variant="outline" onClick={add} disabled={!k.trim()}>
-          {t("pools.selectorAdd")}
+          {addLabel}
         </Button>
       </div>
-    </div>
-  );
-}
-
-// ── Tolerations editor (key / operator / value / effect rows) ─────────────────
-const TOL_EFFECTS: TolRow["effect"][] = ["NoSchedule", "PreferNoSchedule", "NoExecute"];
-
-function TolerationsEditor({
-  rows,
-  onChange,
-}: {
-  rows: TolRow[];
-  onChange: (next: TolRow[]) => void;
-}) {
-  const { t } = useTranslation();
-  const set = (i: number, patch: Partial<TolRow>) =>
-    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const remove = (i: number) => onChange(rows.filter((_, j) => j !== i));
-  const add = () => onChange([...rows, { key: "", operator: "Equal", value: "", effect: "" }]);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {rows.length > 0 && (
-        <>
-          <div className="grid grid-cols-[minmax(0,1.4fr)_104px_minmax(0,1fr)_136px_32px] items-center gap-2 px-0.5 text-[11px] text-muted-foreground">
-            <span className="font-mono">{t("pools.tolKey")}</span>
-            <span className="font-mono">{t("pools.tolOp")}</span>
-            <span className="font-mono">{t("pools.tolVal")}</span>
-            <span className="font-mono">{t("pools.tolEffect")}</span>
-            <span />
-          </div>
-          {rows.map((r, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-[minmax(0,1.4fr)_104px_minmax(0,1fr)_136px_32px] items-center gap-2"
-            >
-              <Input
-                className="font-mono"
-                placeholder={t("pools.tolKeyPlaceholder")}
-                value={r.key}
-                onChange={(e) => set(i, { key: e.target.value })}
-              />
-              <Select value={r.operator} onValueChange={(val) => set(i, { operator: val as TolRow["operator"] })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Equal">Equal</SelectItem>
-                  <SelectItem value="Exists">Exists</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                className="font-mono"
-                placeholder={t("pools.tolValPlaceholder")}
-                value={r.value}
-                disabled={r.operator === "Exists"}
-                onChange={(e) => set(i, { value: e.target.value })}
-              />
-              <Select value={r.effect || "all"} onValueChange={(val) => set(i, { effect: val === "all" ? "" : (val as TolRow["effect"]) })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">*</SelectItem>
-                  {TOL_EFFECTS.map((e) => (
-                    <SelectItem key={e} value={e!}>
-                      {e}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("common.delete")}
-                onClick={() => remove(i)}
-              >
-                <X />
-              </Button>
-            </div>
-          ))}
-        </>
-      )}
-      <Button type="button" variant="link" size="sm" className="self-start px-0" onClick={add}>
-        <Plus data-icon="inline-start" />
-        {t("pools.addToleration")}
-      </Button>
     </div>
   );
 }
@@ -404,7 +292,8 @@ function PoolCreateDrawer({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [pairs, setPairs] = useState<Pair[]>([]);
-  const [tols, setTols] = useState<TolRow[]>([]);
+  const [capacityEnabled, setCapacityEnabled] = useState(false);
+  const [capacityPairs, setCapacityPairs] = useState<Pair[]>([]);
 
   const create = useApiMutation(
     (body: sdk.ResourcePoolCreateRequest) => sdk.createResourcePool({ body }),
@@ -420,7 +309,7 @@ function PoolCreateDrawer({ onClose }: { onClose: () => void }) {
         name: n,
         description: description.trim() || undefined,
         nodeSelector: pairsToSelector(pairs),
-        tolerations: tolToApi(tols),
+        capacity: capacityEnabled ? pairsToResources(capacityPairs) : undefined,
       },
       { onSuccess: onClose },
     );
@@ -467,11 +356,33 @@ function PoolCreateDrawer({ onClose }: { onClose: () => void }) {
       <FieldGroup>
         <Field>
           <FieldLabel>{t("pools.fSelector")}</FieldLabel>
-          <SelectorChips pairs={pairs} onChange={setPairs} />
+          <KeyValueChips
+            pairs={pairs}
+            onChange={setPairs}
+            keyPlaceholder={t("pools.selectorKey")}
+            valuePlaceholder={t("pools.selectorValue")}
+            addLabel={t("pools.selectorAdd")}
+          />
         </Field>
         <Field>
-          <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
-          <TolerationsEditor rows={tols} onChange={setTols} />
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="pool-capacity-enabled"
+              checked={capacityEnabled}
+              onCheckedChange={(checked) => setCapacityEnabled(checked === true)}
+            />
+            <FieldLabel htmlFor="pool-capacity-enabled">{t("pools.fCapacity")}</FieldLabel>
+          </div>
+          <FieldDescription>{t("pools.fCapacityHelp")}</FieldDescription>
+          {capacityEnabled && (
+            <KeyValueChips
+              pairs={capacityPairs}
+              onChange={setCapacityPairs}
+              keyPlaceholder={t("pools.capacityResource")}
+              valuePlaceholder={t("pools.capacityQuantity")}
+              addLabel={t("pools.selectorAdd")}
+            />
+          )}
         </Field>
       </FieldGroup>
     </FormDrawer>
@@ -487,7 +398,10 @@ function ManagePoolDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: 
   const { confirm } = useUI();
   const [description, setDescription] = useState(pool.description ?? "");
   const [pairs, setPairs] = useState<Pair[]>(() => toPairs(pool.nodeSelector));
-  const [tols, setTols] = useState<TolRow[]>(() => tolFromApi(pool.tolerations));
+  const [capacityEnabled, setCapacityEnabled] = useState(
+    () => Object.keys(pool.capacity ?? {}).length > 0,
+  );
+  const [capacityPairs, setCapacityPairs] = useState<Pair[]>(() => toPairs(pool.capacity));
   const [unitDrawer, setUnitDrawer] = useState<UnitDrawer | null>(null);
 
   const units = pool.units ?? [];
@@ -507,7 +421,7 @@ function ManagePoolDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: 
       {
         description: description.trim() || undefined,
         nodeSelector: pairsToSelector(pairs),
-        tolerations: tolToApi(tols),
+        capacity: capacityEnabled ? pairsToResources(capacityPairs) : {},
       },
       { onSuccess: onClose },
     );
@@ -551,11 +465,33 @@ function ManagePoolDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: 
         <FieldGroup>
           <Field>
             <FieldLabel>{t("pools.fSelector")}</FieldLabel>
-            <SelectorChips pairs={pairs} onChange={setPairs} />
+            <KeyValueChips
+              pairs={pairs}
+              onChange={setPairs}
+              keyPlaceholder={t("pools.selectorKey")}
+              valuePlaceholder={t("pools.selectorValue")}
+              addLabel={t("pools.selectorAdd")}
+            />
           </Field>
           <Field>
-            <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
-            <TolerationsEditor rows={tols} onChange={setTols} />
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="manage-pool-capacity-enabled"
+                checked={capacityEnabled}
+                onCheckedChange={(checked) => setCapacityEnabled(checked === true)}
+              />
+              <FieldLabel htmlFor="manage-pool-capacity-enabled">{t("pools.fCapacity")}</FieldLabel>
+            </div>
+            <FieldDescription>{t("pools.fCapacityHelp")}</FieldDescription>
+            {capacityEnabled && (
+              <KeyValueChips
+                pairs={capacityPairs}
+                onChange={setCapacityPairs}
+                keyPlaceholder={t("pools.capacityResource")}
+                valuePlaceholder={t("pools.capacityQuantity")}
+                addLabel={t("pools.selectorAdd")}
+              />
+            )}
           </Field>
         </FieldGroup>
 
@@ -631,7 +567,6 @@ interface UnitForm {
   gpu?: number;
   lock: boolean;
   pairs: Pair[];
-  tols: TolRow[];
 }
 
 function unitToForm(u?: sdk.ResourceUnit): UnitForm {
@@ -649,7 +584,6 @@ function unitToForm(u?: sdk.ResourceUnit): UnitForm {
     gpu: num(u?.requests, "nvidia.com/gpu"),
     lock: !u || (cpuReq === cpuLim && memReq === memLim),
     pairs: toPairs(u?.nodeSelector),
-    tols: tolFromApi(u?.tolerations),
   };
 }
 
@@ -704,16 +638,15 @@ function UnitFormDrawer({
     if (!name || f.cpuReq == null || f.memReq == null) return;
     const { requests, limits } = formToMaps(f);
     const nodeSelector = pairsToSelector(f.pairs);
-    const tolerations = tolToApi(f.tols);
     const description = f.description.trim() || undefined;
     if (editing) {
       update.mutate(
-        { unit: unit!.name, body: { description, requests, limits, nodeSelector, tolerations } },
+        { unit: unit!.name, body: { description, requests, limits, nodeSelector } },
         { onSuccess: onClose },
       );
     } else {
       create.mutate(
-        { name, description, requests, limits, nodeSelector, tolerations },
+        { name, description, requests, limits, nodeSelector },
         { onSuccess: onClose },
       );
     }
@@ -829,11 +762,13 @@ function UnitFormDrawer({
       <FieldGroup>
         <Field>
           <FieldLabel>{t("pools.uSelector")}</FieldLabel>
-          <SelectorChips pairs={f.pairs} onChange={(p) => set("pairs", p)} />
-        </Field>
-        <Field>
-          <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
-          <TolerationsEditor rows={f.tols} onChange={(r) => set("tols", r)} />
+          <KeyValueChips
+            pairs={f.pairs}
+            onChange={(p) => set("pairs", p)}
+            keyPlaceholder={t("pools.selectorKey")}
+            valuePlaceholder={t("pools.selectorValue")}
+            addLabel={t("pools.selectorAdd")}
+          />
         </Field>
       </FieldGroup>
     </FormDrawer>

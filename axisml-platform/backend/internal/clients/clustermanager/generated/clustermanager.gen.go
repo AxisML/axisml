@@ -35,19 +35,13 @@ type ClusterManagerError struct {
 	Type string `json:"type"`
 }
 
-// Corev1Toleration defines model for Corev1Toleration.
-type Corev1Toleration struct {
-	Effect            *string `json:"effect,omitempty"`
-	Key               *string `json:"key,omitempty"`
-	Operator          *string `json:"operator,omitempty"`
-	TolerationSeconds *int64  `json:"tolerationSeconds"`
-	Value             *string `json:"value,omitempty"`
-}
-
 // CreateResourcePoolRequest defines model for CreateResourcePoolRequest.
 type CreateResourcePoolRequest struct {
 	// Annotations User-defined annotations to set on the pool.
 	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Capacity Optional pool capacity override. Omit to derive capacity from matching runtime nodes.
+	Capacity *map[string]string `json:"capacity,omitempty"`
 
 	// Description Human-readable description of the pool.
 	Description *string `json:"description,omitempty"`
@@ -60,9 +54,6 @@ type CreateResourcePoolRequest struct {
 
 	// NodeSelector Node labels that workloads scheduled into this pool must match.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
-
-	// Tolerations Tolerations applied to workloads scheduled into this pool.
-	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
 
 	// Units Initial set of resource units to create inline with the pool.
 	Units *[]ServerCreateResourceUnitRequest `json:"units,omitempty"`
@@ -148,6 +139,9 @@ type PatchResourcePoolRequest struct {
 	// Annotations Replacement annotations for the pool.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
+	// Capacity Replacement capacity override; send an empty object to return to runtime-derived capacity.
+	Capacity *map[string]string `json:"capacity,omitempty"`
+
 	// Description New description; omit to leave unchanged, empty string to clear.
 	Description *string `json:"description"`
 
@@ -156,9 +150,6 @@ type PatchResourcePoolRequest struct {
 
 	// NodeSelector Replacement node selector for the pool.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
-
-	// Tolerations Replacement tolerations for the pool.
-	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
 }
 
 // PatchResourceUnitRequest defines model for PatchResourceUnitRequest.
@@ -274,6 +265,9 @@ type ResourcePool struct {
 	// Annotations User-defined annotations on the pool.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
+	// Capacity Optional pool capacity override. When omitted, capacity is derived from matching runtime nodes.
+	Capacity *map[string]string `json:"capacity,omitempty"`
+
 	// CreatedAt Pool creation timestamp (RFC3339).
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -291,9 +285,6 @@ type ResourcePool struct {
 
 	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
 	ResourceVersion *string `json:"resourceVersion,omitempty"`
-
-	// Tolerations Tolerations applied to workloads scheduled into this pool.
-	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
 
 	// Units Resource units (allocatable shapes) offered by this pool.
 	Units []ServerResourceUnit `json:"units"`
@@ -433,6 +424,9 @@ type ServerResourcePool struct {
 	// Annotations User-defined annotations on the pool.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
+	// Capacity Optional pool capacity override. When omitted, capacity is derived from matching runtime nodes.
+	Capacity *map[string]string `json:"capacity,omitempty"`
+
 	// CreatedAt Pool creation timestamp (RFC3339).
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -450,9 +444,6 @@ type ServerResourcePool struct {
 
 	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
 	ResourceVersion *string `json:"resourceVersion,omitempty"`
-
-	// Tolerations Tolerations applied to workloads scheduled into this pool.
-	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
 
 	// Units Resource units (allocatable shapes) offered by this pool.
 	Units []ServerResourceUnit `json:"units"`

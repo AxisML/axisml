@@ -1,7 +1,6 @@
 package resourcepool
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
@@ -15,7 +14,7 @@ func toPoolView(p *clustermanager.Pool) server.ResourcePool {
 		Name:            p.Name,
 		Description:     deref(p.Description),
 		NodeSelector:    server.StringMap(derefMap(p.NodeSelector)),
-		Tolerations:     fromCMTolerations(p.Tolerations),
+		Capacity:        server.ResourceMap(derefMap(p.Capacity)),
 		Labels:          server.StringMap(derefMap(p.Labels)),
 		Annotations:     server.StringMap(derefMap(p.Annotations)),
 		ResourceVersion: deref(p.ResourceVersion),
@@ -49,7 +48,7 @@ func poolCreateBody(req server.ResourcePoolCreateRequest) clustermanager.PoolCre
 		Labels:       mapPtrIf(req.Labels),
 		Annotations:  mapPtrIf(req.Annotations),
 		NodeSelector: mapPtrIf(req.NodeSelector),
-		Tolerations:  toCMTolerations(req.Tolerations),
+		Capacity:     mapPtrIf(req.Capacity),
 	}
 	if len(req.Units) > 0 {
 		units := make([]clustermanager.UnitInline, 0, len(req.Units))
@@ -74,7 +73,7 @@ func poolPatchBody(req server.ResourcePoolPatchRequest) clustermanager.PoolPatch
 		Labels:       mapPtrIf(req.Labels),
 		Annotations:  mapPtrIf(req.Annotations),
 		NodeSelector: mapPtrIf(req.NodeSelector),
-		Tolerations:  toCMTolerations(req.Tolerations),
+		Capacity:     mapPtrPreserveEmpty(req.Capacity),
 	}
 }
 
@@ -107,36 +106,6 @@ func matchPool(p server.ResourcePool, q string) bool {
 		strings.Contains(strings.ToLower(p.Description), q)
 }
 
-// fromCMTolerations / toCMTolerations bridge the contract's free-form Toleration
-// (map) and cluster-manager's typed Corev1Toleration via JSON.
-func fromCMTolerations(in *[]clustermanager.Toleration) []server.Toleration {
-	if in == nil || len(*in) == 0 {
-		return nil
-	}
-	out := make([]server.Toleration, 0, len(*in))
-	for _, t := range *in {
-		b, _ := json.Marshal(t)
-		m := server.Toleration{}
-		_ = json.Unmarshal(b, &m)
-		out = append(out, m)
-	}
-	return out
-}
-
-func toCMTolerations(in []server.Toleration) *[]clustermanager.Toleration {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]clustermanager.Toleration, 0, len(in))
-	for _, m := range in {
-		b, _ := json.Marshal(m)
-		var t clustermanager.Toleration
-		_ = json.Unmarshal(b, &t)
-		out = append(out, t)
-	}
-	return &out
-}
-
 func deref(p *string) string {
 	if p == nil {
 		return ""
@@ -160,6 +129,13 @@ func strPtrIf(s string) *string {
 
 func mapPtrIf(m map[string]string) *map[string]string {
 	if len(m) == 0 {
+		return nil
+	}
+	return &m
+}
+
+func mapPtrPreserveEmpty(m map[string]string) *map[string]string {
+	if m == nil {
 		return nil
 	}
 	return &m

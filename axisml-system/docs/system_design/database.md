@@ -73,7 +73,7 @@ CREATE INDEX mlruns_namespace_project_created
   ON mlruns (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 在 runtime 对象创建前额外包含 `Queued` / `Creating`，之后镜像 MLRun CR `status.phase`；`status` jsonb 持 `{message, queueReason, startedAt, finishedAt}`。`priority`、`scheduled_at` 与队列 partial index 构成 durable admission 顺序和时间边界。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 pool/unit 溯源 label（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
+`phase` 在 runtime 对象创建前额外包含 `Queued` / `Creating`，之后镜像 MLRun CR `status.phase`；`status` jsonb 持 `{message, queueReason, startedAt, finishedAt}`。`priority`、`scheduled_at` 与队列 partial index 构成 durable admission 顺序和时间边界。`spec` 含 compute 已展开的 `nodeSelector` / `resources` snapshot，并保留 pool/unit 溯源 label（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
 
 ### 2.2 `mlservices`
 

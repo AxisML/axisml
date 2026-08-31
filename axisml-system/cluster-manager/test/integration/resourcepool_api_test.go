@@ -24,9 +24,7 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	  "name": "` + name + `",
 	  "description": "A100 80GB single-node pool",
 	  "nodeSelector": {"axisml.io/pool": "gpu-a100"},
-	  "tolerations": [
-	    {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}
-	  ],
+	  "capacity": {"cpu": "64", "memory": "512Gi", "nvidia.com/gpu": "8"},
 	  "labels": {"axisml.io/accelerator": "a100"},
 	  "units": [
 	    {
@@ -51,6 +49,8 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	require.Equal(t, name, created.Name)
 	require.Equal(t, "A100 80GB single-node pool", created.Description)
 	require.Len(t, created.Units, 2)
+	gpuCapacity := created.Capacity["nvidia.com/gpu"]
+	require.Equal(t, int64(8), gpuCapacity.Value())
 	require.Equal(t, "a100", created.Labels["axisml.io/accelerator"])
 
 	// Get returns the same thing.
@@ -69,11 +69,12 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
 	require.GreaterOrEqual(t, list.Count, 1)
 
-	// Patch description.
-	rr = doRequest(t, "PATCH", "/api/v1/resourcepools/"+name, `{"description": "updated"}`)
+	// Patch description and capacity.
+	rr = doRequest(t, "PATCH", "/api/v1/resourcepools/"+name, `{"description": "updated", "capacity": {"cpu": "96"}}`)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	require.Equal(t, "updated", got.Description)
+	require.Equal(t, int64(96), got.Capacity.Cpu().Value())
 
 	// Delete.
 	rr = doRequest(t, "DELETE", "/api/v1/resourcepools/"+name, "")

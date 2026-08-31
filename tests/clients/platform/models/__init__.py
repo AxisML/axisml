@@ -171,7 +171,6 @@ from .tenant_volume import TenantVolume
 from .tensor_board import TensorBoard
 from .tensor_board_phase import TensorBoardPhase
 from .tensor_board_request import TensorBoardRequest
-from .toleration import Toleration
 from .traffic_policy import TrafficPolicy
 from .traffic_policy_backend import TrafficPolicyBackend
 from .traffic_policy_backend_role import TrafficPolicyBackendRole
@@ -369,7 +368,6 @@ __all__ = (
     "TensorBoard",
     "TensorBoardPhase",
     "TensorBoardRequest",
-    "Toleration",
     "TrafficPolicy",
     "TrafficPolicyBackend",
     "TrafficPolicyBackendRole",

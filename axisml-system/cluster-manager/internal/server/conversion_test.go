@@ -31,7 +31,7 @@ func TestPoolToAPI(t *testing.T) {
 		},
 		Spec: axismlv1alpha1.ResourcePoolSpec{
 			NodeSelector: map[string]string{"gpu": "true"},
-			Tolerations:  []corev1.Toleration{{Key: "dedicated"}},
+			Capacity:     corev1.ResourceList{"cpu": resource.MustParse("8")},
 			Units: []axismlv1alpha1.ResourceUnit{{
 				Name:        "small",
 				Annotations: map[string]string{srv.DescriptionAnnotation: "unit desc", "x": "y"},
@@ -47,6 +47,7 @@ func TestPoolToAPI(t *testing.T) {
 	assert.Equal(t, "42", dto.ResourceVersion)
 	assert.Equal(t, created, dto.CreatedAt)
 	assert.Equal(t, map[string]string{"gpu": "true"}, dto.NodeSelector)
+	assert.Equal(t, "8", dto.Capacity.Cpu().String())
 	require.Len(t, dto.Units, 1)
 	assert.Equal(t, "small", dto.Units[0].Name)
 	assert.Equal(t, "unit desc", dto.Units[0].Description)
@@ -86,7 +87,7 @@ func TestAPIToPool(t *testing.T) {
 		Name:         "p1",
 		Description:  "desc",
 		NodeSelector: map[string]string{"gpu": "true"},
-		Tolerations:  []corev1.Toleration{{Key: "k"}},
+		Capacity:     corev1.ResourceList{"cpu": resource.MustParse("8")},
 		Labels:       map[string]string{"tier": "prod"},
 		Annotations:  map[string]string{"team": "ml"},
 		Units: []srv.CreateResourceUnitRequest{{
@@ -112,13 +113,15 @@ func TestAPIToPool(t *testing.T) {
 	// Deep copy: mutating the request must not touch the built CR.
 	req.NodeSelector["gpu"] = "mutated"
 	assert.Equal(t, "true", pool.Spec.NodeSelector["gpu"])
+	req.Capacity["cpu"] = resource.MustParse("16")
+	assert.Equal(t, "8", pool.Spec.Capacity.Cpu().String())
 }
 
 func TestAPIToPool_NoAnnotationsYieldsNil(t *testing.T) {
 	pool := srv.APIToPool(srv.CreateResourcePoolRequest{Name: "p"}, "")
 	assert.Nil(t, pool.Annotations)
 	assert.Nil(t, pool.Labels)
-	assert.Nil(t, pool.Spec.Tolerations)
+	assert.Nil(t, pool.Spec.Capacity)
 }
 
 func TestAPIToUnit(t *testing.T) {

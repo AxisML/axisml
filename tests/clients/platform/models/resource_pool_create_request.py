@@ -9,9 +9,9 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.resource_map import ResourceMap
     from ..models.resource_unit_create_request import ResourceUnitCreateRequest
     from ..models.string_map import StringMap
-    from ..models.toleration import Toleration
 
 
 T = TypeVar("T", bound="ResourcePoolCreateRequest")
@@ -21,27 +21,28 @@ T = TypeVar("T", bound="ResourcePoolCreateRequest")
 class ResourcePoolCreateRequest:
     """
     Example:
-        {'description': 'A100 GPU resource pool.', 'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector':
-            {'axisml.io/gpu': 'a100'}, 'units': [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16',
-            'memory': '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi',
-            'nvidia.com/gpu': '2'}}]}
+        {'capacity': {'cpu': '64', 'memory': '512Gi', 'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.',
+            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'},
+            'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'}}]}
 
     Attributes:
         name (str): Cluster-scoped resource pool name (unique across the cluster).
         annotations (StringMap | Unset):
+        capacity (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
+            "nvidia.com/gpu": "8"}).
         description (str | Unset): Free-text pool description.
         labels (StringMap | Unset):
         node_selector (StringMap | Unset):
-        tolerations (list[Toleration] | Unset): Pod tolerations applied to workloads scheduled onto the pool.
         units (list[ResourceUnitCreateRequest] | Unset): Resource unit shapes to embed in the pool.
     """
 
     name: str
     annotations: StringMap | Unset = UNSET
+    capacity: ResourceMap | Unset = UNSET
     description: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
     node_selector: StringMap | Unset = UNSET
-    tolerations: list[Toleration] | Unset = UNSET
     units: list[ResourceUnitCreateRequest] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -52,6 +53,10 @@ class ResourcePoolCreateRequest:
         if not isinstance(self.annotations, Unset):
             annotations = self.annotations.to_dict()
 
+        capacity: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.capacity, Unset):
+            capacity = self.capacity.to_dict()
+
         description = self.description
 
         labels: dict[str, Any] | Unset = UNSET
@@ -61,13 +66,6 @@ class ResourcePoolCreateRequest:
         node_selector: dict[str, Any] | Unset = UNSET
         if not isinstance(self.node_selector, Unset):
             node_selector = self.node_selector.to_dict()
-
-        tolerations: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.tolerations, Unset):
-            tolerations = []
-            for tolerations_item_data in self.tolerations:
-                tolerations_item = tolerations_item_data.to_dict()
-                tolerations.append(tolerations_item)
 
         units: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.units, Unset):
@@ -85,14 +83,14 @@ class ResourcePoolCreateRequest:
         )
         if annotations is not UNSET:
             field_dict["annotations"] = annotations
+        if capacity is not UNSET:
+            field_dict["capacity"] = capacity
         if description is not UNSET:
             field_dict["description"] = description
         if labels is not UNSET:
             field_dict["labels"] = labels
         if node_selector is not UNSET:
             field_dict["nodeSelector"] = node_selector
-        if tolerations is not UNSET:
-            field_dict["tolerations"] = tolerations
         if units is not UNSET:
             field_dict["units"] = units
 
@@ -100,9 +98,9 @@ class ResourcePoolCreateRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.resource_map import ResourceMap
         from ..models.resource_unit_create_request import ResourceUnitCreateRequest
         from ..models.string_map import StringMap
-        from ..models.toleration import Toleration
 
         d = dict(src_dict)
         name = d.pop("name")
@@ -113,6 +111,13 @@ class ResourcePoolCreateRequest:
             annotations = UNSET
         else:
             annotations = StringMap.from_dict(_annotations)
+
+        _capacity = d.pop("capacity", UNSET)
+        capacity: ResourceMap | Unset
+        if isinstance(_capacity, Unset):
+            capacity = UNSET
+        else:
+            capacity = ResourceMap.from_dict(_capacity)
 
         description = d.pop("description", UNSET)
 
@@ -130,15 +135,6 @@ class ResourcePoolCreateRequest:
         else:
             node_selector = StringMap.from_dict(_node_selector)
 
-        _tolerations = d.pop("tolerations", UNSET)
-        tolerations: list[Toleration] | Unset = UNSET
-        if _tolerations is not UNSET:
-            tolerations = []
-            for tolerations_item_data in _tolerations:
-                tolerations_item = Toleration.from_dict(tolerations_item_data)
-
-                tolerations.append(tolerations_item)
-
         _units = d.pop("units", UNSET)
         units: list[ResourceUnitCreateRequest] | Unset = UNSET
         if _units is not UNSET:
@@ -151,10 +147,10 @@ class ResourcePoolCreateRequest:
         resource_pool_create_request = cls(
             name=name,
             annotations=annotations,
+            capacity=capacity,
             description=description,
             labels=labels,
             node_selector=node_selector,
-            tolerations=tolerations,
             units=units,
         )
 

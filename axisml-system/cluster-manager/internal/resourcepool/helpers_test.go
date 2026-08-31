@@ -67,15 +67,14 @@ func TestApplyPoolPatch(t *testing.T) {
 		req := srv.PatchResourcePoolRequest{
 			Description:  &desc,
 			NodeSelector: map[string]string{"gpu": "true"},
-			Tolerations:  []corev1.Toleration{{Key: "dedicated"}},
+			Capacity:     corev1.ResourceList{"cpu": resource.MustParse("8")},
 			Labels:       map[string]string{"tier": "prod"},
 			Annotations:  map[string]string{"team": "ml"},
 		}
 		applyPoolPatch(pool, req, "alice")
 
 		assert.Equal(t, map[string]string{"gpu": "true"}, pool.Spec.NodeSelector)
-		require.Len(t, pool.Spec.Tolerations, 1)
-		assert.Equal(t, "dedicated", pool.Spec.Tolerations[0].Key)
+		assert.Equal(t, "8", pool.Spec.Capacity.Cpu().String())
 		assert.Equal(t, map[string]string{"tier": "prod"}, pool.Labels)
 		// User annotations replace user-visible keys; reserved ones are preserved.
 		assert.Equal(t, "ml", pool.Annotations["team"])

@@ -67,7 +67,8 @@ Standalone 的部署形态差异限定在运行时语义：
 - MLService route 的 auth 与 rate limit 不受支持；
 - volume 支持创建、查询与删除，但不支持扩容；
 - ResourceUnit requests/limits 与 Tenant quota min/max 仅支持 `cpu`、`memory`、
-  `nvidia.com/gpu`；GPU 数量必须是整数。启动配置与 REST create/patch 使用同一校验；
+  `nvidia.com/gpu`；ResourcePool capacity 使用同一资源集合，非空时覆盖 Docker
+  宿主 inventory 的准入容量；GPU 数量必须是整数。启动配置与 REST create/patch 使用同一校验；
 - 不提供 Prometheus workload / ResourcePool 指标查询；
 - 不执行 Kubernetes scheduler 的 ElasticQuota 准入。Tenant pool quota 由 Compute
   的统一 admission 执行：先增量准入 MLService，再准入 MLRun。

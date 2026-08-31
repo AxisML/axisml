@@ -31,33 +31,18 @@ components:
       - title
       - type
       type: object
-    Corev1Toleration:
-      properties:
-        effect:
-          type: string
-        key:
-          type: string
-        operator:
-          type: string
-        tolerationSeconds:
-          format: int64
-          nullable: true
-          type: integer
-        value:
-          type: string
-      type: object
     CreateResourcePoolRequest:
       example:
+        capacity:
+          cpu: "64"
+          memory: 512Gi
+          nvidia.com/gpu: "8"
         description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
         nodeSelector:
           axisml.io/gpu: a100
-        tolerations:
-        - effect: NoSchedule
-          key: nvidia.com/gpu
-          operator: Exists
         units:
         - description: 2× A100 GPU compute unit.
           limits:
@@ -77,6 +62,13 @@ components:
             type: string
           description: User-defined annotations to set on the pool.
           type: object
+        capacity:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Optional pool capacity override. Omit to derive capacity from
+            matching runtime nodes.
+          type: object
         description:
           description: Human-readable description of the pool.
           type: string
@@ -93,11 +85,6 @@ components:
             type: string
           description: Node labels that workloads scheduled into this pool must match.
           type: object
-        tolerations:
-          description: Tolerations applied to workloads scheduled into this pool.
-          items:
-            $ref: '#/components/schemas/Corev1Toleration'
-          type: array
         units:
           description: Initial set of resource units to create inline with the pool.
           items:
@@ -253,6 +240,10 @@ components:
       type: object
     PatchResourcePoolRequest:
       example:
+        capacity:
+          cpu: "96"
+          memory: 768Gi
+          nvidia.com/gpu: "12"
         description: A100 GPU resource pool (updated).
         labels:
           region: cn-east
@@ -262,6 +253,13 @@ components:
           additionalProperties:
             type: string
           description: Replacement annotations for the pool.
+          type: object
+        capacity:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Replacement capacity override; send an empty object to return
+            to runtime-derived capacity.
           type: object
         description:
           description: New description; omit to leave unchanged, empty string to clear.
@@ -277,11 +275,6 @@ components:
             type: string
           description: Replacement node selector for the pool.
           type: object
-        tolerations:
-          description: Replacement tolerations for the pool.
-          items:
-            $ref: '#/components/schemas/Corev1Toleration'
-          type: array
       type: object
     PatchResourceUnitRequest:
       example:
@@ -523,6 +516,10 @@ components:
       example:
         annotations:
           tenant.axisml.io/managed-by: platform
+        capacity:
+          cpu: "64"
+          memory: 512Gi
+          nvidia.com/gpu: "8"
         createdAt: "2026-06-20T08:00:00Z"
         description: A100 GPU resource pool.
         labels:
@@ -531,10 +528,6 @@ components:
         nodeSelector:
           axisml.io/gpu: a100
         resourceVersion: "184729"
-        tolerations:
-        - effect: NoSchedule
-          key: nvidia.com/gpu
-          operator: Exists
         units:
         - annotations:
             tenant.axisml.io/managed-by: platform
@@ -555,6 +548,13 @@ components:
           additionalProperties:
             type: string
           description: User-defined annotations on the pool.
+          type: object
+        capacity:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Optional pool capacity override. When omitted, capacity is
+            derived from matching runtime nodes.
           type: object
         createdAt:
           description: Pool creation timestamp (RFC3339).
@@ -579,11 +579,6 @@ components:
         resourceVersion:
           description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
-        tolerations:
-          description: Tolerations applied to workloads scheduled into this pool.
-          items:
-            $ref: '#/components/schemas/Corev1Toleration'
-          type: array
         units:
           description: Resource units (allocatable shapes) offered by this pool.
           items:
@@ -601,6 +596,10 @@ components:
         items:
         - annotations:
             tenant.axisml.io/managed-by: platform
+          capacity:
+            cpu: "64"
+            memory: 512Gi
+            nvidia.com/gpu: "8"
           createdAt: "2026-06-20T08:00:00Z"
           description: A100 GPU resource pool.
           labels:
@@ -609,10 +608,6 @@ components:
           nodeSelector:
             axisml.io/gpu: a100
           resourceVersion: "184729"
-          tolerations:
-          - effect: NoSchedule
-            key: nvidia.com/gpu
-            operator: Exists
           units:
           - annotations:
               tenant.axisml.io/managed-by: platform
@@ -871,6 +866,13 @@ components:
             type: string
           description: User-defined annotations on the pool.
           type: object
+        capacity:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Optional pool capacity override. When omitted, capacity is
+            derived from matching runtime nodes.
+          type: object
         createdAt:
           description: Pool creation timestamp (RFC3339).
           format: date-time
@@ -894,11 +896,6 @@ components:
         resourceVersion:
           description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
-        tolerations:
-          description: Tolerations applied to workloads scheduled into this pool.
-          items:
-            $ref: '#/components/schemas/Corev1Toleration'
-          type: array
         units:
           description: Resource units (allocatable shapes) offered by this pool.
           items:

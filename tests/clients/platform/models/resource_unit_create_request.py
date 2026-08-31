@@ -11,7 +11,6 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.resource_map import ResourceMap
     from ..models.string_map import StringMap
-    from ..models.toleration import Toleration
 
 
 T = TypeVar("T", bound="ResourceUnitCreateRequest")
@@ -33,7 +32,6 @@ class ResourceUnitCreateRequest:
         annotations (StringMap | Unset):
         description (str | Unset): Free-text unit description.
         node_selector (StringMap | Unset):
-        tolerations (list[Toleration] | Unset): Additional pod tolerations for this unit.
     """
 
     limits: ResourceMap
@@ -42,7 +40,6 @@ class ResourceUnitCreateRequest:
     annotations: StringMap | Unset = UNSET
     description: str | Unset = UNSET
     node_selector: StringMap | Unset = UNSET
-    tolerations: list[Toleration] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -62,13 +59,6 @@ class ResourceUnitCreateRequest:
         if not isinstance(self.node_selector, Unset):
             node_selector = self.node_selector.to_dict()
 
-        tolerations: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.tolerations, Unset):
-            tolerations = []
-            for tolerations_item_data in self.tolerations:
-                tolerations_item = tolerations_item_data.to_dict()
-                tolerations.append(tolerations_item)
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -84,8 +74,6 @@ class ResourceUnitCreateRequest:
             field_dict["description"] = description
         if node_selector is not UNSET:
             field_dict["nodeSelector"] = node_selector
-        if tolerations is not UNSET:
-            field_dict["tolerations"] = tolerations
 
         return field_dict
 
@@ -93,7 +81,6 @@ class ResourceUnitCreateRequest:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.resource_map import ResourceMap
         from ..models.string_map import StringMap
-        from ..models.toleration import Toleration
 
         d = dict(src_dict)
         limits = ResourceMap.from_dict(d.pop("limits"))
@@ -118,15 +105,6 @@ class ResourceUnitCreateRequest:
         else:
             node_selector = StringMap.from_dict(_node_selector)
 
-        _tolerations = d.pop("tolerations", UNSET)
-        tolerations: list[Toleration] | Unset = UNSET
-        if _tolerations is not UNSET:
-            tolerations = []
-            for tolerations_item_data in _tolerations:
-                tolerations_item = Toleration.from_dict(tolerations_item_data)
-
-                tolerations.append(tolerations_item)
-
         resource_unit_create_request = cls(
             limits=limits,
             name=name,
@@ -134,7 +112,6 @@ class ResourceUnitCreateRequest:
             annotations=annotations,
             description=description,
             node_selector=node_selector,
-            tolerations=tolerations,
         )
 
         resource_unit_create_request.additional_properties = d

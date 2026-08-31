@@ -178,7 +178,7 @@ func singleDocument(b []byte, path, kind string) error {
 }
 
 // Validate enforces the standalone config invariants: unique pool / tenant
-// identities, a tenant namespace equal to its name, empty scheduling
+// identities, a tenant namespace equal to its name, empty node scheduling
 // fields, predefined-volume rules, and every tenant quota referencing an
 // existing pool.
 func (sc *StaticConfig) Validate() error {
@@ -215,8 +215,11 @@ func validatePools(pools []*cmv1alpha1.ResourcePool) (map[string]*cmv1alpha1.Res
 		}
 		poolByName[pool.Name] = pool
 
-		if len(pool.Spec.NodeSelector) != 0 || len(pool.Spec.Tolerations) != 0 {
-			return nil, fmt.Errorf("resource pool %q nodeSelector/tolerations must be empty in standalone", pool.Name)
+		if len(pool.Spec.NodeSelector) != 0 {
+			return nil, fmt.Errorf("resource pool %q nodeSelector must be empty in standalone", pool.Name)
+		}
+		if err := validateStandaloneResourceList(fmt.Sprintf("resource pool %q capacity", pool.Name), pool.Spec.Capacity); err != nil {
+			return nil, err
 		}
 
 		seen := map[string]struct{}{}

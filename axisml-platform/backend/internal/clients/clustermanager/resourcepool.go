@@ -17,7 +17,6 @@ type (
 	UnitCreate = gen.CreateResourceUnitRequest
 	UnitPatch  = gen.PatchResourceUnitRequest
 	UnitInline = gen.ServerCreateResourceUnitRequest
-	Toleration = gen.Corev1Toleration
 
 	PoolUsage        = gen.PoolUsage
 	PoolMeter        = gen.ServerResourceMeter

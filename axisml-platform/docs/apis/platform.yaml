@@ -3622,6 +3622,10 @@ components:
         annotations:
           axisml.io/cost-center: ml-platform
           axisml.io/created-by: admin
+        capacity:
+          cpu: "64"
+          memory: 512Gi
+          nvidia.com/gpu: "8"
         createdAt: "2026-06-20T08:00:00Z"
         description: A100 GPU resource pool.
         labels:
@@ -3631,10 +3635,6 @@ components:
         nodeSelector:
           axisml.io/gpu: a100
         resourceVersion: "184321"
-        tolerations:
-        - effect: NoSchedule
-          key: nvidia.com/gpu
-          operator: Exists
         units:
         - annotations:
             axisml.io/cost-center: ml-platform
@@ -3652,16 +3652,17 @@ components:
             cpu: "16"
             memory: 128Gi
             nvidia.com/gpu: "2"
-          tolerations:
-          - effect: NoSchedule
-            key: nvidia.com/gpu
-            operator: Exists
         updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: User-defined annotations.
+        capacity:
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Optional capacity override; omitted means capacity is derived
+            from matching runtime nodes.
         createdAt:
           description: Time the pool was created.
           format: date-time
@@ -3687,11 +3688,6 @@ components:
         resourceVersion:
           description: Kubernetes resourceVersion for optimistic concurrency.
           type: string
-        tolerations:
-          description: Pod tolerations applied to workloads scheduled onto the pool.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
         units:
           description: Resource unit shapes embedded in the pool's spec.units[].
           items:
@@ -3707,6 +3703,10 @@ components:
       type: object
     ResourcePoolCreateRequest:
       example:
+        capacity:
+          cpu: "64"
+          memory: 512Gi
+          nvidia.com/gpu: "8"
         description: A100 GPU resource pool.
         labels:
           tier: gpu
@@ -3729,6 +3729,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: User-defined annotations.
+        capacity:
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Optional capacity override; omit to derive capacity from matching
+            runtime nodes.
         description:
           description: Free-text pool description.
           maxLength: 1000
@@ -3747,11 +3752,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: Node labels selecting the nodes that back this pool.
-        tolerations:
-          description: Pod tolerations applied to workloads scheduled onto the pool.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
         units:
           description: Resource unit shapes to embed in the pool.
           items:
@@ -3768,6 +3768,10 @@ components:
         - annotations:
             axisml.io/cost-center: ml-platform
             axisml.io/created-by: admin
+          capacity:
+            cpu: "64"
+            memory: 512Gi
+            nvidia.com/gpu: "8"
           createdAt: "2026-06-20T08:00:00Z"
           description: A100 GPU resource pool.
           labels:
@@ -3777,10 +3781,6 @@ components:
           nodeSelector:
             axisml.io/gpu: a100
           resourceVersion: "184321"
-          tolerations:
-          - effect: NoSchedule
-            key: nvidia.com/gpu
-            operator: Exists
           units:
           - annotations:
               axisml.io/cost-center: ml-platform
@@ -3798,10 +3798,6 @@ components:
               cpu: "16"
               memory: 128Gi
               nvidia.com/gpu: "2"
-            tolerations:
-            - effect: NoSchedule
-              key: nvidia.com/gpu
-              operator: Exists
           updatedAt: "2026-06-28T09:30:00Z"
       properties:
         continueToken:
@@ -3822,6 +3818,10 @@ components:
       type: object
     ResourcePoolPatchRequest:
       example:
+        capacity:
+          cpu: "96"
+          memory: 768Gi
+          nvidia.com/gpu: "12"
         description: Updated A100 GPU resource pool.
         nodeSelector:
           axisml.io/gpu: a100
@@ -3831,6 +3831,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: Replacement annotation set.
+        capacity:
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Replacement capacity override; send an empty object to use
+            runtime-derived capacity.
         description:
           description: Updated free-text pool description.
           maxLength: 1000
@@ -3843,11 +3848,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: Replacement node selector.
-        tolerations:
-          description: Replacement toleration set.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
       type: object
     ResourceUnit:
       example:
@@ -3867,10 +3867,6 @@ components:
           cpu: "16"
           memory: 128Gi
           nvidia.com/gpu: "2"
-        tolerations:
-        - effect: NoSchedule
-          key: nvidia.com/gpu
-          operator: Exists
       properties:
         annotations:
           allOf:
@@ -3895,11 +3891,6 @@ components:
           - $ref: '#/components/schemas/ResourceMap'
           description: Resource requests defining the unit shape (e.g. cpu, memory,
             nvidia.com/gpu).
-        tolerations:
-          description: Additional pod tolerations for this unit.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
       required:
       - limits
       - name
@@ -3945,11 +3936,6 @@ components:
           - $ref: '#/components/schemas/ResourceMap'
           description: Resource requests defining the unit shape (e.g. cpu, memory,
             nvidia.com/gpu).
-        tolerations:
-          description: Additional pod tolerations for this unit.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
       required:
       - limits
       - name
@@ -3976,10 +3962,6 @@ components:
             cpu: "16"
             memory: 128Gi
             nvidia.com/gpu: "2"
-          tolerations:
-          - effect: NoSchedule
-            key: nvidia.com/gpu
-            operator: Exists
       properties:
         continueToken:
           description: Opaque token to fetch the next page.
@@ -4025,11 +4007,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/ResourceMap'
           description: Replacement resource requests.
-        tolerations:
-          description: Replacement toleration set.
-          items:
-            $ref: '#/components/schemas/Toleration'
-          type: array
       type: object
     RoleName:
       enum:
@@ -5261,10 +5238,6 @@ components:
           items:
             type: string
           type: array
-      type: object
-    Toleration:
-      additionalProperties: {}
-      description: Mirrors a Kubernetes corev1.Toleration.
       type: object
     TrafficPolicy:
       example:

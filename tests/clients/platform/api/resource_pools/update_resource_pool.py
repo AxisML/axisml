@@ -99,8 +99,9 @@ def sync_detailed(
 
     Args:
         pool (str):
-        body (ResourcePoolPatchRequest):  Example: {'description': 'Updated A100 GPU resource
-            pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
+        body (ResourcePoolPatchRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'Updated A100 GPU resource pool.', 'nodeSelector':
+            {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,8 +133,9 @@ def sync(
 
     Args:
         pool (str):
-        body (ResourcePoolPatchRequest):  Example: {'description': 'Updated A100 GPU resource
-            pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
+        body (ResourcePoolPatchRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'Updated A100 GPU resource pool.', 'nodeSelector':
+            {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -160,8 +162,9 @@ async def asyncio_detailed(
 
     Args:
         pool (str):
-        body (ResourcePoolPatchRequest):  Example: {'description': 'Updated A100 GPU resource
-            pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
+        body (ResourcePoolPatchRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'Updated A100 GPU resource pool.', 'nodeSelector':
+            {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -191,8 +194,9 @@ async def asyncio(
 
     Args:
         pool (str):
-        body (ResourcePoolPatchRequest):  Example: {'description': 'Updated A100 GPU resource
-            pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
+        body (ResourcePoolPatchRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'Updated A100 GPU resource pool.', 'nodeSelector':
+            {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

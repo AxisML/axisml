@@ -337,11 +337,6 @@ func registerSchemas(g *openapigen.Generator) {
 		Description:          "Kubernetes-style resource quantity map (e.g., {\"cpu\": \"100\", \"memory\": \"1Ti\", \"nvidia.com/gpu\": \"8\"}).",
 		AdditionalProperties: &openapigen.Schema{Type: "string"},
 	})
-	g.Set("Toleration", &openapigen.Schema{
-		Type:                 "object",
-		Description:          "Mirrors a Kubernetes corev1.Toleration.",
-		AdditionalProperties: &openapigen.Schema{},
-	})
 	g.Set("ModelSpec", freeFormSpec("Artifact-side spec for kind=model; pass-through to artifacts."))
 	g.Set("ImageSpec", freeFormSpec("Artifact-side spec for kind=image; pass-through to artifacts."))
 }
@@ -364,7 +359,6 @@ var (
 
 	tStringMap   = reflect.TypeOf(server.StringMap(nil))
 	tResourceMap = reflect.TypeOf(server.ResourceMap(nil))
-	tToleration  = reflect.TypeOf(server.Toleration(nil))
 	tModelSpec   = reflect.TypeOf(server.ModelSpec(nil))
 	tImageSpec   = reflect.TypeOf(server.ImageSpec(nil))
 
@@ -415,8 +409,6 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return openapigen.Ref("StringMap")
 	case tResourceMap:
 		return openapigen.Ref("ResourceMap")
-	case tToleration:
-		return openapigen.Ref("Toleration")
 	case tModelSpec:
 		return openapigen.Ref("ModelSpec")
 	case tImageSpec:

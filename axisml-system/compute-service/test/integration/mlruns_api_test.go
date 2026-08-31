@@ -287,6 +287,35 @@ func TestMLRun_QueueAdmitsHigherPriorityFirst(t *testing.T) {
 	assert.Equal(t, "Queued", lowPhase["phase"])
 }
 
+func TestMLRun_ResourcePoolCapacityOverridesNodeSelectorInventory(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	const (
+		pool = "jobs-capacity-override-pool"
+		unit = "small"
+		ns   = "jobs-capacity-override-ns"
+	)
+	seedResourcePoolWithSelectorAndCapacity(t, ctx, pool, unit,
+		map[string]string{"queue.axisml.io/test": "blocked"},
+		resourceList("100m", "128Mi"))
+	mustCreateNamespace(t, ctx, ns)
+	mustSetTenantQuota(t, ctx, ns, pool, resourceList("100m", "128Mi"))
+
+	var created map[string]any
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("capacity-run", pool, unit), &created)
+	requireStatus(t, rr, http.StatusCreated)
+	assert.Equal(t, "Queued", created["phase"])
+
+	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return c.Get(ctx, client.ObjectKey{Namespace: ns, Name: "capacity-run"}, &mlrunv1alpha1.MLRun{}) == nil
+	}, 10*time.Second, 100*time.Millisecond,
+		"explicit ResourcePool capacity should override the unmatched node selector during admission")
+}
+
 // --- helpers --------------------------------------------------------------
 
 // seedResourcePool creates (or reuses) a ResourcePool CR with one embedded
@@ -297,6 +326,16 @@ func seedResourcePool(t *testing.T, ctx context.Context, poolName, unitName stri
 }
 
 func seedResourcePoolWithSelector(t *testing.T, ctx context.Context, poolName, unitName string, selector map[string]string) {
+	seedResourcePoolWithSelectorAndCapacity(t, ctx, poolName, unitName, selector, nil)
+}
+
+func seedResourcePoolWithSelectorAndCapacity(
+	t *testing.T,
+	ctx context.Context,
+	poolName, unitName string,
+	selector map[string]string,
+	capacity corev1.ResourceList,
+) {
 	t.Helper()
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
@@ -305,6 +344,7 @@ func seedResourcePoolWithSelector(t *testing.T, ctx context.Context, poolName, u
 		ObjectMeta: metav1.ObjectMeta{Name: poolName},
 		Spec: axismlv1alpha1.ResourcePoolSpec{
 			NodeSelector: selector,
+			Capacity:     capacity,
 			Units: []axismlv1alpha1.ResourceUnit{{
 				Name: unitName,
 				Requests: corev1.ResourceList{

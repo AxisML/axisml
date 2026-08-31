@@ -143,6 +143,12 @@ func (h *Handler) Create(c *gin.Context) {
 			"unit names must be unique within a pool", "duplicate: "+name)
 		return
 	}
+	if req.Capacity != nil {
+		if err := h.validateResources("capacity", req.Capacity); err != nil {
+			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidResources", err.Error(), "")
+			return
+		}
+	}
 	for i, u := range req.Units {
 		if err := srv.ValidateDNS1123Name("units["+u.Name+"].name", u.Name); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidUnitName", err.Error(), "")
@@ -220,6 +226,12 @@ func (h *Handler) Patch(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidBody", "request body malformed", err.Error())
 		return
 	}
+	if req.Capacity != nil {
+		if err := h.validateResources("capacity", req.Capacity); err != nil {
+			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidResources", err.Error(), "")
+			return
+		}
+	}
 
 	user := c.GetHeader(srv.HeaderUser)
 	var result *axismlv1alpha1.ResourcePool
@@ -243,8 +255,8 @@ func applyPoolPatch(pool *axismlv1alpha1.ResourcePool, req srv.PatchResourcePool
 	if req.NodeSelector != nil {
 		pool.Spec.NodeSelector = req.NodeSelector
 	}
-	if req.Tolerations != nil {
-		pool.Spec.Tolerations = req.Tolerations
+	if req.Capacity != nil {
+		pool.Spec.Capacity = req.Capacity
 	}
 	if req.Labels != nil {
 		pool.Labels = req.Labels

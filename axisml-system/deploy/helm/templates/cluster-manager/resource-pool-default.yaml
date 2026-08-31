@@ -17,7 +17,6 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
   nodeSelector: {}
-  tolerations: []
   units:
     {{- range .Values.seed.resourcePool.units }}
     - name: {{ .name | quote }}

@@ -45,7 +45,7 @@ type SchedulingSpec struct {
 	// NodeSelector is merged from ResourcePool + ResourceUnit by Compute.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	// Tolerations come from the ResourcePool.
+	// Tolerations are retained for compatibility with previously stored workload specs.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }

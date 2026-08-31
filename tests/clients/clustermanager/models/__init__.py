@@ -1,11 +1,11 @@
 """Contains all the data models used in inputs/outputs"""
 
 from .cluster_manager_error import ClusterManagerError
-from .corev_1_toleration import Corev1Toleration
 from .create_resource_pool_request import CreateResourcePoolRequest
 from .create_resource_pool_request_annotations import (
     CreateResourcePoolRequestAnnotations,
 )
+from .create_resource_pool_request_capacity import CreateResourcePoolRequestCapacity
 from .create_resource_pool_request_labels import CreateResourcePoolRequestLabels
 from .create_resource_pool_request_node_selector import (
     CreateResourcePoolRequestNodeSelector,
@@ -27,6 +27,7 @@ from .create_volume_request_labels import CreateVolumeRequestLabels
 from .patch_quota_request import PatchQuotaRequest
 from .patch_resource_pool_request import PatchResourcePoolRequest
 from .patch_resource_pool_request_annotations import PatchResourcePoolRequestAnnotations
+from .patch_resource_pool_request_capacity import PatchResourcePoolRequestCapacity
 from .patch_resource_pool_request_labels import PatchResourcePoolRequestLabels
 from .patch_resource_pool_request_node_selector import (
     PatchResourcePoolRequestNodeSelector,
@@ -56,6 +57,7 @@ from .rbacv_1_policy_rule import Rbacv1PolicyRule
 from .resource_meter import ResourceMeter
 from .resource_pool import ResourcePool
 from .resource_pool_annotations import ResourcePoolAnnotations
+from .resource_pool_capacity import ResourcePoolCapacity
 from .resource_pool_labels import ResourcePoolLabels
 from .resource_pool_list import ResourcePoolList
 from .resource_pool_node_selector import ResourcePoolNodeSelector
@@ -89,6 +91,7 @@ from .server_quota_unit import ServerQuotaUnit
 from .server_resource_meter import ServerResourceMeter
 from .server_resource_pool import ServerResourcePool
 from .server_resource_pool_annotations import ServerResourcePoolAnnotations
+from .server_resource_pool_capacity import ServerResourcePoolCapacity
 from .server_resource_pool_labels import ServerResourcePoolLabels
 from .server_resource_pool_node_selector import ServerResourcePoolNodeSelector
 from .server_resource_unit import ServerResourceUnit
@@ -133,9 +136,9 @@ from .volume_list import VolumeList
 
 __all__ = (
     "ClusterManagerError",
-    "Corev1Toleration",
     "CreateResourcePoolRequest",
     "CreateResourcePoolRequestAnnotations",
+    "CreateResourcePoolRequestCapacity",
     "CreateResourcePoolRequestLabels",
     "CreateResourcePoolRequestNodeSelector",
     "CreateResourceUnitRequest",
@@ -151,6 +154,7 @@ __all__ = (
     "PatchQuotaRequest",
     "PatchResourcePoolRequest",
     "PatchResourcePoolRequestAnnotations",
+    "PatchResourcePoolRequestCapacity",
     "PatchResourcePoolRequestLabels",
     "PatchResourcePoolRequestNodeSelector",
     "PatchResourceUnitRequest",
@@ -174,6 +178,7 @@ __all__ = (
     "ResourceMeter",
     "ResourcePool",
     "ResourcePoolAnnotations",
+    "ResourcePoolCapacity",
     "ResourcePoolLabels",
     "ResourcePoolList",
     "ResourcePoolNodeSelector",
@@ -199,6 +204,7 @@ __all__ = (
     "ServerResourceMeter",
     "ServerResourcePool",
     "ServerResourcePoolAnnotations",
+    "ServerResourcePoolCapacity",
     "ServerResourcePoolLabels",
     "ServerResourcePoolNodeSelector",
     "ServerResourceUnit",
