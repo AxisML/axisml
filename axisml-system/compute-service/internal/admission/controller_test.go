@@ -62,6 +62,98 @@ func TestNodeStatePlaceUsesDeterministicBestFit(t *testing.T) {
 	assert.Equal(t, int64(1_000), state.nodes[1].available.Cpu().MilliValue())
 }
 
+func TestAdmissionStateUsesResourcePoolCapacityOverride(t *testing.T) {
+	state := newAdmissionState(
+		extensions.ResourceSnapshot{Nodes: []extensions.ResourceNode{{
+			Name: "cpu-node", Labels: map[string]string{"pool": "cpu"},
+			Allocatable: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}),
+		}}},
+		map[string]poolCapacityResult{
+			"gpu": {capacity: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4"})},
+		},
+		nil,
+	)
+
+	// The explicit capacity replaces the selector-derived result: this pool can
+	// be admitted even though no runtime node matches its selector.
+	ok, reason := state.place("gpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2"}), 2, map[string]string{"pool": "gpu"}, nil)
+	require.True(t, ok)
+	assert.Empty(t, reason)
+	assert.Zero(t, state.overrides["gpu"].remaining.Cpu().Value())
+
+	ok, reason = state.place("gpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}), 1, map[string]string{"pool": "gpu"}, nil)
+	assert.False(t, ok)
+	assert.Equal(t, ReasonInsufficientResources, reason)
+
+	// A capacity override that cannot map to a physical node must not consume
+	// the inventory used by pools that still rely on node-derived capacity.
+	ok, reason = state.place("cpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}), 1, map[string]string{"pool": "cpu"}, nil)
+	require.True(t, ok)
+	assert.Empty(t, reason)
+}
+
+func TestAdmissionStateMissingOverrideReservationDoesNotExhaustNodes(t *testing.T) {
+	state := newAdmissionState(
+		extensions.ResourceSnapshot{Nodes: []extensions.ResourceNode{{
+			Name: "cpu-node", Labels: map[string]string{"pool": "cpu"},
+			Allocatable: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}),
+		}}},
+		map[string]poolCapacityResult{
+			"gpu": {capacity: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4"})},
+		},
+		nil,
+	)
+
+	require.True(t, state.reserveMissing("gpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2"}), 1, map[string]string{"pool": "gpu"}, nil))
+	ok, reason := state.place("cpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}), 1, map[string]string{"pool": "cpu"}, nil)
+	require.True(t, ok)
+	assert.Empty(t, reason)
+}
+
+func TestAdmissionStateSubtractsActivePoolUsageFromOverride(t *testing.T) {
+	state := newAdmissionState(
+		extensions.ResourceSnapshot{},
+		map[string]poolCapacityResult{
+			"shared": {capacity: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "4"})},
+		},
+		map[quotaKey]corev1.ResourceList{
+			{tenant: "team-a", pool: "shared"}: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}),
+			{tenant: "team-b", pool: "shared"}: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2"}),
+		},
+	)
+
+	assert.Equal(t, int64(1), state.overrides["shared"].remaining.Cpu().Value())
+	ok, _ := state.place("shared", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2"}), 1, nil, nil)
+	assert.False(t, ok)
+}
+
+func TestAdmissionStateFallsBackToNodeCapacityWithoutOverride(t *testing.T) {
+	state := newAdmissionState(
+		extensions.ResourceSnapshot{Nodes: []extensions.ResourceNode{{
+			Name: "node", Labels: map[string]string{"pool": "cpu"},
+			Allocatable: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "2"}),
+		}}},
+		map[string]poolCapacityResult{"cpu": {}},
+		nil,
+	)
+
+	ok, reason := state.place("cpu", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}), 1, map[string]string{"pool": "gpu"}, nil)
+	assert.False(t, ok)
+	assert.Equal(t, ReasonNoMatchingNode, reason)
+}
+
+func TestAdmissionStateBlocksWhenPoolCannotBeResolved(t *testing.T) {
+	state := newAdmissionState(
+		extensions.ResourceSnapshot{},
+		map[string]poolCapacityResult{"missing": {err: assert.AnError}},
+		nil,
+	)
+
+	ok, reason := state.place("missing", resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "1"}), 1, nil, nil)
+	assert.False(t, ok)
+	assert.Equal(t, ReasonResourcePoolUnavailable, reason)
+}
+
 func TestStableRoleOrderPrefersGPUThenMemoryThenCPU(t *testing.T) {
 	roles := []roleRequest{
 		{name: "cpu", requests: resources(map[corev1.ResourceName]string{corev1.ResourceCPU: "8"})},

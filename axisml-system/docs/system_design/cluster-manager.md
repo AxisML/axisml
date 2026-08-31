@@ -58,8 +58,7 @@ metadata:
   name: gpu-a100                  # DNS-1123, 集群内全局唯一
 spec:
   nodeSelector: { axisml.io/pool: gpu-a100 }   # 池级（Pool 优先）
-  tolerations:                                  # 直接作为 spec.scheduling.tolerations
-    - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+  capacity: { cpu: "64", memory: 512Gi, nvidia.com/gpu: "8" } # 可选；覆盖按节点计算的容量
   units:                                        # 数组内 name 唯一；同 pool 一起删
     - name: a100-1x-large
       requests: { cpu: "16", memory: 128Gi, nvidia.com/gpu: "1" }
@@ -67,7 +66,7 @@ spec:
       nodeSelector: {}                          # 可选；仅贡献 pool 未声明的 key
 ```
 
-**字段不变性**：`metadata.name` 与 `units[i].name` 不可变（标识锚点）；`spec.nodeSelector` / `tolerations` / `units[i].{requests,limits,nodeSelector,annotations}` 可变。
+**字段不变性**：`metadata.name` 与 `units[i].name` 不可变（标识锚点）；`spec.nodeSelector` / `capacity` / `units[i].{requests,limits,nodeSelector,annotations}` 可变。`capacity` 省略或为空时，Kubernetes 形态按 `nodeSelector` 匹配节点的实时 inventory 计算池容量；非空时覆盖该计算结果。Standalone 不接受 pool/unit `nodeSelector`，非空 `capacity` 覆盖 Docker 宿主 inventory。
 **unit 命名约定**：`<accelerator>[-<count>x]-<tier>[-<variant>]`（`<tier>∈small|medium|large|xlarge`，`cpu` 类省略 `<count>x`）。
 **默认池**：Helm post-install Job 经本服务 REST 创建 `default` pool（带 `cpu-small` / `cpu-medium` 两 unit），`nodeSelector` 空表示整集群可用。
 
@@ -75,7 +74,7 @@ REST create/patch 会在写 CR 前校验 `requests` / `limits` 的资源名：�
 
 ### 3.2 展开合并规则
 
-由 [compute-service §5.4](compute-service.md#54-resourcepool-展开) 在创建时完成（不由本服务或上游完成）：`pool.nodeSelector` 全保留；`unit.nodeSelector` 仅补 pool 未声明的 key；`pool.tolerations` 直作 `spec.scheduling.tolerations`；`unit.requests/limits` 写入 `roles[*].template.resources`。展开结果 snapshot 进 PG，与 CR 解耦——pool/unit 后续修改 / 删除不影响已创建 workload。
+由 [compute-service §5.4](compute-service.md#54-resourcepool-展开) 在创建时完成（不由本服务或上游完成）：`pool.nodeSelector` 全保留；`unit.nodeSelector` 仅补 pool 未声明的 key；`unit.requests/limits` 写入 `roles[*].template.resources`。这些 workload 原语 snapshot 进 PG，与 CR 解耦。`pool.capacity` 是池级共享 admission 上限，不写入 workload spec；队列每轮读取当前值，因此修改会作用于该池已有 reservation 与后续准入。
 
 ### 3.3 Tenant 形状与配额折算
 

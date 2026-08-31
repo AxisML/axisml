@@ -44,23 +44,11 @@
         <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
       </div>
 
-      <div class="fieldset-title"><span class="n">2</span>节点调度</div>
+      <div class="fieldset-title"><span class="n">2</span>容量与节点调度</div>
       <div class="form-grid">
         <div class="field full"><label>节点选择器（K=V）</label><div class="chip-row"><span class="tag mono">gpu.product=A100 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
 
-        <div class="field full"><label>容忍配置（tolerations）</label>
-          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
-          <div class="vol-list tol-list" data-vol-list data-tol-list>
-            <div class="vol-row">
-              <input class="input mono" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
-              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option>Exists</option></select>
-              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
-              <select class="input" aria-label="effect"><option>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
-              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            </div>
-          </div>
-          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
-        </div>
+        <div class="field full"><label><input type="checkbox" /> 覆盖计算出的容量</label><div class="chip-row"><span class="tag mono">cpu=64 ✕</span><span class="tag mono">memory=512Gi ✕</span><span class="tag mono">nvidia.com/gpu=8 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
       </div>
     </div>
     <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="资源池已创建，请添加资源单元" data-drawer-submit>创建资源池</button></div>
@@ -76,23 +64,11 @@
         <div class="field full"><label>描述</label><textarea class="textarea">A100 训练池</textarea></div>
       </div>
 
-      <div class="fieldset-title"><span class="n">2</span>节点调度</div>
+      <div class="fieldset-title"><span class="n">2</span>容量与节点调度</div>
       <div class="form-grid">
         <div class="field full"><label>节点选择器（K=V）</label><div class="chip-row"><span class="tag mono">gpu.product=A100 ✕</span><span class="tag mono">arch=amd64 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
 
-        <div class="field full"><label>容忍配置（tolerations）</label>
-          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
-          <div class="vol-list tol-list" data-vol-list data-tol-list>
-            <div class="vol-row">
-              <input class="input mono" value="nvidia.com/gpu" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
-              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option selected>Exists</option></select>
-              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
-              <select class="input" aria-label="effect"><option selected>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
-              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            </div>
-          </div>
-          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
-        </div>
+        <div class="field full"><label><input type="checkbox" checked /> 覆盖计算出的容量</label><div class="chip-row"><span class="tag mono">cpu=64 ✕</span><span class="tag mono">memory=512Gi ✕</span><span class="tag mono">nvidia.com/gpu=8 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
       </div>
 
       <div class="fieldset-title"><span class="n">3</span>资源单元</div>
@@ -165,19 +141,6 @@
       <div class="fieldset-title"><span class="n">3</span>节点调度</div>
       <div class="form-grid">
         <div class="field full"><label>额外节点选择器（K=V）</label><div class="chip-row" data-uf-sel><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
-        <div class="field full"><label>容忍配置（tolerations）</label>
-          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
-          <div class="vol-list tol-list" data-vol-list data-tol-list>
-            <div class="vol-row">
-              <input class="input mono" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
-              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option>Exists</option></select>
-              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
-              <select class="input" aria-label="effect"><option>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
-              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-            </div>
-          </div>
-          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
-        </div>
       </div>
     </div>
     <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="资源单元已创建" data-drawer-submit data-uf-submit>创建资源单元</button></div>

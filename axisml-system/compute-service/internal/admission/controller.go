@@ -27,12 +27,13 @@ import (
 )
 
 const (
-	ReasonInventoryUnavailable        = "InventoryUnavailable"
-	ReasonQuotaUnavailable            = "QuotaUnavailable"
-	ReasonQuotaExceeded               = "QuotaExceeded"
-	ReasonNoMatchingNode              = "NoMatchingNode"
-	ReasonInsufficientResources       = "InsufficientResources"
-	admissionAdvisoryLock       int64 = 0x415849534d4c5155 // "AXISMLQU"
+	ReasonInventoryUnavailable          = "InventoryUnavailable"
+	ReasonQuotaUnavailable              = "QuotaUnavailable"
+	ReasonQuotaExceeded                 = "QuotaExceeded"
+	ReasonResourcePoolUnavailable       = "ResourcePoolUnavailable"
+	ReasonNoMatchingNode                = "NoMatchingNode"
+	ReasonInsufficientResources         = "InsufficientResources"
+	admissionAdvisoryLock         int64 = 0x415849534d4c5155 // "AXISMLQU"
 )
 
 type quotaKey struct {
@@ -45,6 +46,11 @@ type quotaResult struct {
 	err error
 }
 
+type poolCapacityResult struct {
+	capacity corev1.ResourceList
+	err      error
+}
+
 // Controller first admits fit-capable service increments in FIFO order, then
 // admits fit-capable runs in priority DESC, created_at ASC, id ASC order. A
 // blocked service or high-priority run does not stop later backfill candidates.
@@ -52,15 +58,16 @@ type Controller struct {
 	db        *gorm.DB
 	inventory extensions.ResourceInventory
 	quotas    extensions.QuotaResolver
+	pools     extensions.ResourceResolver
 	log       logr.Logger
 	interval  time.Duration
 }
 
-func NewController(db *gorm.DB, inventory extensions.ResourceInventory, quotas extensions.QuotaResolver, log logr.Logger, interval time.Duration) *Controller {
+func NewController(db *gorm.DB, inventory extensions.ResourceInventory, quotas extensions.QuotaResolver, pools extensions.ResourceResolver, log logr.Logger, interval time.Duration) *Controller {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Controller{db: db, inventory: inventory, quotas: quotas, log: log, interval: interval}
+	return &Controller{db: db, inventory: inventory, quotas: quotas, pools: pools, log: log, interval: interval}
 }
 
 func (c *Controller) NeedLeaderElection() bool { return true }
@@ -135,24 +142,36 @@ func (c *Controller) runOnce(ctx context.Context) {
 		max, qerr := c.quotas.ResolveQuota(ctx, key.tenant, key.pool)
 		quotaResults[key] = quotaResult{max: max, err: qerr}
 	}
+	poolNames, err := c.admissionPoolNames(ctx, queued, services)
+	if err != nil {
+		c.log.Error(err, "list resource pools used by active workloads")
+		return
+	}
+	poolCapacities := c.resolvePoolCapacities(ctx, poolNames)
 
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", admissionAdvisoryLock).Error; err != nil {
 			return err
 		}
-		return c.admitLocked(ctx, tx, snapshot, quotaResults)
+		return c.admitLocked(ctx, tx, snapshot, quotaResults, poolCapacities)
 	})
 	if err != nil {
 		c.log.Error(err, "admit queued workloads")
 	}
 }
 
-func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot extensions.ResourceSnapshot, quotaResults map[quotaKey]quotaResult) error {
-	nodes := newNodeState(snapshot)
+func (c *Controller) admitLocked(
+	ctx context.Context,
+	tx *gorm.DB,
+	snapshot extensions.ResourceSnapshot,
+	quotaResults map[quotaKey]quotaResult,
+	poolCapacities map[string]poolCapacityResult,
+) error {
 	active, usage, actualCounts, err := loadActive(tx.WithContext(ctx), snapshot.Allocations)
 	if err != nil {
 		return err
 	}
+	capacity := newAdmissionState(snapshot, poolCapacities, usage)
 	for _, workload := range active {
 		if !workload.reserveMissing {
 			continue
@@ -162,16 +181,12 @@ func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot exte
 			if missing <= 0 {
 				continue
 			}
-			if ok, _ := nodes.place(role.requests, missing, workload.nodeSelector, workload.tolerations); !ok {
-				// A durable admitted reservation must never disappear merely because
-				// its runtime instances are not visible yet. Exhaust the snapshot so
-				// no new run is admitted against capacity already promised to it.
-				nodes.exhaust()
+			if !capacity.reserveMissing(workload.pool, role.requests, missing, workload.nodeSelector, workload.tolerations) {
 				break
 			}
 		}
 	}
-	if err := c.admitServicesLocked(tx, nodes, usage, quotaResults); err != nil {
+	if err := c.admitServicesLocked(tx, capacity, usage, quotaResults); err != nil {
 		return err
 	}
 
@@ -213,20 +228,23 @@ func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot exte
 			continue
 		}
 
-		trial := nodes.clone()
+		trial := capacity.clone()
 		placed := true
 		reason := ReasonInsufficientResources
 		for _, role := range workload.roles {
 			var why string
-			if placed, why = trial.place(role.requests, role.replicas, workload.nodeSelector, workload.tolerations); !placed {
+			if placed, why = trial.place(workload.pool, role.requests, role.replicas, workload.nodeSelector, workload.tolerations); !placed {
 				reason = why
 				break
 			}
 		}
 		if !placed {
 			message := "no node has enough currently available resources"
-			if reason == ReasonNoMatchingNode {
+			switch reason {
+			case ReasonNoMatchingNode:
 				message = "no schedulable node matches the run's selector and tolerations"
+			case ReasonResourcePoolUnavailable:
+				message = "resource pool capacity is not available"
 			}
 			if err := setQueueReason(tx, run, reason, message); err != nil {
 				return err
@@ -245,7 +263,7 @@ func (c *Controller) admitLocked(ctx context.Context, tx *gorm.DB, snapshot exte
 			return result.Error
 		}
 		if result.RowsAffected == 1 {
-			nodes = trial
+			capacity = trial
 			usage[key] = sumLists(usage[key], requested)
 			metrics.ReconcilerActions.WithLabelValues("mlrun", "admission", "admitted").Inc()
 			c.log.V(1).Info("admitted MLRun", "namespace", run.Namespace, "name", run.Name, "priority", run.Priority)
@@ -275,12 +293,62 @@ func (c *Controller) pendingServices(db *gorm.DB) ([]store.MLService, error) {
 	return out, nil
 }
 
+func (c *Controller) admissionPoolNames(ctx context.Context, runs []store.MLRun, services []store.MLService) (map[string]struct{}, error) {
+	names := map[string]struct{}{}
+	for i := range runs {
+		names[poolFromLabels(runs[i].Labels)] = struct{}{}
+	}
+	for i := range services {
+		names[poolFromLabels(services[i].Labels)] = struct{}{}
+	}
+	var activeRuns []store.MLRun
+	if err := c.db.WithContext(ctx).Select("labels").
+		Where("phase IN ? AND deleted_at IS NULL", []string{"Creating", "Pending", "Running", "Canceling", "Deleting"}).
+		Find(&activeRuns).Error; err != nil {
+		return nil, err
+	}
+	for i := range activeRuns {
+		names[poolFromLabels(activeRuns[i].Labels)] = struct{}{}
+	}
+	var activeServices []store.MLService
+	if err := c.db.WithContext(ctx).Select("labels").
+		Where("phase IN ? AND deleted_at IS NULL", []string{"Creating", "Pending", "Ready", "Degraded", "Failed", "Deleting"}).
+		Find(&activeServices).Error; err != nil {
+		return nil, err
+	}
+	for i := range activeServices {
+		names[poolFromLabels(activeServices[i].Labels)] = struct{}{}
+	}
+	return names, nil
+}
+
+func (c *Controller) resolvePoolCapacities(ctx context.Context, names map[string]struct{}) map[string]poolCapacityResult {
+	results := make(map[string]poolCapacityResult, len(names))
+	for name := range names {
+		if name == "" {
+			results[name] = poolCapacityResult{err: fmt.Errorf("resource pool label is missing")}
+			continue
+		}
+		if c.pools == nil {
+			results[name] = poolCapacityResult{err: fmt.Errorf("resource pool resolver is not configured")}
+			continue
+		}
+		pool, err := c.pools.ResolveResourcePool(ctx, name)
+		if err != nil {
+			results[name] = poolCapacityResult{err: err}
+			continue
+		}
+		results[name] = poolCapacityResult{capacity: copyList(pool.Spec.Capacity)}
+	}
+	return results
+}
+
 // admitServicesLocked gives service creation/scale increments first use of the
 // current snapshot. Each step is atomic: the minimum serving set is one replica
 // of every non-empty role; subsequent replicas are admitted one at a time.
 func (c *Controller) admitServicesLocked(
 	tx *gorm.DB,
-	nodes *nodeState,
+	capacity *admissionState,
 	usage map[quotaKey]corev1.ResourceList,
 	quotaResults map[quotaKey]quotaResult,
 ) error {
@@ -358,20 +426,23 @@ func (c *Controller) admitServicesLocked(
 				break
 			}
 
-			trial := nodes.clone()
+			trial := capacity.clone()
 			placed := true
 			reason := ReasonInsufficientResources
 			for _, role := range delta {
 				var why string
-				if placed, why = trial.place(role.requests, 1, targetWorkload.nodeSelector, targetWorkload.tolerations); !placed {
+				if placed, why = trial.place(targetWorkload.pool, role.requests, 1, targetWorkload.nodeSelector, targetWorkload.tolerations); !placed {
 					reason = why
 					break
 				}
 			}
 			if !placed {
 				message := "no node has enough currently available resources for the next service replica"
-				if reason == ReasonNoMatchingNode {
+				switch reason {
+				case ReasonNoMatchingNode:
 					message = "no schedulable node matches the service selector and tolerations"
+				case ReasonResourcePoolUnavailable:
+					message = "resource pool capacity is not available"
 				}
 				if err := setServiceAdmissionReason(tx, row, reason, message); err != nil {
 					return err
@@ -395,7 +466,7 @@ func (c *Controller) admitServicesLocked(
 			row.AdmittedReplicas = datatypes.JSON(admittedJSON)
 			row.StatusJSON = datatypes.JSON(status)
 			admitted = next
-			nodes.nodes = trial.nodes
+			capacity.replace(trial)
 			usage[key] = sumLists(usage[key], requested)
 			metrics.ReconcilerActions.WithLabelValues("mlservice", "admission", "admitted").Inc()
 			c.log.V(1).Info("admitted MLService replicas", "namespace", row.Namespace, "name", row.Name,
@@ -599,6 +670,124 @@ func poolFromLabels(raw []byte) string {
 	var labels map[string]string
 	_ = json.Unmarshal(raw, &labels)
 	return labels[mlrunv1alpha1.LabelResourcePool]
+}
+
+// admissionState keeps the runtime-derived node inventory together with any
+// ResourcePool capacity overrides. A non-empty override replaces node-derived
+// capacity for workloads in that pool. We still reserve physical nodes on a
+// best-effort basis so workloads from pools without overrides see already
+// promised capacity; a failed physical reservation cannot block the pool whose
+// administrator explicitly supplied an override.
+type admissionState struct {
+	nodes       *nodeState
+	overrides   map[string]*resourceBudget
+	unavailable map[string]error
+}
+
+type resourceBudget struct {
+	remaining corev1.ResourceList
+}
+
+func newAdmissionState(
+	snapshot extensions.ResourceSnapshot,
+	results map[string]poolCapacityResult,
+	usage map[quotaKey]corev1.ResourceList,
+) *admissionState {
+	state := &admissionState{
+		nodes:       newNodeState(snapshot),
+		overrides:   map[string]*resourceBudget{},
+		unavailable: map[string]error{},
+	}
+	usedByPool := map[string]corev1.ResourceList{}
+	for key, resources := range usage {
+		usedByPool[key.pool] = sumLists(usedByPool[key.pool], resources)
+	}
+	for pool, result := range results {
+		if result.err != nil {
+			state.unavailable[pool] = result.err
+			continue
+		}
+		if len(result.capacity) == 0 {
+			continue
+		}
+		remaining := copyList(result.capacity)
+		subtractList(remaining, usedByPool[pool])
+		state.overrides[pool] = &resourceBudget{remaining: remaining}
+	}
+	return state
+}
+
+func (s *admissionState) clone() *admissionState {
+	out := &admissionState{
+		nodes:       s.nodes.clone(),
+		overrides:   make(map[string]*resourceBudget, len(s.overrides)),
+		unavailable: s.unavailable,
+	}
+	for pool, budget := range s.overrides {
+		out.overrides[pool] = &resourceBudget{remaining: copyList(budget.remaining)}
+	}
+	return out
+}
+
+func (s *admissionState) replace(next *admissionState) {
+	s.nodes = next.nodes
+	s.overrides = next.overrides
+	s.unavailable = next.unavailable
+}
+
+func (s *admissionState) place(
+	pool string,
+	requests corev1.ResourceList,
+	replicas int,
+	selector map[string]string,
+	tolerations []corev1.Toleration,
+) (bool, string) {
+	if _, unavailable := s.unavailable[pool]; unavailable {
+		return false, ReasonResourcePoolUnavailable
+	}
+	if budget, overridden := s.overrides[pool]; overridden {
+		if !budget.place(requests, replicas) {
+			return false, ReasonInsufficientResources
+		}
+		// Keep node-derived pools aware of this reservation when it can be
+		// represented physically. A capacity override is authoritative when it
+		// cannot, so the failed best-effort placement must not consume unrelated
+		// node inventory.
+		_, _ = s.nodes.place(requests, replicas, selector, tolerations)
+		return true, ""
+	}
+	return s.nodes.place(requests, replicas, selector, tolerations)
+}
+
+func (s *admissionState) reserveMissing(
+	pool string,
+	requests corev1.ResourceList,
+	replicas int,
+	selector map[string]string,
+	tolerations []corev1.Toleration,
+) bool {
+	if _, overridden := s.overrides[pool]; overridden {
+		_, _ = s.nodes.place(requests, replicas, selector, tolerations)
+		return true
+	}
+	if ok, _ := s.nodes.place(requests, replicas, selector, tolerations); !ok {
+		// A durable admitted reservation must never disappear merely because
+		// its runtime instances are not visible yet. Exhaust the snapshot so no
+		// new node-derived workload is admitted against promised capacity.
+		s.nodes.exhaust()
+		return false
+	}
+	return true
+}
+
+func (b *resourceBudget) place(requests corev1.ResourceList, replicas int) bool {
+	for replica := 0; replica < replicas; replica++ {
+		if !fits(b.remaining, requests) {
+			return false
+		}
+		subtractList(b.remaining, requests)
+	}
+	return true
 }
 
 // nodeState is intentionally private and mutable; clone supplies the trial

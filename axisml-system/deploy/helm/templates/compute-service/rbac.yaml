@@ -20,7 +20,7 @@ rules:
     resources: ["tenants"]
     verbs: ["get"]
   # ResourcePool (owned by cluster-manager): Compute reads it via an informer to
-  # resolve pool/unit -> nodeSelector/tolerations/resources when materializing
+  # resolve pool/unit -> nodeSelector/resources and live pool capacity
   # Job/Service workloads.
   - apiGroups: ["axisml.io"]
     resources: ["resourcepools"]

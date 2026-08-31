@@ -12,20 +12,17 @@ import (
 // time, produced by merging a ResourcePool with one of its ResourceUnits.
 type Expanded struct {
 	NodeSelector map[string]string
-	Tolerations  []corev1.Toleration
 	Requests     corev1.ResourceList
 	Limits       corev1.ResourceList
 }
 
 // Expand merges a pool and one of its units into the snapshot per the design
 // §5.4 merge rules: pool nodeSelector keys win and unit-only keys fill the
-// gaps; pool tolerations pass through verbatim; the unit's requests/limits go
-// to the role template. The unit must belong to pool (the caller resolves both
+// gaps; the unit's requests/limits go to the role template. The unit must belong to pool (the caller resolves both
 // via the ResourceResolver seam).
 func Expand(pool *cmv1alpha1.ResourcePool, unit *cmv1alpha1.ResourceUnit) Expanded {
 	return Expanded{
 		NodeSelector: mergeNodeSelector(pool.Spec.NodeSelector, unit.NodeSelector),
-		Tolerations:  pool.Spec.Tolerations,
 		Requests:     unit.Requests,
 		Limits:       unit.Limits,
 	}

@@ -1,7 +1,7 @@
 // Package poolcache wraps the controller-runtime Informer cache for the
 // ResourcePool CRD (cluster-scoped). Compute consumes this cache at
 // Job/Service create time to look up the ResourcePool and ResourceUnit it
-// expands (internal/resource) into the nodeSelector / tolerations / resources
+// expands (internal/resource) into the nodeSelector / resources
 // snapshot that lands in spec jsonb — there is no PG mirror of ResourcePool.
 // See design §5.4.
 package poolcache

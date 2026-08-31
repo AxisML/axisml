@@ -102,6 +102,19 @@ func TestLoadStaticConfig_Valid(t *testing.T) {
 	assert.Equal(t, "small", sc.Pools[0].Spec.Units[0].Name)
 }
 
+func TestLoadStaticConfig_AcceptsPoolCapacity(t *testing.T) {
+	pool := validPool()
+	pool.Spec.Capacity = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("8"),
+		corev1.ResourceMemory: resource.MustParse("32Gi"),
+	}
+
+	sc, err := standalone.LoadStaticConfig(oneConfig(t, pool, validTenant()))
+	require.NoError(t, err)
+	assert.Equal(t, "8", sc.Pools[0].Spec.Capacity.Cpu().String())
+	assert.Equal(t, "32Gi", sc.Pools[0].Spec.Capacity.Memory().String())
+}
+
 func TestLoadStaticConfig_ExpandsBracedEnvironmentVariables(t *testing.T) {
 	t.Setenv("AIOSML_DATA_ROOT", "/srv/aios-ml")
 	tenant := validTenant()
@@ -334,14 +347,14 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
 				p.Spec.NodeSelector = map[string]string{"gpu": "true"}
 			},
-			wantSub: "nodeSelector/tolerations must be empty",
+			wantSub: "nodeSelector must be empty",
 		},
 		{
-			name: "pool tolerations not empty",
+			name: "pool capacity uses unsupported resource",
 			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
-				p.Spec.Tolerations = []corev1.Toleration{{Key: "dedicated"}}
+				p.Spec.Capacity = corev1.ResourceList{"gpu": resource.MustParse("1")}
 			},
-			wantSub: "nodeSelector/tolerations must be empty",
+			wantSub: `resource "gpu" is not supported`,
 		},
 		{
 			name: "tenant credential initResources not empty",

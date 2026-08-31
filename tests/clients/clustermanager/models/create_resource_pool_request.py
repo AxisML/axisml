@@ -9,9 +9,11 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.corev_1_toleration import Corev1Toleration
     from ..models.create_resource_pool_request_annotations import (
         CreateResourcePoolRequestAnnotations,
+    )
+    from ..models.create_resource_pool_request_capacity import (
+        CreateResourcePoolRequestCapacity,
     )
     from ..models.create_resource_pool_request_labels import (
         CreateResourcePoolRequestLabels,
@@ -31,30 +33,31 @@ T = TypeVar("T", bound="CreateResourcePoolRequest")
 class CreateResourcePoolRequest:
     """
     Example:
-        {'description': 'A100 GPU resource pool.', 'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector':
-            {'axisml.io/gpu': 'a100'}, 'tolerations': [{'effect': 'NoSchedule', 'key': 'nvidia.com/gpu', 'operator':
-            'Exists'}], 'units': [{'description': '2× A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
-            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'requests': {'cpu': '16',
-            'memory': '128Gi', 'nvidia.com/gpu': '2'}}]}
+        {'capacity': {'cpu': '64', 'memory': '512Gi', 'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.',
+            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2× A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'},
+            'name': 'a100-2x', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'requests': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}}]}
 
     Attributes:
         annotations (CreateResourcePoolRequestAnnotations | Unset): User-defined annotations to set on the pool.
+        capacity (CreateResourcePoolRequestCapacity | Unset): Optional pool capacity override. Omit to derive capacity
+            from matching runtime nodes.
         description (str | Unset): Human-readable description of the pool.
         labels (CreateResourcePoolRequestLabels | Unset): User-defined labels to set on the pool.
         name (str | Unset): Pool name to create; must be unique and DNS-1123 compliant.
         node_selector (CreateResourcePoolRequestNodeSelector | Unset): Node labels that workloads scheduled into this
             pool must match.
-        tolerations (list[Corev1Toleration] | Unset): Tolerations applied to workloads scheduled into this pool.
         units (list[ServerCreateResourceUnitRequest] | Unset): Initial set of resource units to create inline with the
             pool.
     """
 
     annotations: CreateResourcePoolRequestAnnotations | Unset = UNSET
+    capacity: CreateResourcePoolRequestCapacity | Unset = UNSET
     description: str | Unset = UNSET
     labels: CreateResourcePoolRequestLabels | Unset = UNSET
     name: str | Unset = UNSET
     node_selector: CreateResourcePoolRequestNodeSelector | Unset = UNSET
-    tolerations: list[Corev1Toleration] | Unset = UNSET
     units: list[ServerCreateResourceUnitRequest] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -62,6 +65,10 @@ class CreateResourcePoolRequest:
         annotations: dict[str, Any] | Unset = UNSET
         if not isinstance(self.annotations, Unset):
             annotations = self.annotations.to_dict()
+
+        capacity: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.capacity, Unset):
+            capacity = self.capacity.to_dict()
 
         description = self.description
 
@@ -75,13 +82,6 @@ class CreateResourcePoolRequest:
         if not isinstance(self.node_selector, Unset):
             node_selector = self.node_selector.to_dict()
 
-        tolerations: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.tolerations, Unset):
-            tolerations = []
-            for tolerations_item_data in self.tolerations:
-                tolerations_item = tolerations_item_data.to_dict()
-                tolerations.append(tolerations_item)
-
         units: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.units, Unset):
             units = []
@@ -94,6 +94,8 @@ class CreateResourcePoolRequest:
         field_dict.update({})
         if annotations is not UNSET:
             field_dict["annotations"] = annotations
+        if capacity is not UNSET:
+            field_dict["capacity"] = capacity
         if description is not UNSET:
             field_dict["description"] = description
         if labels is not UNSET:
@@ -102,8 +104,6 @@ class CreateResourcePoolRequest:
             field_dict["name"] = name
         if node_selector is not UNSET:
             field_dict["nodeSelector"] = node_selector
-        if tolerations is not UNSET:
-            field_dict["tolerations"] = tolerations
         if units is not UNSET:
             field_dict["units"] = units
 
@@ -111,9 +111,11 @@ class CreateResourcePoolRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.corev_1_toleration import Corev1Toleration
         from ..models.create_resource_pool_request_annotations import (
             CreateResourcePoolRequestAnnotations,
+        )
+        from ..models.create_resource_pool_request_capacity import (
+            CreateResourcePoolRequestCapacity,
         )
         from ..models.create_resource_pool_request_labels import (
             CreateResourcePoolRequestLabels,
@@ -132,6 +134,13 @@ class CreateResourcePoolRequest:
             annotations = UNSET
         else:
             annotations = CreateResourcePoolRequestAnnotations.from_dict(_annotations)
+
+        _capacity = d.pop("capacity", UNSET)
+        capacity: CreateResourcePoolRequestCapacity | Unset
+        if isinstance(_capacity, Unset):
+            capacity = UNSET
+        else:
+            capacity = CreateResourcePoolRequestCapacity.from_dict(_capacity)
 
         description = d.pop("description", UNSET)
 
@@ -153,15 +162,6 @@ class CreateResourcePoolRequest:
                 _node_selector
             )
 
-        _tolerations = d.pop("tolerations", UNSET)
-        tolerations: list[Corev1Toleration] | Unset = UNSET
-        if _tolerations is not UNSET:
-            tolerations = []
-            for tolerations_item_data in _tolerations:
-                tolerations_item = Corev1Toleration.from_dict(tolerations_item_data)
-
-                tolerations.append(tolerations_item)
-
         _units = d.pop("units", UNSET)
         units: list[ServerCreateResourceUnitRequest] | Unset = UNSET
         if _units is not UNSET:
@@ -173,11 +173,11 @@ class CreateResourcePoolRequest:
 
         create_resource_pool_request = cls(
             annotations=annotations,
+            capacity=capacity,
             description=description,
             labels=labels,
             name=name,
             node_selector=node_selector,
-            tolerations=tolerations,
             units=units,
         )
 

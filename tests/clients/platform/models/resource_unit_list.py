@@ -22,8 +22,7 @@ class ResourceUnitList:
         {'continueToken': '', 'count': 1, 'items': [{'annotations': {'axisml.io/cost-center': 'ml-platform',
             'axisml.io/created-by': 'admin'}, 'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory':
             '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'nodeSelector': {'arch': 'amd64', 'gpu.product': 'A100'},
-            'requests': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'}, 'tolerations': [{'effect': 'NoSchedule',
-            'key': 'nvidia.com/gpu', 'operator': 'Exists'}]}]}
+            'requests': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'}}]}
 
     Attributes:
         count (int): Number of units in this page.

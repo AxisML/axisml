@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
 
+	resourcepoolv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 )
@@ -41,9 +42,19 @@ func (quotaStub) ResolveQuota(context.Context, string, string) (corev1.ResourceL
 	return corev1.ResourceList{}, nil
 }
 
+type resolverStub struct{}
+
+func (resolverStub) ResolveResourcePool(context.Context, string) (*resourcepoolv1alpha1.ResourcePool, error) {
+	return &resourcepoolv1alpha1.ResourcePool{}, nil
+}
+
+func (resolverStub) ResolveResourceUnit(context.Context, string, string) (*resourcepoolv1alpha1.ResourceUnit, error) {
+	return &resourcepoolv1alpha1.ResourceUnit{}, nil
+}
+
 func TestNew_AssemblesRunQueueWhenAdmissionDependenciesExist(t *testing.T) {
 	m, err := module.New(module.Deps{
-		DB: &gorm.DB{}, Inventory: inventoryStub{}, Quotas: quotaStub{}, Log: logr.Discard(),
+		DB: &gorm.DB{}, Inventory: inventoryStub{}, Quotas: quotaStub{}, Resolver: resolverStub{}, Log: logr.Discard(),
 	})
 	require.NoError(t, err)
 	assert.Len(t, m.Runnables(), 4)

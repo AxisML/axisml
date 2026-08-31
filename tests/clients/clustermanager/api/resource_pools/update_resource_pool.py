@@ -97,8 +97,9 @@ def sync_detailed(
 
     Args:
         pool (str):
-        body (PatchResourcePoolRequest):  Example: {'description': 'A100 GPU resource pool
-            (updated).', 'labels': {'region': 'cn-east', 'tier': 'gpu'}}.
+        body (PatchResourcePoolRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'A100 GPU resource pool (updated).', 'labels':
+            {'region': 'cn-east', 'tier': 'gpu'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -130,8 +131,9 @@ def sync(
 
     Args:
         pool (str):
-        body (PatchResourcePoolRequest):  Example: {'description': 'A100 GPU resource pool
-            (updated).', 'labels': {'region': 'cn-east', 'tier': 'gpu'}}.
+        body (PatchResourcePoolRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'A100 GPU resource pool (updated).', 'labels':
+            {'region': 'cn-east', 'tier': 'gpu'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -158,8 +160,9 @@ async def asyncio_detailed(
 
     Args:
         pool (str):
-        body (PatchResourcePoolRequest):  Example: {'description': 'A100 GPU resource pool
-            (updated).', 'labels': {'region': 'cn-east', 'tier': 'gpu'}}.
+        body (PatchResourcePoolRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'A100 GPU resource pool (updated).', 'labels':
+            {'region': 'cn-east', 'tier': 'gpu'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,8 +192,9 @@ async def asyncio(
 
     Args:
         pool (str):
-        body (PatchResourcePoolRequest):  Example: {'description': 'A100 GPU resource pool
-            (updated).', 'labels': {'region': 'cn-east', 'tier': 'gpu'}}.
+        body (PatchResourcePoolRequest):  Example: {'capacity': {'cpu': '96', 'memory': '768Gi',
+            'nvidia.com/gpu': '12'}, 'description': 'A100 GPU resource pool (updated).', 'labels':
+            {'region': 'cn-east', 'tier': 'gpu'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

@@ -22,7 +22,7 @@ type ResourcePool struct {
 	Name            string              `json:"name" desc:"Pool name; the stable, immutable handle (CR metadata.name)."`
 	Description     string              `json:"description,omitempty" desc:"Human-readable description of the pool."`
 	NodeSelector    map[string]string   `json:"nodeSelector,omitempty" desc:"Node labels that workloads scheduled into this pool must match."`
-	Tolerations     []corev1.Toleration `json:"tolerations,omitempty" desc:"Tolerations applied to workloads scheduled into this pool."`
+	Capacity        corev1.ResourceList `json:"capacity,omitempty" desc:"Optional pool capacity override. When omitted, capacity is derived from matching runtime nodes."`
 	Units           []ResourceUnit      `json:"units" desc:"Resource units (allocatable shapes) offered by this pool."`
 	Labels          map[string]string   `json:"labels,omitempty" desc:"User-defined labels on the pool."`
 	Annotations     map[string]string   `json:"annotations,omitempty" desc:"User-defined annotations on the pool."`
@@ -46,7 +46,7 @@ type CreateResourcePoolRequest struct {
 	Name         string                      `json:"name" desc:"Pool name to create; must be unique and DNS-1123 compliant."`
 	Description  string                      `json:"description,omitempty" desc:"Human-readable description of the pool."`
 	NodeSelector map[string]string           `json:"nodeSelector,omitempty" desc:"Node labels that workloads scheduled into this pool must match."`
-	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty" desc:"Tolerations applied to workloads scheduled into this pool."`
+	Capacity     corev1.ResourceList         `json:"capacity,omitempty" desc:"Optional pool capacity override. Omit to derive capacity from matching runtime nodes."`
 	Units        []CreateResourceUnitRequest `json:"units,omitempty" desc:"Initial set of resource units to create inline with the pool."`
 	Labels       map[string]string           `json:"labels,omitempty" desc:"User-defined labels to set on the pool."`
 	Annotations  map[string]string           `json:"annotations,omitempty" desc:"User-defined annotations to set on the pool."`
@@ -57,7 +57,7 @@ type CreateResourcePoolRequest struct {
 type PatchResourcePoolRequest struct {
 	Description  *string             `json:"description,omitempty" desc:"New description; omit to leave unchanged, empty string to clear."`
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty" desc:"Replacement node selector for the pool."`
-	Tolerations  []corev1.Toleration `json:"tolerations,omitempty" desc:"Replacement tolerations for the pool."`
+	Capacity     corev1.ResourceList `json:"capacity,omitempty" desc:"Replacement capacity override; send an empty object to return to runtime-derived capacity."`
 	Labels       map[string]string   `json:"labels,omitempty" desc:"Replacement labels for the pool."`
 	Annotations  map[string]string   `json:"annotations,omitempty" desc:"Replacement annotations for the pool."`
 }

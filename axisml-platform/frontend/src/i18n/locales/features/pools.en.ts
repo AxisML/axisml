@@ -29,7 +29,7 @@ export default {
     saved: "Pool saved",
     // sections
     fsBasic: "Basic Info",
-    fsSchedule: "Node Scheduling",
+    fsSchedule: "Capacity & Node Scheduling",
     fsUnits: "Resource Units",
     fName: "Name",
     fNamePlaceholder: "gpu-a100",
@@ -42,16 +42,12 @@ export default {
     selectorValue: "value",
     selectorAdd: "Add",
     selectorEmpty: "No node selector set",
-    // tolerations
-    fTolerations: "Tolerations",
-    tolKey: "key",
-    tolOp: "operator",
-    tolVal: "value",
-    tolEffect: "effect",
-    tolKeyPlaceholder: "taint key, e.g. nvidia.com/gpu",
-    tolValPlaceholder: "e.g. true",
-    addToleration: "Add toleration",
-    noTolerations: "No tolerations configured",
+    // capacity override
+    fCapacity: "Override calculated capacity",
+    fCapacityHelp:
+      "When disabled, Kubernetes derives capacity from matching nodes and Standalone uses host inventory.",
+    capacityResource: "resource, e.g. cpu",
+    capacityQuantity: "quantity, e.g. 64 or 256Gi",
     // units grid
     unitsEmpty: "No resource units yet — add one below",
     newUnit: "New Unit",

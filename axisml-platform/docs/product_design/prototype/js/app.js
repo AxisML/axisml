@@ -445,28 +445,6 @@
       sync();
     });
 
-    // 容忍配置：贴合 Kubernetes Toleration 语义 —— operator=Exists 时 value 不适用
-    function syncTolRow(row) {
-      var op = row.querySelector("[data-tol-op]");
-      var val = row.querySelector("[data-tol-val]");
-      if (!op || !val) return;
-      var exists = op.value === "Exists";
-      val.disabled = exists;
-      if (exists) { val.value = ""; val.setAttribute("placeholder", "Exists 无需取值"); }
-      else val.setAttribute("placeholder", "如 true");
-    }
-    document.querySelectorAll("[data-tol-list]").forEach(function (list) {
-      list.querySelectorAll(".vol-row").forEach(syncTolRow);
-      list.addEventListener("change", function (e) {
-        var op = e.target.closest("[data-tol-op]");
-        if (op) syncTolRow(op.closest(".vol-row"));
-      });
-      var add = list.parentElement && list.parentElement.querySelector("[data-vol-add]");
-      if (add) add.addEventListener("click", function () {
-        setTimeout(function () { list.querySelectorAll(".vol-row").forEach(syncTolRow); }, 0);
-      });
-    });
-
     // 资源配额：多 Tab（每个 Tab 一个资源池），池内列出自有资源单元；数量直接输入，0 置灰并按数量排序
     document.querySelectorAll("[data-pool-tabs]").forEach(function (root) {
       var nav = root.querySelector("[data-ptab-nav]");

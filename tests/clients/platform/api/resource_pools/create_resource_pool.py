@@ -93,11 +93,12 @@ def sync_detailed(
     """Create a resource pool
 
     Args:
-        body (ResourcePoolCreateRequest):  Example: {'description': 'A100 GPU resource pool.',
-            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'},
-            'units': [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}}]}.
+        body (ResourcePoolCreateRequest):  Example: {'capacity': {'cpu': '64', 'memory': '512Gi',
+            'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.', 'labels': {'tier':
+            'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -126,11 +127,12 @@ def sync(
     """Create a resource pool
 
     Args:
-        body (ResourcePoolCreateRequest):  Example: {'description': 'A100 GPU resource pool.',
-            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'},
-            'units': [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}}]}.
+        body (ResourcePoolCreateRequest):  Example: {'capacity': {'cpu': '64', 'memory': '512Gi',
+            'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.', 'labels': {'tier':
+            'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -154,11 +156,12 @@ async def asyncio_detailed(
     """Create a resource pool
 
     Args:
-        body (ResourcePoolCreateRequest):  Example: {'description': 'A100 GPU resource pool.',
-            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'},
-            'units': [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}}]}.
+        body (ResourcePoolCreateRequest):  Example: {'capacity': {'cpu': '64', 'memory': '512Gi',
+            'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.', 'labels': {'tier':
+            'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -185,11 +188,12 @@ async def asyncio(
     """Create a resource pool
 
     Args:
-        body (ResourcePoolCreateRequest):  Example: {'description': 'A100 GPU resource pool.',
-            'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'},
-            'units': [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory':
-            '128Gi', 'nvidia.com/gpu': '2'}}]}.
+        body (ResourcePoolCreateRequest):  Example: {'capacity': {'cpu': '64', 'memory': '512Gi',
+            'nvidia.com/gpu': '8'}, 'description': 'A100 GPU resource pool.', 'labels': {'tier':
+            'gpu'}, 'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'units':
+            [{'description': '2x A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'requests': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

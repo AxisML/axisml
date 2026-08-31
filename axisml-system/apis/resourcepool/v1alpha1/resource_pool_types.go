@@ -31,7 +31,7 @@ type ResourcePoolList struct {
 // `units` is embedded — no separate CR; it shares the pool's lifecycle.
 type ResourcePoolSpec struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
+	Capacity     corev1.ResourceList `json:"capacity,omitempty"`
 	Units        []ResourceUnit      `json:"units,omitempty"`
 }
 
@@ -97,12 +97,12 @@ func (in *ResourcePoolSpec) DeepCopyInto(out *ResourcePoolSpec) {
 		}
 		out.NodeSelector = m
 	}
-	if in.Tolerations != nil {
-		l := make([]corev1.Toleration, len(in.Tolerations))
-		for i := range in.Tolerations {
-			in.Tolerations[i].DeepCopyInto(&l[i])
+	if in.Capacity != nil {
+		m := make(corev1.ResourceList, len(in.Capacity))
+		for k, v := range in.Capacity {
+			m[k] = v.DeepCopy()
 		}
-		out.Tolerations = l
+		out.Capacity = m
 	}
 	if in.Units != nil {
 		l := make([]ResourceUnit, len(in.Units))

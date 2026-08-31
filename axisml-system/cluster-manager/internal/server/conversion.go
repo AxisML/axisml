@@ -1,7 +1,6 @@
 package server
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
@@ -13,7 +12,7 @@ func PoolToAPI(p *axismlv1alpha1.ResourcePool) ResourcePool {
 		Name:            p.Name,
 		Description:     p.Annotations[DescriptionAnnotation],
 		NodeSelector:    p.Spec.NodeSelector,
-		Tolerations:     p.Spec.Tolerations,
+		Capacity:        p.Spec.Capacity,
 		Units:           make([]ResourceUnit, 0, len(p.Spec.Units)),
 		Labels:          p.Labels,
 		Annotations:     stripReservedAnnotations(p.Annotations),
@@ -49,7 +48,7 @@ func APIToPool(req CreateResourcePoolRequest, lastModifiedBy string) *axismlv1al
 		},
 		Spec: axismlv1alpha1.ResourcePoolSpec{
 			NodeSelector: copyMap(req.NodeSelector),
-			Tolerations:  copyTolerations(req.Tolerations),
+			Capacity:     copyResourceList(req.Capacity),
 		},
 	}
 	for _, u := range req.Units {
@@ -116,17 +115,6 @@ func copyMap(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[k] = v
-	}
-	return out
-}
-
-func copyTolerations(in []corev1.Toleration) []corev1.Toleration {
-	if in == nil {
-		return nil
-	}
-	out := make([]corev1.Toleration, len(in))
-	for i := range in {
-		in[i].DeepCopyInto(&out[i])
 	}
 	return out
 }

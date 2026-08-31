@@ -2030,6 +2030,11 @@ export const examples: Record<string, unknown> = {
       "axisml.io/cost-center": "ml-platform",
       "axisml.io/created-by": "admin"
     },
+    "capacity": {
+      "cpu": "64",
+      "memory": "512Gi",
+      "nvidia.com/gpu": "8"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "A100 GPU resource pool.",
     "labels": {
@@ -2041,13 +2046,6 @@ export const examples: Record<string, unknown> = {
       "axisml.io/gpu": "a100"
     },
     "resourceVersion": "184321",
-    "tolerations": [
-      {
-        "effect": "NoSchedule",
-        "key": "nvidia.com/gpu",
-        "operator": "Exists"
-      }
-    ],
     "units": [
       {
         "annotations": {
@@ -2069,19 +2067,17 @@ export const examples: Record<string, unknown> = {
           "cpu": "16",
           "memory": "128Gi",
           "nvidia.com/gpu": "2"
-        },
-        "tolerations": [
-          {
-            "effect": "NoSchedule",
-            "key": "nvidia.com/gpu",
-            "operator": "Exists"
-          }
-        ]
+        }
       }
     ],
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "ResourcePoolCreateRequest": {
+    "capacity": {
+      "cpu": "64",
+      "memory": "512Gi",
+      "nvidia.com/gpu": "8"
+    },
     "description": "A100 GPU resource pool.",
     "labels": {
       "tier": "gpu"
@@ -2116,6 +2112,11 @@ export const examples: Record<string, unknown> = {
           "axisml.io/cost-center": "ml-platform",
           "axisml.io/created-by": "admin"
         },
+        "capacity": {
+          "cpu": "64",
+          "memory": "512Gi",
+          "nvidia.com/gpu": "8"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "A100 GPU resource pool.",
         "labels": {
@@ -2127,13 +2128,6 @@ export const examples: Record<string, unknown> = {
           "axisml.io/gpu": "a100"
         },
         "resourceVersion": "184321",
-        "tolerations": [
-          {
-            "effect": "NoSchedule",
-            "key": "nvidia.com/gpu",
-            "operator": "Exists"
-          }
-        ],
         "units": [
           {
             "annotations": {
@@ -2155,14 +2149,7 @@ export const examples: Record<string, unknown> = {
               "cpu": "16",
               "memory": "128Gi",
               "nvidia.com/gpu": "2"
-            },
-            "tolerations": [
-              {
-                "effect": "NoSchedule",
-                "key": "nvidia.com/gpu",
-                "operator": "Exists"
-              }
-            ]
+            }
           }
         ],
         "updatedAt": "2026-06-28T09:30:00Z"
@@ -2170,6 +2157,11 @@ export const examples: Record<string, unknown> = {
     ]
   },
   "ResourcePoolPatchRequest": {
+    "capacity": {
+      "cpu": "96",
+      "memory": "768Gi",
+      "nvidia.com/gpu": "12"
+    },
     "description": "Updated A100 GPU resource pool.",
     "nodeSelector": {
       "axisml.io/gpu": "a100",
@@ -2196,14 +2188,7 @@ export const examples: Record<string, unknown> = {
       "cpu": "16",
       "memory": "128Gi",
       "nvidia.com/gpu": "2"
-    },
-    "tolerations": [
-      {
-        "effect": "NoSchedule",
-        "key": "nvidia.com/gpu",
-        "operator": "Exists"
-      }
-    ]
+    }
   },
   "ResourceUnitCreateRequest": {
     "description": "2x A100 GPU compute unit.",
@@ -2243,14 +2228,7 @@ export const examples: Record<string, unknown> = {
           "cpu": "16",
           "memory": "128Gi",
           "nvidia.com/gpu": "2"
-        },
-        "tolerations": [
-          {
-            "effect": "NoSchedule",
-            "key": "nvidia.com/gpu",
-            "operator": "Exists"
-          }
-        ]
+        }
       }
     ]
   },

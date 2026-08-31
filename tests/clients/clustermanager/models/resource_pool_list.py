@@ -20,12 +20,12 @@ class ResourcePoolList:
     """
     Example:
         {'continueToken': '', 'count': 1, 'items': [{'annotations': {'tenant.axisml.io/managed-by': 'platform'},
-            'createdAt': '2026-06-20T08:00:00Z', 'description': 'A100 GPU resource pool.', 'labels': {'tier': 'gpu'},
-            'name': 'gpu-a100', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'resourceVersion': '184729', 'tolerations':
-            [{'effect': 'NoSchedule', 'key': 'nvidia.com/gpu', 'operator': 'Exists'}], 'units': [{'annotations':
-            {'tenant.axisml.io/managed-by': 'platform'}, 'description': '2× A100 GPU compute unit.', 'limits': {'cpu': '16',
-            'memory': '128Gi', 'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'nodeSelector': {'axisml.io/gpu': 'a100'},
-            'requests': {'cpu': '16', 'memory': '128Gi', 'nvidia.com/gpu': '2'}}]}]}
+            'capacity': {'cpu': '64', 'memory': '512Gi', 'nvidia.com/gpu': '8'}, 'createdAt': '2026-06-20T08:00:00Z',
+            'description': 'A100 GPU resource pool.', 'labels': {'tier': 'gpu'}, 'name': 'gpu-a100', 'nodeSelector':
+            {'axisml.io/gpu': 'a100'}, 'resourceVersion': '184729', 'units': [{'annotations': {'tenant.axisml.io/managed-
+            by': 'platform'}, 'description': '2× A100 GPU compute unit.', 'limits': {'cpu': '16', 'memory': '128Gi',
+            'nvidia.com/gpu': '2'}, 'name': 'a100-2x', 'nodeSelector': {'axisml.io/gpu': 'a100'}, 'requests': {'cpu': '16',
+            'memory': '128Gi', 'nvidia.com/gpu': '2'}}]}]}
 
     Attributes:
         count (int): Number of pools in this page.

@@ -828,21 +828,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .nav-item .badge-dot { display: none; }
 }
 
-/* ── 资源池：容忍配置 可增删行（复用 .vol-row 的增删逻辑）──────────────────── */
-.tol-list .vol-row,
-.tol-head { display: grid; grid-template-columns: minmax(0, 1.4fr) 108px minmax(0, 1fr) 152px 36px; gap: var(--space-3); align-items: center; }
-.tol-head { font-size: 11px; color: var(--muted); margin-bottom: 6px; padding-left: 2px; }
-.tol-head span { font-family: var(--font-mono); }
 .input[readonly] { background: var(--surface); color: var(--muted); cursor: not-allowed; }
 .unit-toolbar { margin-bottom: var(--space-3); }
-@media (max-width: 720px) {
-  .tol-head { display: none; }
-  .tol-list .vol-row { grid-template-columns: 1fr; }
-  .tol-list .vol-row .input,
-  .tol-list .vol-row select.input { grid-column: auto; }
-  .tol-list .vol-row .icon-btn { justify-self: end; }
-}
-
 /* ── 资源单元表单：资源规格输入框后缀单位 ───────────────────────────────── */
 .input-affix .suf { display: grid; place-items: center; padding: 0 var(--space-3); background: var(--surface); color: var(--muted); font-family: var(--font-mono); font-size: 12px; border-left: 1px solid var(--border); }
 

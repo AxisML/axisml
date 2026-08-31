@@ -8,7 +8,7 @@ AxisML Compute Service is the internal compute service: it owns the business met
 
 - **Compute workloads** — maintain Job / Service business metadata; create `MLRun` / `MLService` CRs; consume status reflowed by the operators via informer.
 - **Tenants** — maintain tenant metadata; emit `Tenant` CRs for tenant-operator to land Namespace / ResourceQuota / init resources.
-- **Resource pools** — maintain `ResourcePool` metadata: node selectors, tolerations, cluster mapping.
+- **Resource pools** — resolve `ResourcePool` node selectors, optional capacity overrides, and cluster mapping.
 - **Resource units** — maintain reusable resource templates (CPU/GPU/memory recipes); inject `requests`/`limits` and node-matching at workload submit time.
 - **Quotas** — flat per-`(tenant, pool)` quota CRUD with `min`/`max`; sync 1:1 to namespace-scoped `ElasticQuota` CRs; cache observed usage.
 

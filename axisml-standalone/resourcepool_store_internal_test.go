@@ -44,6 +44,7 @@ func TestPersistentResourcePoolStoreCRUDAndResolution(t *testing.T) {
 	store := newResourcePoolStoreForTest(t)
 
 	created := persistentResourcePool("team-pool", "2")
+	created.Spec.Capacity = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("8")}
 	created.Labels = map[string]string{"team": "e2e"}
 	require.NoError(t, store.Create(ctx, created))
 	assert.Equal(t, "1", created.ResourceVersion)
@@ -74,6 +75,7 @@ func TestPersistentResourcePoolStoreCRUDAndResolution(t *testing.T) {
 	resolved, err := store.ResolveResourcePool(ctx, "team-pool")
 	require.NoError(t, err)
 	assert.Equal(t, "team-pool", resolved.Name)
+	assert.Equal(t, "8", resolved.Spec.Capacity.Cpu().String())
 	unit, err := store.ResolveResourceUnit(ctx, "team-pool", "small")
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), unit.Requests.Cpu().Value())

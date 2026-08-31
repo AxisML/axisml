@@ -45,8 +45,8 @@ type Deps struct {
 	DB       *gorm.DB
 	Runtime  extensions.ComputeRuntime
 	Resolver extensions.ResourceResolver
-	// Inventory and Quotas back cross-runtime MLService/MLRun admission. When
-	// either is nil the queue controller is not assembled (primarily useful to
+	// Inventory, Quotas and Resolver back cross-runtime MLService/MLRun admission. When
+	// any is nil the queue controller is not assembled (primarily useful to
 	// keep lightweight module-construction tests independent of a runtime).
 	Inventory extensions.ResourceInventory
 	Quotas    extensions.QuotaResolver
@@ -79,8 +79,8 @@ func New(d Deps) (*Module, error) {
 	serviceRecon := servicemod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlservice-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
 	trafficRecon := trafficmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("traffic-policy-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
 	var queueAdmission Runnable
-	if d.DB != nil && d.Inventory != nil && d.Quotas != nil {
-		queueAdmission = admission.NewController(d.DB, d.Inventory, d.Quotas, d.Log.WithName("workload-admission"), d.ReconcileInterval)
+	if d.DB != nil && d.Inventory != nil && d.Quotas != nil && d.Resolver != nil {
+		queueAdmission = admission.NewController(d.DB, d.Inventory, d.Quotas, d.Resolver, d.Log.WithName("workload-admission"), d.ReconcileInterval)
 	}
 
 	metrics := metricsquery.NewQuerier(d.Metrics)

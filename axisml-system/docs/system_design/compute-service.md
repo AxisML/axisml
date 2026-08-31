@@ -17,7 +17,7 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 
 Standard Runtime 写入 API Server 前，通过 Tenant CR 将逻辑 tenant scope 映射到 `Tenant.spec.namespace.name`。CR `metadata.name` 使用共享 workload naming helper 产生的物理基础名；启用 `AXISML_WORKLOAD_TENANT_PREFIX` 时包含稳定 tenant token，以允许多个 tenant 在同一 Kubernetes Namespace 中使用相同逻辑 workload 名。PG/API key 始终保持逻辑值，observe、delete、Pod、日志与事件查询在 Kubernetes adapter 内复用相同映射。
 
-**Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits`），snapshot 到 `spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦（§5.4）。
+**Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `requests` / `limits`），snapshot 到 `spec` jsonb。workload 原语一经写入即与 pool/unit CR 解耦；池级 `capacity` 由 admission 每轮读取，不进入 workload spec（§5.4）。
 
 ## 2. 架构
 
@@ -71,7 +71,7 @@ Queued ─(容量 + quota admission)─▶ Creating ─(runtime Apply)─▶ Pen
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 提交 | insert `Queued` + priority/spec 快照（已含展开后的 nodeSelector / tolerations / resources） | 无；Queued 期间不存在 MLRun CR、Pod 或 Docker container |
+| 提交 | insert `Queued` + priority/spec 快照（已含展开后的 nodeSelector / resources） | 无；Queued 期间不存在 MLRun CR、Pod 或 Docker container |
 | admission | 事务内 `Queued → Creating` durable reservation | 事务提交后 reconciler 才调用 runtime `ApplyMLRun`；成功转 `Pending` 并写 `scheduled_at` |
 | cancel | `phase='Canceling'` + message | patch `spec.runPolicy.suspend=true`；`Creating` 拒绝（改用 DELETE） |
 | 更新 PG 元数据 | update 行 | 不影响 CR（spec 不可变，扩展位任意阶段可改） |
@@ -80,9 +80,9 @@ Queued ─(容量 + quota admission)─▶ Creating ─(runtime Apply)─▶ Pen
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态（`Cancelled` 行保留，可再 DELETE）。Queued run 可直接 cancel 为 `Cancelled`，不会调用 runtime。
 
-**队列与优先级**：`scheduling.axisml.io/priority` 是十进制有符号 int32，缺省 `0`，值越大越先检查；同优先级按 `created_at ASC, id ASC`。排序只定义检查顺序，高优先级任务暂时不可放置时允许后续可放置任务 backfill，不做抢占，也不设排队超时。稳定 `status.queueReason` 为 `InventoryUnavailable`、`QuotaUnavailable`、`QuotaExceeded`、`NoMatchingNode` 或 `InsufficientResources`，`message` 仅承载人类可读细节。priority 创建后不可修改。
+**队列与优先级**：`scheduling.axisml.io/priority` 是十进制有符号 int32，缺省 `0`，值越大越先检查；同优先级按 `created_at ASC, id ASC`。排序只定义检查顺序，高优先级任务暂时不可放置时允许后续可放置任务 backfill，不做抢占，也不设排队超时。稳定 `status.queueReason` 为 `InventoryUnavailable`、`ResourcePoolUnavailable`、`QuotaUnavailable`、`QuotaExceeded`、`NoMatchingNode` 或 `InsufficientResources`，`message` 仅承载人类可读细节。priority 创建后不可修改。
 
-**资源 admission**：Kubernetes 读取 Ready、可调度 Node 的 allocatable/labels/taints 与非终态 Pod requests；standalone 把 Docker host 建模为单虚拟节点，读取 Engine CPU/内存、受管 GPU 以及活跃 container cgroup/GPU 预留。已 admission 的 MLRun 和 MLService admitted replicas 是 durable reservation。每轮先在数据库事务外读取 inventory 和 Tenant quota，再在 transaction-scoped PostgreSQL advisory lock 内重读 active/Queued 行，先增量处理 Service、再按 priority/FIFO 处理 Run；锁不覆盖 Kubernetes/Docker 调用。
+**资源 admission**：Kubernetes 读取 Ready、可调度 Node 的 allocatable/labels/taints 与非终态 Pod requests，并按 workload 已展开的 NodeSelector 做节点匹配；standalone 把 Docker host 建模为单虚拟节点，读取 Engine CPU/内存、受管 GPU 以及活跃 container cgroup/GPU 预留。ResourcePool 配置非空 `capacity` 时，该池改用此共享预算覆盖上述运行时计算；已有 active reservation 先从预算扣除。已 admission 的 MLRun 和 MLService admitted replicas 是 durable reservation。每轮先在数据库事务外读取 inventory、ResourcePool capacity 和 Tenant quota，再在 transaction-scoped PostgreSQL advisory lock 内重读 active/Queued 行，先增量处理 Service、再按 priority/FIFO 处理 Run；锁不覆盖 Kubernetes/Docker 调用。
 
 **Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)）；Run 软删时按对象存储约定前缀一并 GC（与工作区卷 GC 同档）。
 
@@ -198,18 +198,18 @@ API mutation 在事务内 spec 写入 + `generation += 1`。TrafficPolicy 仍以
 ```
 POST .../mlruns  body: { name, poolName, unitName, ... }
    ▼ ResourcePool Informer cache lookup
-   合并 pool.spec.{nodeSelector,tolerations} + unit.{requests,limits,nodeSelector}
-   ▼ 注入 spec.scheduling.{nodeSelector,tolerations} + spec.roles[*].template.resources
+   合并 pool.spec.nodeSelector + unit.{requests,limits,nodeSelector}
+   ▼ 注入 spec.scheduling.nodeSelector + spec.roles[*].template.resources
    ▼ snapshot 到 spec jsonb（展开后即冻结，与 CR 解耦）
 ```
 
-**合并规则**（与 [cluster-manager.md §3.2](cluster-manager.md#32-展开合并规则) 一致）：`pool.nodeSelector` 全保留（Pool 优先）；`unit.nodeSelector` 仅补 pool 未声明的 key；`pool.tolerations` 直作 `spec.scheduling.tolerations`；`unit.requests/limits` 写入 `roles[*].template.resources`。
+**合并规则**（与 [cluster-manager.md §3.2](cluster-manager.md#32-展开合并规则) 一致）：`pool.nodeSelector` 全保留（Pool 优先）；`unit.nodeSelector` 仅补 pool 未声明的 key；`unit.requests/limits` 写入 `roles[*].template.resources`。ResourcePool 不再提供 tolerations。
 
 **校验失败**：pool 不存在 → `400 pool-not-found`；unit 名不在 `pool.spec.units[]` → `400 unit-not-found`；Informer 未 sync（冷启）→ `WaitForCacheSync` 通过前 `/readyz` 不就绪。
 
 **quota 名派生与 admission**：每个 `(tenant, pool)` 只有一个 quota。compute 根据 URL tenant scope 与 `poolName` 派生 `axisml-<tenant>-<pool>`，写入内部 `spec.scheduling.quota` 并随展开一并 snapshot；调用方不传 quota name。队列 admission 读取 `Tenant.spec.quotas[pool].max` 并把 active MLRun / MLService 的 durable reservation 计入用量；Kubernetes 下游仍由 axisml-scheduler 以 ElasticQuota 做最终防线，standalone 使用同一静态 Tenant quota 契约。
 
-**snapshot 语义**：pool/unit CR 仅在 Create 入口读一次，展开结果固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit。pool 删除或 unit 改值不影响已创建 workload。
+**snapshot 语义**：pool/unit CR 在 Create 入口读取并把 NodeSelector 与 unit resources 固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod。`pool.capacity` 例外：它定义池级共享预算，admission 每轮按 pool label 读取当前 ResourcePool；非空时覆盖 NodeSelector / Docker inventory 计算，省略或清空时恢复运行时计算。pool 删除或 unit 改值不影响已创建 workload 的 Pod 原语。
 
 **溯源 label**：展开后在 CR 与 PG `labels` 写 `resource.axisml.io/pool=<pool>` + `resource.axisml.io/unit=<unit>`，便于上游 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload）。
 

@@ -10,8 +10,8 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.corev_1_toleration import Corev1Toleration
     from ..models.server_resource_pool_annotations import ServerResourcePoolAnnotations
+    from ..models.server_resource_pool_capacity import ServerResourcePoolCapacity
     from ..models.server_resource_pool_labels import ServerResourcePoolLabels
     from ..models.server_resource_pool_node_selector import (
         ServerResourcePoolNodeSelector,
@@ -30,23 +30,24 @@ class ServerResourcePool:
         name (str): Pool name; the stable, immutable handle (CR metadata.name).
         units (list[ServerResourceUnit]): Resource units (allocatable shapes) offered by this pool.
         annotations (ServerResourcePoolAnnotations | Unset): User-defined annotations on the pool.
+        capacity (ServerResourcePoolCapacity | Unset): Optional pool capacity override. When omitted, capacity is
+            derived from matching runtime nodes.
         description (str | Unset): Human-readable description of the pool.
         labels (ServerResourcePoolLabels | Unset): User-defined labels on the pool.
         node_selector (ServerResourcePoolNodeSelector | Unset): Node labels that workloads scheduled into this pool must
             match.
         resource_version (str | Unset): Opaque CR resourceVersion for optimistic concurrency.
-        tolerations (list[Corev1Toleration] | Unset): Tolerations applied to workloads scheduled into this pool.
     """
 
     created_at: datetime.datetime
     name: str
     units: list[ServerResourceUnit]
     annotations: ServerResourcePoolAnnotations | Unset = UNSET
+    capacity: ServerResourcePoolCapacity | Unset = UNSET
     description: str | Unset = UNSET
     labels: ServerResourcePoolLabels | Unset = UNSET
     node_selector: ServerResourcePoolNodeSelector | Unset = UNSET
     resource_version: str | Unset = UNSET
-    tolerations: list[Corev1Toleration] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +64,10 @@ class ServerResourcePool:
         if not isinstance(self.annotations, Unset):
             annotations = self.annotations.to_dict()
 
+        capacity: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.capacity, Unset):
+            capacity = self.capacity.to_dict()
+
         description = self.description
 
         labels: dict[str, Any] | Unset = UNSET
@@ -75,13 +80,6 @@ class ServerResourcePool:
 
         resource_version = self.resource_version
 
-        tolerations: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.tolerations, Unset):
-            tolerations = []
-            for tolerations_item_data in self.tolerations:
-                tolerations_item = tolerations_item_data.to_dict()
-                tolerations.append(tolerations_item)
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -93,6 +91,8 @@ class ServerResourcePool:
         )
         if annotations is not UNSET:
             field_dict["annotations"] = annotations
+        if capacity is not UNSET:
+            field_dict["capacity"] = capacity
         if description is not UNSET:
             field_dict["description"] = description
         if labels is not UNSET:
@@ -101,17 +101,15 @@ class ServerResourcePool:
             field_dict["nodeSelector"] = node_selector
         if resource_version is not UNSET:
             field_dict["resourceVersion"] = resource_version
-        if tolerations is not UNSET:
-            field_dict["tolerations"] = tolerations
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.corev_1_toleration import Corev1Toleration
         from ..models.server_resource_pool_annotations import (
             ServerResourcePoolAnnotations,
         )
+        from ..models.server_resource_pool_capacity import ServerResourcePoolCapacity
         from ..models.server_resource_pool_labels import ServerResourcePoolLabels
         from ..models.server_resource_pool_node_selector import (
             ServerResourcePoolNodeSelector,
@@ -137,6 +135,13 @@ class ServerResourcePool:
         else:
             annotations = ServerResourcePoolAnnotations.from_dict(_annotations)
 
+        _capacity = d.pop("capacity", UNSET)
+        capacity: ServerResourcePoolCapacity | Unset
+        if isinstance(_capacity, Unset):
+            capacity = UNSET
+        else:
+            capacity = ServerResourcePoolCapacity.from_dict(_capacity)
+
         description = d.pop("description", UNSET)
 
         _labels = d.pop("labels", UNSET)
@@ -155,25 +160,16 @@ class ServerResourcePool:
 
         resource_version = d.pop("resourceVersion", UNSET)
 
-        _tolerations = d.pop("tolerations", UNSET)
-        tolerations: list[Corev1Toleration] | Unset = UNSET
-        if _tolerations is not UNSET:
-            tolerations = []
-            for tolerations_item_data in _tolerations:
-                tolerations_item = Corev1Toleration.from_dict(tolerations_item_data)
-
-                tolerations.append(tolerations_item)
-
         server_resource_pool = cls(
             created_at=created_at,
             name=name,
             units=units,
             annotations=annotations,
+            capacity=capacity,
             description=description,
             labels=labels,
             node_selector=node_selector,
             resource_version=resource_version,
-            tolerations=tolerations,
         )
 
         server_resource_pool.additional_properties = d

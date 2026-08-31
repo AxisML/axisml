@@ -97,7 +97,6 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 			Quota:         tenantv1alpha1.ElasticQuotaName(namespace, in.PoolName),
 			PriorityClass: in.PriorityClass,
 			NodeSelector:  expanded.NodeSelector,
-			Tolerations:   expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,

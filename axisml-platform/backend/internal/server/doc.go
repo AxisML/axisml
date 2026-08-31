@@ -28,9 +28,6 @@ type StringMap map[string]string
 // {"cpu": "100", "memory": "1Ti", "nvidia.com/gpu": "8"}.
 type ResourceMap map[string]string
 
-// Toleration mirrors a Kubernetes corev1.Toleration (free-form pass-through).
-type Toleration map[string]any
-
 // UUID renders as `string` with `format: uuid`.
 type UUID string
 

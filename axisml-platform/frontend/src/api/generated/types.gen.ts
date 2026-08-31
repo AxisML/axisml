@@ -1951,6 +1951,10 @@ export type ResourcePool = {
      */
     annotations?: StringMap;
     /**
+     * Optional capacity override; omitted means capacity is derived from matching runtime nodes.
+     */
+    capacity?: ResourceMap;
+    /**
      * Time the pool was created.
      */
     createdAt: string;
@@ -1979,10 +1983,6 @@ export type ResourcePool = {
      */
     resourceVersion?: string;
     /**
-     * Pod tolerations applied to workloads scheduled onto the pool.
-     */
-    tolerations?: Array<Toleration>;
-    /**
      * Resource unit shapes embedded in the pool's spec.units[].
      */
     units?: Array<ResourceUnit>;
@@ -1997,6 +1997,10 @@ export type ResourcePoolCreateRequest = {
      * User-defined annotations.
      */
     annotations?: StringMap;
+    /**
+     * Optional capacity override; omit to derive capacity from matching runtime nodes.
+     */
+    capacity?: ResourceMap;
     /**
      * Free-text pool description.
      */
@@ -2013,10 +2017,6 @@ export type ResourcePoolCreateRequest = {
      * Node labels selecting the nodes that back this pool.
      */
     nodeSelector?: StringMap;
-    /**
-     * Pod tolerations applied to workloads scheduled onto the pool.
-     */
-    tolerations?: Array<Toleration>;
     /**
      * Resource unit shapes to embed in the pool.
      */
@@ -2044,6 +2044,10 @@ export type ResourcePoolPatchRequest = {
      */
     annotations?: StringMap;
     /**
+     * Replacement capacity override; send an empty object to use runtime-derived capacity.
+     */
+    capacity?: ResourceMap;
+    /**
      * Updated free-text pool description.
      */
     description?: string;
@@ -2055,10 +2059,6 @@ export type ResourcePoolPatchRequest = {
      * Replacement node selector.
      */
     nodeSelector?: StringMap;
-    /**
-     * Replacement toleration set.
-     */
-    tolerations?: Array<Toleration>;
 };
 
 export type ResourceUnit = {
@@ -2086,10 +2086,6 @@ export type ResourceUnit = {
      * Resource requests defining the unit shape (e.g. cpu, memory, nvidia.com/gpu).
      */
     requests: ResourceMap;
-    /**
-     * Additional pod tolerations for this unit.
-     */
-    tolerations?: Array<Toleration>;
 };
 
 export type ResourceUnitCreateRequest = {
@@ -2117,10 +2113,6 @@ export type ResourceUnitCreateRequest = {
      * Resource requests defining the unit shape (e.g. cpu, memory, nvidia.com/gpu).
      */
     requests: ResourceMap;
-    /**
-     * Additional pod tolerations for this unit.
-     */
-    tolerations?: Array<Toleration>;
 };
 
 export type ResourceUnitList = {
@@ -2159,10 +2151,6 @@ export type ResourceUnitPatchRequest = {
      * Replacement resource requests.
      */
     requests?: ResourceMap;
-    /**
-     * Replacement toleration set.
-     */
-    tolerations?: Array<Toleration>;
 };
 
 export type RoleName = 'system-admin' | 'tenant-admin' | 'user';
@@ -2763,11 +2751,6 @@ export type TensorBoardRequest = {
      */
     runs?: Array<string>;
 };
-
-/**
- * Mirrors a Kubernetes corev1.Toleration.
- */
-export type Toleration = {};
 
 export type TrafficPolicy = {
     /**

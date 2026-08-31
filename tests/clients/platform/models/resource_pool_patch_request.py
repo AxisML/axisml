@@ -9,8 +9,8 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.resource_map import ResourceMap
     from ..models.string_map import StringMap
-    from ..models.toleration import Toleration
 
 
 T = TypeVar("T", bound="ResourcePoolPatchRequest")
@@ -20,28 +20,33 @@ T = TypeVar("T", bound="ResourcePoolPatchRequest")
 class ResourcePoolPatchRequest:
     """
     Example:
-        {'description': 'Updated A100 GPU resource pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone':
-            'cn-east-1'}}
+        {'capacity': {'cpu': '96', 'memory': '768Gi', 'nvidia.com/gpu': '12'}, 'description': 'Updated A100 GPU resource
+            pool.', 'nodeSelector': {'axisml.io/gpu': 'a100', 'axisml.io/zone': 'cn-east-1'}}
 
     Attributes:
         annotations (StringMap | Unset):
+        capacity (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
+            "nvidia.com/gpu": "8"}).
         description (str | Unset): Updated free-text pool description.
         labels (StringMap | Unset):
         node_selector (StringMap | Unset):
-        tolerations (list[Toleration] | Unset): Replacement toleration set.
     """
 
     annotations: StringMap | Unset = UNSET
+    capacity: ResourceMap | Unset = UNSET
     description: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
     node_selector: StringMap | Unset = UNSET
-    tolerations: list[Toleration] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         annotations: dict[str, Any] | Unset = UNSET
         if not isinstance(self.annotations, Unset):
             annotations = self.annotations.to_dict()
+
+        capacity: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.capacity, Unset):
+            capacity = self.capacity.to_dict()
 
         description = self.description
 
@@ -53,33 +58,26 @@ class ResourcePoolPatchRequest:
         if not isinstance(self.node_selector, Unset):
             node_selector = self.node_selector.to_dict()
 
-        tolerations: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.tolerations, Unset):
-            tolerations = []
-            for tolerations_item_data in self.tolerations:
-                tolerations_item = tolerations_item_data.to_dict()
-                tolerations.append(tolerations_item)
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
         if annotations is not UNSET:
             field_dict["annotations"] = annotations
+        if capacity is not UNSET:
+            field_dict["capacity"] = capacity
         if description is not UNSET:
             field_dict["description"] = description
         if labels is not UNSET:
             field_dict["labels"] = labels
         if node_selector is not UNSET:
             field_dict["nodeSelector"] = node_selector
-        if tolerations is not UNSET:
-            field_dict["tolerations"] = tolerations
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.resource_map import ResourceMap
         from ..models.string_map import StringMap
-        from ..models.toleration import Toleration
 
         d = dict(src_dict)
         _annotations = d.pop("annotations", UNSET)
@@ -88,6 +86,13 @@ class ResourcePoolPatchRequest:
             annotations = UNSET
         else:
             annotations = StringMap.from_dict(_annotations)
+
+        _capacity = d.pop("capacity", UNSET)
+        capacity: ResourceMap | Unset
+        if isinstance(_capacity, Unset):
+            capacity = UNSET
+        else:
+            capacity = ResourceMap.from_dict(_capacity)
 
         description = d.pop("description", UNSET)
 
@@ -105,21 +110,12 @@ class ResourcePoolPatchRequest:
         else:
             node_selector = StringMap.from_dict(_node_selector)
 
-        _tolerations = d.pop("tolerations", UNSET)
-        tolerations: list[Toleration] | Unset = UNSET
-        if _tolerations is not UNSET:
-            tolerations = []
-            for tolerations_item_data in _tolerations:
-                tolerations_item = Toleration.from_dict(tolerations_item_data)
-
-                tolerations.append(tolerations_item)
-
         resource_pool_patch_request = cls(
             annotations=annotations,
+            capacity=capacity,
             description=description,
             labels=labels,
             node_selector=node_selector,
-            tolerations=tolerations,
         )
 
         resource_pool_patch_request.additional_properties = d

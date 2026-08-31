@@ -12,11 +12,6 @@ import (
 )
 
 func TestExpand_NodeSelectorMerge(t *testing.T) {
-	tolerations := []corev1.Toleration{{
-		Key:      "gpu",
-		Operator: corev1.TolerationOpExists,
-		Effect:   corev1.TaintEffectNoSchedule,
-	}}
 	requests := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}
 	limits := corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("4Gi")}
 
@@ -58,7 +53,6 @@ func TestExpand_NodeSelectorMerge(t *testing.T) {
 			pool := &cmv1alpha1.ResourcePool{
 				Spec: cmv1alpha1.ResourcePoolSpec{
 					NodeSelector: tt.poolSel,
-					Tolerations:  tolerations,
 				},
 			}
 			unit := &cmv1alpha1.ResourceUnit{
@@ -75,8 +69,6 @@ func TestExpand_NodeSelectorMerge(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.wantSel, got.NodeSelector)
 			}
-			// Tolerations pass through verbatim from the pool.
-			assert.Equal(t, tolerations, got.Tolerations)
 			// Requests/limits copied straight off the unit.
 			assert.Equal(t, requests, got.Requests)
 			assert.Equal(t, limits, got.Limits)

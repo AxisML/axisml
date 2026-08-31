@@ -12,7 +12,6 @@ func exResourcePool(g *openapigen.Generator) {
 		"requests":     obj{"cpu": "16", "memory": "128Gi", "nvidia.com/gpu": "2"},
 		"limits":       obj{"cpu": "16", "memory": "128Gi", "nvidia.com/gpu": "2"},
 		"nodeSelector": obj{"gpu.product": "A100", "arch": "amd64"},
-		"tolerations":  []any{obj{"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}},
 		"annotations":  obj{"axisml.io/created-by": "admin", "axisml.io/cost-center": "ml-platform"},
 	}
 	g.SetExample("ResourceUnit", unit)
@@ -36,7 +35,7 @@ func exResourcePool(g *openapigen.Generator) {
 		"name":            "gpu-a100",
 		"description":     "A100 GPU resource pool.",
 		"nodeSelector":    obj{"axisml.io/gpu": "a100"},
-		"tolerations":     []any{obj{"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}},
+		"capacity":        obj{"cpu": "64", "memory": "512Gi", "nvidia.com/gpu": "8"},
 		"units":           []any{unit},
 		"labels":          obj{"tier": "gpu"},
 		"annotations":     obj{"axisml.io/created-by": "admin", "axisml.io/cost-center": "ml-platform"},
@@ -55,6 +54,7 @@ func exResourcePool(g *openapigen.Generator) {
 		"name":         "gpu-a100",
 		"description":  "A100 GPU resource pool.",
 		"nodeSelector": obj{"axisml.io/gpu": "a100"},
+		"capacity":     obj{"cpu": "64", "memory": "512Gi", "nvidia.com/gpu": "8"},
 		"units": []any{obj{
 			"name":        "a100-2x",
 			"description": "2x A100 GPU compute unit.",
@@ -66,5 +66,6 @@ func exResourcePool(g *openapigen.Generator) {
 	g.SetExample("ResourcePoolPatchRequest", obj{
 		"description":  "Updated A100 GPU resource pool.",
 		"nodeSelector": obj{"axisml.io/gpu": "a100", "axisml.io/zone": "cn-east-1"},
+		"capacity":     obj{"cpu": "96", "memory": "768Gi", "nvidia.com/gpu": "12"},
 	})
 }
