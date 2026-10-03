@@ -75,7 +75,7 @@ make image-load-minikube # build and load into the local minikube node
 make clean               # remove build artifacts
 ```
 
-`IMAGE_TAG` defaults to `0.1.0`. The top-level `Makefile` overrides it from
+`IMAGE_TAG` defaults to `0.2.0`. The top-level `Makefile` overrides it from
 `axisml-system/deploy/helm/Chart.yaml` `appVersion` so locally-built images
 match what Helm will pull.
 

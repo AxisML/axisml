@@ -29,7 +29,7 @@ Infra exposes standard protocols and does **not** embed a tenant model — isola
 ## Layout
 
 ```
-deploy/helm/                Umbrella chart "axisml-infra" (version 0.1.0)
+deploy/helm/                Umbrella chart "axisml-infra" (version 0.2.0)
   ├── Chart.yaml            Sub-chart dependencies (gateway-helm, rustfs, zot,
   │                         gpu-operator, axisml-scheduler, kube-prometheus-stack)
   ├── values.yaml           Capability toggles + shared DB/cache credentials

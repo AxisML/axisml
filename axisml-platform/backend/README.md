@@ -61,11 +61,11 @@ internal/
 make help            # list all targets
 make / make build    # compile bin/platform-backend
 make test            # unit tests
-make image           # docker build -> ghcr.io/axisml/axisml-platform-backend:0.1.0
+make image           # docker build -> ghcr.io/axisml/axisml-platform-backend:0.2.0
 make clean           # remove build artifacts
 ```
 
-`IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
+`IMAGE_TAG` defaults to `0.2.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
 
 ## Deployment
 

@@ -36,14 +36,14 @@ deploy/Dockerfile     Container image build (to be added)
 make help            # list all targets
 make / make build    # compile bin/compute-service
 make test            # unit tests
-make image           # docker build -> ghcr.io/axisml/axisml-compute-service:0.1.0
+make image           # docker build -> ghcr.io/axisml/axisml-compute-service:0.2.0
 make openapi         # regenerate axisml-system/docs/apis/compute-service.yaml
 make clean           # remove build artifacts
 ```
 
 The OpenAPI 3.0 description of the HTTP API lives at [`axisml-system/docs/apis/compute-service.yaml`](../docs/apis/compute-service.yaml). It is generated from the same Go request/response structs the runtime handlers use; regenerate via `make openapi` after touching any handler signature, route, or `*Input` / `View` struct.
 
-`IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
+`IMAGE_TAG` defaults to `0.2.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
 
 ## Deployment
 

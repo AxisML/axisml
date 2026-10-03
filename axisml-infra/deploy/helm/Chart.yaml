@@ -2,8 +2,8 @@ apiVersion: v2
 name: axisml-infra
 description: AxisML infrastructure - gateway, object storage, GPU operator, batch scheduler, monitoring
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 
 keywords:
   - machine-learning
