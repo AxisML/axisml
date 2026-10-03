@@ -3047,7 +3047,7 @@ info:
     the bare namespace string (= tenant identifier) supplied by Platform. RFC7807
     Problem responses on errors.
   title: AxisML Compute Service API
-  version: 0.1.0
+  version: 0.2.0
 openapi: 3.0.3
 paths:
   /api/v1/namespaces/{namespace}/mlruns:
