@@ -143,7 +143,7 @@ gpu-operator:
 axismlScheduler:
   enabled: true
   image:
-    registry: ""
+    registry: ghcr.io
     repository: axisml/axisml-scheduler
     # tag defaults to the chart's appVersion; the layer Makefile injects IMAGE_TAG.
     tag: ""

@@ -20,7 +20,7 @@ HELM_EXTRA_ARGS ?=
 # Image tag authority mirrors the System chart's appVersion so infra images line
 # up with what the charts pull, even when this layer is built standalone.
 IMAGE_TAG       ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(CURDIR)/../axisml-system/deploy/helm/Chart.yaml)
-IMAGE_REGISTRY  ?=
+IMAGE_REGISTRY  ?= ghcr.io/
 REPO_ROOT       := $(CURDIR)/..
 SCHED_DIR       := $(CURDIR)/axisml-scheduler
 SCHED_IMAGE     := $(IMAGE_REGISTRY)axisml/axisml-scheduler

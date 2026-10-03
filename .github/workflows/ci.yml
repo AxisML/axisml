@@ -26,7 +26,7 @@ concurrency:
 #   test         — unit tests + coverage across every component
 #   integration  — L1 envtest / testcontainers across every component
 #   helm-lint    — Helm chart validation
-#   image        — per-component image build (genuinely parallel work, kept as a matrix; main-only)
+#   image        — per-component multi-arch image build + push to GHCR (kept as a matrix; `v*` tags only)
 
 jobs:
   lint:
@@ -250,6 +250,7 @@ jobs:
           - { name: artifacts,        image: axisml-artifact-hub,        context: ., dockerfile: axisml-system/artifact-hub/Dockerfile }
           - { name: standalone,       image: axisml-standalone,          context: ., dockerfile: axisml-standalone/Dockerfile }
           - { name: platform,         image: axisml-platform,            context: ., dockerfile: axisml-platform/Dockerfile }
+          - { name: scheduler,        image: axisml-scheduler,           context: ., dockerfile: axisml-infra/axisml-scheduler/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
