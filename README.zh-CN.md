@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>面向机器学习全生命周期的 Kubernetes 原生平台。</strong><br>
-  分布式训练 · 弹性推理 · 多租户配额调度 · 制品管理 —— 统一在同一个控制平面上。
+  <strong>面向共享 GPU 团队的开源机器学习平台。</strong><br>
+  工作区 · 分布式训练 · 在线推理 · 模型与镜像仓库 · 多租户配额 —— 一个控制平面，可运行在 Kubernetes 或单台 Docker 主机上。
 </p>
 
 <p align="center">
@@ -16,12 +16,12 @@
 </p>
 
 <p align="center">
-  <a href="#为什么选择-axisml">为什么选择 AxisML</a> ·
-  <a href="#架构">架构</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#组件">组件</a> ·
-  <a href="#开发">开发</a> ·
-  <a href="#文档">文档</a>
+  <a href="#-亮点">亮点</a> ·
+  <a href="#-快速开始">快速开始</a> ·
+  <a href="#-功能">功能</a> ·
+  <a href="#-架构">架构</a> ·
+  <a href="#-文档">文档</a> ·
+  <a href="#-参与贡献">参与贡献</a>
 </p>
 
 <p align="center">
@@ -30,144 +30,163 @@
 
 ---
 
-**AxisML** 是面向机器学习全生命周期的 Kubernetes 原生平台，在统一控制平面下
-管理开发、分布式训练、制品、在线推理与运维。它以清晰的租户/配额模型和自研的
-弹性调度器 `axisml-scheduler`（基于
-[scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)）帮助团队
-共享 GPU 资源，并确保所有 workload 都经过统一的配额调度路径。
+**AxisML** 为机器学习团队提供在共享 GPU 基础设施上开发、训练、版本化和部署模型的
+统一入口。平台管理员把集群划分为资源池和租户配额；算法工程师在 Web 控制台中使用
+工作区、实验、任务和推理服务 —— 所有 workload 都经过同一条强制配额的调度路径，
+任何团队都无法挤占其他团队的资源。
 
 <p align="center">
   <img src="docs/screenshots/zh-CN/dashboard.png" alt="AxisML 控制台" width="860">
 </p>
 
 > [!WARNING]
-> **AxisML 正处于早期、活跃的开发阶段。** API、CRD 与 Helm values 会频繁变更，
-> 且不另行通知。尚不建议用于生产环境 —— 提交之间可能出现破坏性变更。
-> 详见[项目状态](#项目状态)。
+> **AxisML 正处于早期、活跃的开发阶段。** API、CRD 与 Helm values 可能在提交之间
+> 不经通知地变更。适合评估与参与贡献，尚不建议用于生产环境。
 
-## 为什么选择 AxisML
+## ✨ 亮点
 
-- **🏢 真正落地的多租户隔离。** 每个租户对应一个隔离的 Namespace 与一个 `ElasticQuota`。*不存在*绕过配额的调度路径 —— 每个工作负载 Pod 在构造上都被固定到 `axisml-scheduler`。
-- **⚡ 弹性 GPU 共享。** ElasticQuota 让空闲算力流向需要它的人，并在资源争用时回收 —— 在不做静态切分的前提下实现高利用率。
-- **🧩 可插拔的训练与推理后端。** 同一套 `MLRun`/`MLService` API 可分发到 `native`（Job / Deployment / StatefulSet + gang 调度的 `PodGroup`）、`kubeflow-trainer`（PyTorchJob / TFJob / MPIJob）、`kserve`（`InferenceService`）或 `custom`（自定义 GVK）—— 而无需改动面向用户的契约。
-- **📦 一等公民的制品管理。** 模型、数据集、镜像与评估报告以 `(namespace, kind, name, version)` 寻址，底层由 OCI（zot）与 S3（RustFS）支撑。客户端直接从存储流式读写字节 —— 注册中心从不代理大块二进制数据。
-- **🎛️ 声明式、分层式交付。** 三个 Helm chart（infra → system → platform），以 CRD 作为集群层面的事实来源、PostgreSQL 作为业务层面的权威来源 —— 二者之间持续协调。
-- **🔬 为可测试而生。** 单元测试 + envtest/testcontainers 集成测试（外加一套手动的真实集群 e2e 套件）、在 CI 中校验的生成式 OpenAPI 规范，以及让 monorepo 保持规范的 pre-commit/pre-push 钩子。
+| | |
+| --- | --- |
+| 🏢 **真正落地的多租户隔离** | 每个租户拥有独立的作用域和按资源池划分的配额。所有 workload Pod 在构造时即绑定 `axisml-scheduler` —— **不存在绕过配额的调度路径**。 |
+| ⚡ **弹性 GPU 共享** | 基于 [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins) 的 `ElasticQuota`：空闲算力可借给有需要的租户，资源紧张时再回收 —— 无需静态切分即可获得高利用率。分布式任务通过 `PodGroup` 实现 gang 调度。 |
+| 🧩 **一套 API，可插拔引擎** | 统一的 `MLRun` / `MLService` 契约可分发到原生 Kubernetes（Job、Deployment、StatefulSet）、**Kubeflow Trainer**（PyTorchJob / TFJob / MPIJob）、**KServe** 或任意自定义 CRD —— 切换后端无需改变用户提交方式。 |
+| 🚦 **开箱即用的金丝雀与蓝绿发布** | `MLTrafficPolicy` 在多个模型服务前提供一个稳定入口，并通过 Envoy Gateway 按权重分发流量。 |
+| 📦 **内置制品仓库** | 模型、镜像和数据集按租户进行版本管理，存储于 OCI（zot）与 S3（RustFS）。客户端直连存储读写，仓库从不代理大文件。 |
+| 🐳 **Kubernetes 或单台 Docker 主机** | 同一产品提供两种部署形态：面向集群的三个 Helm chart，或以 Docker 容器运行 workload 的 Compose 栈。UI、API、测试套件完全相同。 |
 
-## 架构
+## 🚀 快速开始
 
-AxisML 分为三个可部署层，每层分别通过 Helm chart 交付，并按
-**infra → system → platform** 自底向上安装。只有 Platform 层对外暴露；其下层均为
-内部服务，并信任 Platform 透传的身份。
+### 方式一 —— 单机体验（Standalone，约 5 分钟）
+
+只需要 **Docker** 和 **make**。
+
+```bash
+git clone https://github.com/AxisML/axisml.git && cd axisml
+make standalone-up        # 构建镜像并启动 Compose 栈
+```
+
+打开 **http://localhost:8080**，使用 `admin` / `admin` 登录（首次登录会要求修改密码）。
+内部 System API 监听在 `:8090`。
+
+```bash
+make standalone-down              # 停止（CLEAN=1 同时删除数据卷）
+make standalone-delete            # 清除整个栈及所有 AxisML 托管的容器 / 数据卷
+```
+
+可选组件：`make standalone-up PROFILES="storage gateway"` 会额外启动 RustFS（S3）
+和用于服务路由的 Envoy Gateway。GPU 配置与运行时限制见
+[Standalone 指南](axisml-standalone/)。
+
+### 方式二 —— 部署到 Kubernetes
+
+> **前置依赖：** Docker、[minikube](https://minikube.sigs.k8s.io/)（或任意集群）、
+> `kubectl` 与 [Helm](https://helm.sh/)。
+
+```bash
+make cluster-up           # 本地 minikube 集群（profile "axisml"）；已有集群可跳过
+make helm-install         # 按 infra → system → platform 顺序安装三个 chart
+make helm-uninstall       # 按相反顺序卸载
+```
+
+values 配置、镜像 tag、分层安装与生产注意事项见[部署手册](docs/deployment.md)。
+
+### Kubernetes 与 Standalone 对比
+
+| | Kubernetes | Standalone |
+| --- | --- | --- |
+| 适用场景 | 多节点共享 GPU 集群 | 评估、开发机、单台 GPU 服务器 |
+| 交付方式 | 3 个 Helm chart（infra / system / platform） | 1 个 Docker Compose 项目 |
+| Workload 运行方式 | 经 `axisml-scheduler` + ElasticQuota 调度的 Pod | 内置配额准入的 Docker 容器 |
+| 训练 / 推理引擎 | native、Kubeflow Trainer、KServe、custom | native（job / deployment / statefulset） |
+| UI、API、数据模型 | ✅ 完全一致 | ✅ 完全一致 |
+
+## 🧭 功能
+
+| 领域 | 能力 |
+| --- | --- |
+| **训练** | 工作区（交互式开发环境）、带运行历史与 TensorBoard 的实验、可复用的任务模板、优先级排队、分布式训练 |
+| **推理服务** | 支持部分上线与扩缩容的在线推理服务，按权重分流的金丝雀 / 蓝绿流量策略 |
+| **资产** | 版本化的模型与容器镜像仓库，支持租户私有或公开可见 |
+| **系统管理** | 租户与成员（system-admin / tenant-admin / user 三级角色）、资源池与资源单元、按资源池配额、数据卷、集群仪表盘 |
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/zh-CN/experiment-detail.png" alt="实验详情"><p align="center"><sub>实验与运行</sub></p></td>
+    <td><img src="docs/screenshots/zh-CN/services.png" alt="推理服务"><p align="center"><sub>推理服务</sub></p></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/zh-CN/traffic-detail.png" alt="流量策略"><p align="center"><sub>流量分发</sub></p></td>
+    <td><img src="docs/screenshots/zh-CN/resource-pools.png" alt="资源池"><p align="center"><sub>资源池与配额</sub></p></td>
+  </tr>
+</table>
+
+## 🏗 架构
+
+AxisML 分为三层。只有 **Platform** 层对用户暴露，其下各层均为内部服务。
 
 <p align="center">
   <img src="docs/drawio/architecture.drawio.png" alt="AxisML 架构" width="860">
 </p>
 
-
-**关键不变量**
-
-- **`namespace` 即租户标识**，贯穿 compute-service 与 artifact-hub —— 边缘处无需额外的租户查找。
-- **PostgreSQL 是权威来源，CR 是派生产物。** compute-service 拥有 `tenants` 表，并据此持续协调集群级的 `Tenant` CR；算子读取 `spec`，只写 `status`。
-- **算子之间互不感知。** tenant-operator 从不读取 `MLRun`/`MLService`；compute-operator 从不读取 `Tenant`/`ElasticQuota`（它只是透传配额名称）。
-- **无配额旁路。** 每个由后端派生的 Pod 都设置 `schedulerName: axisml-scheduler` 并携带 `scheduling.axisml.io/quota` 标签 —— 不存在绕过 ElasticQuota 的调度路径。
-- **只有 Platform 对外暴露。** System 服务只接受内部调用，并信任 `X-Axisml-User` 身份头。
-
-完整图景见[高层设计](docs/high_level_design.md)，各层细节见对应 README —— [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/)。
-
-## 快速开始
-
-> **前置条件：** Docker Desktop、[minikube](https://minikube.sigs.k8s.io/)、
-> `kubectl`、[Helm](https://helm.sh/) 与 Go 1.26+。
-
-```bash
-# 1. 启动本地集群（minikube profile "axisml"）
-make cluster-up
-make cluster-status
-
-# 2. 安装 AxisML —— 三个 chart 按依赖顺序（infra → system → platform）
-make helm-install                 # 按顺序安装/升级全部三个
-make helm-template                # 在本地渲染所有 chart（dry run）
-make helm-uninstall               # 卸载，platform → system → infra
-#   也可以逐层操作：
-make -C axisml-infra helm-install # 同理：-C axisml-system / -C axisml-platform
-
-# 3. 运行测试
-make test                         # 跨所有组件的单元测试（无需集群）
-make integration-test             # envtest + testcontainers 集成测试（需要 Docker）
-
-make help                         # 列出所有可用的 target
-```
-
-如需在单台 Docker 主机上进行轻量本地体验，可以使用可选的 Standalone 发行形态：
-
-```bash
-make standalone-up               # Platform :8080，System :8090
-make standalone-down
-```
-
-完整流程 —— 环境搭建、构建/测试，以及各测试分层（单元 / 集成 / `tests/` 下的黑盒 pytest 套件）—— 详见[开发工作流](docs/development_workflow.md)。
-
-## 组件
-
-AxisML 是按三个部署层组织的多 Go module monorepo。可选的 Standalone 发行形态
-独立打包，用于单机部署。
-
-| 组件 | 分层 | 职责 |
+| 层 | 组件 | 职责 |
 | --- | --- | --- |
-| **[platform](axisml-platform/)** | Platform | Go BFF + React 前端。唯一对外暴露的入口；持有 用户 → 租户视图 的映射，并编排 system 层服务。_（backend 目前是仅生成契约的壳，产出 `axisml-platform/docs/apis/platform.yaml`；前端已搭好脚手架）_ |
-| **[cluster-manager](axisml-system/cluster-manager/)** | System | 在集群级 `ResourcePool` CRD（含内联 `spec.units[]`）之上的无状态 REST 壳。无 PG、无 reconciler —— Kubernetes etcd 是事实来源。 |
-| **[compute-service](axisml-system/compute-service/)** | System | **Tenant / Quota / Job / Service / Workspace** 的 REST 服务与业务权威，以 PG 为唯一事实来源。派生出 `Tenant` / `MLRun` / `MLService` CR 并回读其状态。 |
-| **[tenant-operator](axisml-system/tenant-operator/)** | System | 将 `Tenant` CR 协调为 Namespace、`ElasticQuota`，以及每租户的 Secret / ConfigMap / ServiceAccount / RBAC。 |
-| **[compute-operator](axisml-system/compute-operator/)** | System | 通过 dispatcher + handler 模型协调 `MLRun` / `MLService` / `MLTrafficPolicy`（`native`、`kubeflow-trainer`、`kserve`、`custom`）。所有派生 Pod 都经由 `axisml-scheduler`。 |
-| **[artifact-hub](axisml-system/artifact-hub/)** | System | 模型、数据集、镜像与评估报告的注册中心，以 `(namespace, kind, name, version)` 寻址。PG 存元数据；字节存于 zot（OCI）与 RustFS（S3）。 |
-| **[axisml-standalone](axisml-standalone/)** | 发行形态 | 顶层单机模块，包含三个 REST 模块的 composition root、Docker runtime 与 Compose 资产。 |
+| **Platform** | [backend + frontend](axisml-platform/) | 唯一对外入口：React 控制台、REST API、认证与 RBAC、租户视图，以及任务 / 实验 / 模型定义。 |
+| **System** | [cluster-manager](axisml-system/cluster-manager/) · [compute-service](axisml-system/compute-service/) · [artifact-hub](axisml-system/artifact-hub/) · [tenant-operator](axisml-system/tenant-operator/) · [compute-operator](axisml-system/compute-operator/) | 控制面：资源池与租户、workload 准入与生命周期、制品元数据，以及把 `Tenant` / `MLRun` / `MLService` / `MLTrafficPolicy` CR 落地为实际资源的 operator。 |
+| **Infra** | [axisml-infra](axisml-infra/) | PostgreSQL、`axisml-scheduler`、Envoy Gateway、zot（OCI）、RustFS（S3）、NVIDIA GPU Operator、kube-prometheus-stack。 |
 
-**基础设施**（[`axisml-infra`](axisml-infra/) chart）：Envoy Gateway、RustFS、zot、axisml-scheduler、NVIDIA GPU Operator、kube-prometheus-stack 以及 PostgreSQL。详见 [infra 设计](axisml-infra/docs/system_design/overview.md)。
+贯穿全局的设计原则：
 
-## 开发
+- **不可绕过配额。** 所有 backend 派生的 Pod 都设置 `schedulerName: axisml-scheduler` 并带有 `scheduling.axisml.io/quota` label。
+- **PostgreSQL 是权威，CR 是派生。** 服务持久化期望状态并据此调谐 CR；operator 只读 `spec`、只写 `status`。
+- **Operator 松耦合。** `tenant-operator` 与 `compute-operator` 互不读取对方的资源。
+- **部署形态不是产品分叉。** Kubernetes 与 Standalone 只替换资源 provider 和运行时；领域逻辑、OpenAPI 与 UI 只有一份。
+
+完整设计见[高层设计](docs/high_level_design.md)。
+
+## 📚 文档
+
+| 主题 | 位置 |
+| --- | --- |
+| 系统概览 —— 核心概念、不变量、功能矩阵 | [高层设计](docs/high_level_design.md) |
+| 安装与配置 | [部署手册](docs/deployment.md) · [配置参考](docs/configuration.md) · [Standalone](axisml-standalone/) |
+| 分层设计 | [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/) |
+| REST API（生成的 OpenAPI） | [Platform](axisml-platform/docs/apis) · [System](axisml-system/docs/apis) · [Standalone](axisml-standalone/docs/apis) |
+| 构建、测试与贡献 | [开发流程](docs/development_workflow.md) · [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 前端设计系统 | [DESIGN.md](DESIGN.md) |
+
+## 🛠 开发
+
+AxisML 是一个 Go 1.26 monorepo（每个组件为独立 module），前端为 React + TypeScript，
+黑盒测试套件基于 Python/pytest。
 
 ```bash
-make build               # 构建所有组件
-make fmt vet             # 每次提交前
-make install-hooks       # pre-commit + pre-push 钩子（pre-commit 框架）
-make docs-gen            # 重新生成 OpenAPI 规范与配置文档
-make docs-test           # 校验生成文档与 Go 源码一致（CI 守卫）
-make coverage            # 单元 + 集成覆盖率，合并到 coverage/coverage.out
+make help                 # 列出所有 target
+make build                # 构建全部 Go 组件
+make test                 # 单元测试（无需集群）
+make integration-test     # envtest + testcontainers 集成测试（需要 Docker）
+make docs-gen             # 修改 DTO 后重新生成 OpenAPI 规格与配置文档
+make install-hooks        # 安装 pre-commit / pre-push hooks
 ```
 
-不了解就会踩坑的点：
+环境搭建、测试分层以及 [`tests/`](tests/) 中的黑盒 API / UI 测试套件，见
+[开发流程](docs/development_workflow.md)。
 
-- **System 组件是独立 Go module。** 公共 APIs、五个可部署组件、集成测试与生成
-  工具保持明确的 module 边界；使用 `make` target 遍历所有验证边界。
-- 单机发行形态的代码与部署资产位于 `axisml-standalone/`。
-- **生成文档不得手工修改。** 修改 handler 签名、DTO 或配置结构后，提交前运行 `make docs-gen`；`make docs-test` 是仓库级一致性检查。
-- **Conventional Commits，按层加 scope** —— `feat(infra|system|platform)` 外加跨切面的 `build` / `repo` / `deps`；由 commitlint 在提交与 PR 标题上强制执行。
-- **算子引入的外部 CRD**（scheduler-plugins 的 `ElasticQuota` 与 `PodGroup`……）已 vendored 到 `axisml-system/test/crds/external/`。
+## 🗺 项目状态
 
-架构说明与坑点见 [CLAUDE.md](CLAUDE.md)；贡献者约定见 [AGENTS.md](AGENTS.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md)。
+AxisML 正处于**早期、活跃的开发阶段** —— 设计文档领先于代码实现。
+路线图包括：控制台中的数据集管理、模型评估、模型定制以及 OIDC 登录。当前设计
+覆盖情况见[功能矩阵](docs/high_level_design.md)。
 
-## 文档
+## 🤝 参与贡献
 
-- **[高层设计](docs/high_level_design.md)** —— 从这里开始（核心概念、特性矩阵、完整架构）
-- **按层** —— [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/)
-- **可选单机部署** —— [Standalone](axisml-standalone/)
-- **跨切面** —— [部署手册](docs/deployment.md) · [开发工作流](docs/development_workflow.md)（各层 DB schema 位于各自的 `<layer>/docs/system_design/database.md`）
-- **OpenAPI 规范** —— 各归属目录 `docs/apis/` 下生成的 REST 契约（[system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis) · [standalone](axisml-standalone/docs/apis)）
-- **前端设计体系** —— [DESIGN.md](DESIGN.md)（Vercel Geist 风格）
+欢迎任何形式的贡献 —— 问题反馈、文档或代码。
 
-## 项目状态
+1. 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [AGENTS.md](AGENTS.md)（Conventional Commits，scope 为 `infra` / `system` / `platform`）。
+2. 每个 clone 执行一次 `make install-hooks`。
+3. 确保 `make test` 通过；新增行为需同时提供集成测试 happy-path。
 
-AxisML 正处于**早期、活跃的开发阶段**。系统设计先于代码 —— 当代码与设计文档不一致时，设计文档通常代表预期目标。当前的设计覆盖范围见[特性矩阵](docs/high_level_design.md)。
+请遵守[行为准则](CODE_OF_CONDUCT.md)，安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
-## 贡献
+## 📄 许可证
 
-欢迎贡献！在提交 PR 之前：
-
-1. 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [AGENTS.md](AGENTS.md)，了解提交规范（Conventional Commits）与 PR 期望。
-2. 每个 clone 执行一次 `make install-hooks` —— 钩子会强制执行格式化、vet 以及文档/规范同步。
-3. 确保 `make test` 通过；为新行为在单元测试之外补充一条集成 happy-path。
-
-## 许可证
-
-AxisML 采用 [Apache License 2.0](LICENSE) 许可。提交 Pull Request 即表示你同意你的贡献依据 Apache 2.0 授权（依据该许可证第 5 节）。
+AxisML 基于 [Apache License 2.0](LICENSE) 授权。
